@@ -1,0 +1,8 @@
+numpy
+pandas
+tqdm
+openpyxl
+yfinance
+easyplot-toolbox
+scikit-learn 
+ipykernel
