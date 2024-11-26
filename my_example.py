@@ -50,10 +50,7 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     # Verifica se as colunas necessárias estão presentes no DataFrame
     if 'spt' not in df.columns or 'solo' not in df.columns:
         raise KeyError("As colunas 'spt' e 'solo' devem estar presentes no DataFrame.")
-    
-    # Converte os valores da coluna 'solo' para minúsculas
-    df['solo'] = df['solo'].str.lower()
-    
+
     # Calcula a tensão admissível com base no tipo de solo
     condicoes = [
         df['solo'] == 'pedregulho',
@@ -65,11 +62,12 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
         df['spt'] / 40 * 1E3,
         df['spt'] / 50 * 1E3,
     ]
-    
+
     # Cria a nova coluna com np.select
     df['sigma_adm (kPa)'] = np.select(condicoes, values, default=np.nan)
-    
+
     return df
+
 
      
 def obj_ic_fundacoes(x, none_variable):
@@ -110,7 +108,49 @@ def obj_ic_fundacoes(x, none_variable):
 
     return of
 
+def data_comb(df: pd.DataFrame) -> list:
+    """
+    Gera combinações 3 a 3 das colunas de uma planilha com header duplo,
+    identificando as combinações automaticamente a partir do DataFrame,
+    e retorna uma lista de dicionários no formato desejado, descartando
+    colunas que não contêm 'combinação' no nome e valores nulos.
 
+    Parâmetros:
+    - df: DataFrame carregado com header duplo.
+
+    Retorno:
+    - Uma lista de dicionários contendo os valores das combinações, sem valores nulos.
+    """
+    # Filtrar as colunas que contêm a palavra "combinação" no nome
+    df_filtered = df.loc[:, df.columns.get_level_values(0).str.contains("combinação", case=False)]
+
+    # Identificar combinações automaticamente a partir do header
+    combinacoes_disponiveis = {}
+    for nome_combinacao, coluna in df_filtered.columns:
+        if nome_combinacao not in combinacoes_disponiveis:
+            combinacoes_disponiveis[nome_combinacao] = []
+        combinacoes_disponiveis[nome_combinacao].append(coluna)
+
+    # Filtrar apenas combinações que possuem todas as colunas ['Fz', 'Mx', 'My']
+    combinacoes_filtradas = {
+        nome: colunas for nome, colunas in combinacoes_disponiveis.items()
+        if all(campo in colunas for campo in ['Fz', 'Mx', 'My'])
+    }
+
+    lista_resultados = []
+    for _, row in df.iterrows():
+        resultado_linha = {}
+        for nome_combinacao, colunas_desejadas in combinacoes_filtradas.items():
+            colunas_multiindex = [(nome_combinacao, coluna) for coluna in ['Fz', 'Mx', 'My']]
+            # Filtrar os valores nulos (NaN) antes de adicionar à lista de resultados
+            valores = [row[coluna] for coluna in colunas_multiindex if pd.notnull(row[coluna])]
+            if valores:  # Só adiciona se houver valores não nulos
+                resultado_linha[nome_combinacao] = valores
+        
+        if resultado_linha:  # Só adiciona linhas não vazias
+            lista_resultados.append(resultado_linha)
+
+    return lista_resultados
 
 if __name__ == '__main__':
     import pandas as pd
