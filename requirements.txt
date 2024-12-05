@@ -7,10 +7,5 @@ easyplot-toolbox
 scikit-learn 
 ipykernel
 ezdxf
-<<<<<<< HEAD
 matplotlib
 streamlit
-=======
-matplotlib.pyplot
-matplotlib.patches
->>>>>>> 3773018e7bf34a2c1428d1aba487cf453850ac91
