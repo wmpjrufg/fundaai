@@ -47,21 +47,29 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame: DataFrame com a coluna 'sigma_adm (kPa)' calculada.
     """
-    # Verifica se as colunas necessárias estão presentes no DataFrame
-    if 'spt' not in df.columns or 'solo' not in df.columns:
-        raise KeyError("As colunas 'spt' e 'solo' devem estar presentes no DataFrame.")
+    # Converta a coluna 'solo' para minúsculas
+    solo_column = df[('solo', 'Unnamed: 2_level_1')]  
+    solo_column = solo_column.str.lower()
+
+    # Verifique se a coluna 'spt' existe para evitar erro
+    if 'spt' not in df.columns:
+        raise KeyError("A coluna 'spt' deve estar presente no DataFrame.")
 
     # Calcula a tensão admissível com base no tipo de solo
     condicoes = [
-        df['solo'] == 'pedregulho',
-        df['solo'] == 'areia',
-        (df['solo'] == 'silte') | (df['solo'] == 'argila'),
+        solo_column == 'pedregulho',
+        solo_column == 'areia',
+        (solo_column == 'silte') | (solo_column == 'argila'),
     ]
     values = [
-        df['spt'] / 30 * 1E3,
-        df['spt'] / 40 * 1E3,
-        df['spt'] / 50 * 1E3,
+        df[('spt', 'Unnamed: 1_level_1')] / 30 * 1E3,  # Acessa a coluna 'spt' corretamente
+        df[('spt', 'Unnamed: 1_level_1')] / 40 * 1E3,
+        df[('spt', 'Unnamed: 1_level_1')] / 50 * 1E3,
     ]
+
+    # Assegure que as condições e os valores sejam arrays 1D
+    condicoes = [condicionamento.values for condicionamento in condicoes]
+    values = [valor.values for valor in values]
 
     # Cria a nova coluna com np.select
     df['sigma_adm (kPa)'] = np.select(condicoes, values, default=np.nan)
@@ -69,7 +77,6 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-     
 def obj_ic_fundacoes(x, none_variable):
     """
     Calcula a função objetivo para o problema de fundações.

@@ -6,3 +6,6 @@ yfinance
 easyplot-toolbox
 scikit-learn 
 ipykernel
+ezdxf
+matplotlib.pyplot
+matplotlib.patches
