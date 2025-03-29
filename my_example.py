@@ -76,6 +76,50 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+#Restricao de tensão
+def restricao_tensao(x, none_variable):
+    # Variáveis de projeto
+    h_x = x[0]
+    h_y = x[1]
+    comb = none_variable['combinações']
+    sigma_lim = none_variable['sigma_adm (kPa)']
+
+    # Verificação da restrição
+    g = []
+    for key, values in comb.items():
+        f_z = values[0]
+        m_x = values[1]
+        m_y = values[2]
+        sigma_sd_max, sigma_sd_min = calcular_sigma_max(f_z, m_x, m_y, h_x, h_y)  # Retorna um tuple
+        g.append(sigma_sd_max / sigma_lim - 1)  # Usa o valor máximo como o mais crítico
+
+    # Função objetivo e restrições
+    g1 = max(g)
+    return g1
+
+#Restiricao geometrica - Balanço
+def restricao_geometrica(x, none_variable):
+
+    # Definir as dimensões da sapata
+    A = x[0] # dimensão hx(m)
+    B = x[1] # dimensão hy(m)
+    
+    # Buscar as dimensões dos pilares
+    a = none_variable['ap']
+    b = none_variable['bp']
+
+    # Para calcular o balanço na direção X
+    Ca = (A - a)/2
+
+    # Para calcular o balanço na direção Y
+    Cb = (B - b)/2
+
+    # Verificaçao todas as linhas satisfazem as restrições
+    if ((Ca/(60 - a)/2 - 1 >= 0) & (Cb/(60 - b)/2 - 1 >= 0)):
+        return 0  # Restrição satisfeita
+    else:
+        return 1 # Restrição não satisfeita, adiciona penalidade
+
 
 def obj_ic_fundacoes(x, none_variable):
     """
@@ -89,31 +133,21 @@ def obj_ic_fundacoes(x, none_variable):
     Returns:
         float: Valor da função objetivo.
     """
-    # Variáveis de projeto
-    h_x = x[0]
-    h_y = x[1]
-    comb = none_variable['combinações']
-    sigma_lim = none_variable['sigma_adm (kPa)']
-
+    
     # Determina o volume do elemento de fundação
-    vol = volume_fundacao(h_x, h_y)
+    vol = volume_fundacao(x[0], x[1])
 
-    # Verificação da restrição
-    g = []
-    for key, values in comb.items():
-        print(values)
-        f_z = values[0]
-        m_x = values[1]
-        m_y = values[2]
-        sigma_sd_max, sigma_sd_min = calcular_sigma_max(f_z, m_x, m_y, h_x, h_y)  # Retorna um tuple
-        g.append(sigma_sd_max / sigma_lim - 1)  # Usa o valor máximo como o mais crítico
+    # Trazendo as Restrições
+    g1 = restricao_tensao(x, none_variable)
+    g2 = restricao_geometrica(x, none_variable)
 
     # Função objetivo e restrições
     of = vol
-    for i in g:
-        of += max(0, i) * 1E6
+    of += max(0, g1) * 1E6
+    of += max(0, g2) * 1E6
 
     return of
+
 
 def data_comb(df: pd.DataFrame) -> list:
     """
