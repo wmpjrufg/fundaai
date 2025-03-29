@@ -94,8 +94,11 @@ def restricao_tensao(x, none_variable):
         g.append(sigma_sd_max / sigma_lim - 1)  # Usa o valor máximo como o mais crítico
 
     # Função objetivo e restrições
-    g1 = max(g)
-    return g1
+        
+    for i in g:
+        of += max(0, i)
+
+    return of
 
 #Restiricao geometrica - Balanço
 def restricao_geometrica(x, none_variable):
