@@ -2,6 +2,7 @@
 from itertools import combinations
 import numpy as np
 import pandas as pd
+import math
 
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
@@ -152,7 +153,7 @@ def interpolar_kx(a, b,):
 
     # Se o valor estiver na tabela, retorna diretamente
     if b_a in tabela:
-        return tabela[a_b]
+        return tabela[b_a]
 
     # Procura os dois pontos mais próximos para interpolação
     for i in range(len(chaves) - 1):
@@ -199,6 +200,81 @@ def interpolar_ky(a, b):
             # Interpolação linear
             ky_interpolado = y0 + (y1 - y0) * ((a_b - x0) / (x1 - x0))
             return round(ky_interpolado, 4)
+
+#restrição de punção para pilar central
+def restricao_geometrica(x, none_variable):
+    #variáveis
+    a = none_variable['ap']
+    b = none_variable['bp']
+    A = x[0]
+    B = x[1]
+    d = h_z - 0.04 #Altura util da sapata, 0,04 é um valor qualquer que deve ser especificado , quando tiver formato inclinado inclinado d pode assumir valores diferentes em C e C'
+    MX =
+    MY =
+    Fz =
+
+    #coeficientes
+    sigma_cp = 0 # tensão a mais devido a efeitos da protensão
+    ro = 0.01 # rô também vira restrição pois não pode ser maior que 2% !!!!!
+    ke = 1 + math.sqrt(20 / (d * 100))
+    kx = interpolar_kx(a, b)
+    ky = interpolar_ky(a, b)
+
+    # calculando Fcd
+    Fck = none_variable['fck']
+    Fcd = Fck / 1.4
+
+    # Verificando se C' está dentro da sapata!!!!!
+    
+
+    # tensão solicitante em C
+    def calcular_TalSd2(FZ, a, b, d):
+        return 0.001 * FZ / (2 * a + b * d) 
+    
+    # Tensão resistente em C
+    def calcular_TalRd2(Fck, Fcd):
+        return 0.27 * (1 - Fck / 250) * Fcd
+    
+    # Tensão solicitante em C'
+    def calcular_TalSd1(Kx, Ky, MX, MY, A, B, a, b, d, FZ):
+        Wpx = Kx * MX / (b**2 / 2 + b * a + 4 * a * d + 16 * d**2 + 2 * math.pi * b * d)
+        Wpy = Ky * MY / (a**2 / 2 + a * b + 4 * b * d + 16 * d**2 + 2 * math.pi * a * d)
+        u = 2 * (A + B + a + b + 2 * math.pi * d)
+        return (0.001 * FZ) / (u * d) + Kx * MX * 0.001 / (Wpx * d) + Ky * MY * 0.001 / (Wpy * d) # x0.001 para colocar o resultado em MPa
+    
+    # tensão resististente em C'
+    def calcular_TalRd1(Ke, rô, Fck, sigma_cp):
+        return  0.13 * Ke * (100 * ro * Fck) ** (1 / 3) + 0.1 * sigma_cp
+
+    TalRd1 = calcular_TalRd1(ke, ro, Fck, sigma_cp)
+    TalRd2 = calcular_TalRd2(Fck, Fcd)
+    TalSd1 = calcular_TalSd1(kx, ky, MX, MY, A, B, a, b, d, Fz)
+    TalSd2 = calcular_TalSd2(Fz, a, b, d)
+    
+    #Verificações
+    # Verificação em C'  
+    if 2 * d <= (A - d) / 2 and 2 * d <= (B - b)/ 2:
+        if ro <= 0.02:
+            if ke <= 2:
+                if TalSd1 / TalRd1 - 1 > 0:
+                    g1 = 1
+                else:
+                    g1 = 0
+            else:
+                g1 = 1
+        else:
+            g1 = 1
+    else:
+        g1 = 0
+
+    #Verificações
+    # Verificação em C 
+    if TalSd2/ TalRd2 - 1 > 0 :
+        g2 = 1
+    else:
+        g2 = 0
+    
+    return max(g1, g2)
 
 def obj_ic_fundacoes(x, none_variable):
     """
