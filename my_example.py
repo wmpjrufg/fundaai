@@ -6,6 +6,7 @@ import pandas as pd
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
     """
+    Precisa ser alterada!!!!! Corrigida para a equação que utiliza as forças horizontais, precisa?
     """
     m_x = abs(m_x)
     m_y = abs(m_y)
@@ -122,7 +123,82 @@ def restricao_geometrica(x, none_variable):
         return 0  # Restrição satisfeita
     else:
         return 1 # Restrição não satisfeita, adiciona penalidade
+    
+#Definição kx e ky para restrição de punção de acordo com NBR ....
+## para kx
+def interpolar_kx(a, b,):
+    
+    a = none_variable['ap']
+    b = none_variable['bp']
+    b_a = a / b
+    # Tabela de valores conhecidos
+    tabela = {
+        0.5: 0.45,
+        1.0: 0.60,
+        2.0: 0.70,
+        3.0: 0.80
+    }
 
+    # Ordena os pontos conhecidos para interpolação
+    chaves = sorted(tabela.keys())
+
+    # Se estiver abaixo do menor valor da tabela, retorna o menor K
+    if b_a < chaves[0]:
+        return tabela[chaves[0]]
+
+    # Se estiver acima do maior valor da tabela, retorna o maior K
+    if b_a > chaves[-1]:
+        return tabela[chaves[-1]]
+
+    # Se o valor estiver na tabela, retorna diretamente
+    if b_a in tabela:
+        return tabela[a_b]
+
+    # Procura os dois pontos mais próximos para interpolação
+    for i in range(len(chaves) - 1):
+        x0, x1 = chaves[i], chaves[i + 1]
+        if x0 <= b_a <= x1:
+            y0, y1 = tabela[x0], tabela[x1]
+            # Interpolação linear
+            kx_interpolado = y0 + (y1 - y0) * ((b_a - x0) / (x1 - x0))
+            return round(kx_interpolado, 4)
+##para ky
+def interpolar_ky(a, b):
+
+    a = none_variable['ap']
+    b = none_variable['bp']
+    a_b = a / b
+    # Tabela de valores conhecidos
+    tabela = {
+        0.5: 0.45,
+        1.0: 0.60,
+        2.0: 0.70,
+        3.0: 0.80
+    }
+
+    # Ordena os pontos conhecidos para interpolação
+    chaves = sorted(tabela.keys())
+
+    # Se estiver abaixo do menor valor da tabela, retorna o menor K
+    if a_b < chaves[0]:
+        return tabela[chaves[0]]
+
+    # Se estiver acima do maior valor da tabela, retorna o maior K
+    if a_b > chaves[-1]:
+        return tabela[chaves[-1]]
+
+    # Se o valor estiver na tabela, retorna diretamente
+    if a_b in tabela:
+        return tabela[a_b]
+
+    # Procura os dois pontos mais próximos para interpolação
+    for i in range(len(chaves) - 1):
+        x0, x1 = chaves[i], chaves[i + 1]
+        if x0 <= a_b <= x1:
+            y0, y1 = tabela[x0], tabela[x1]
+            # Interpolação linear
+            ky_interpolado = y0 + (y1 - y0) * ((a_b - x0) / (x1 - x0))
+            return round(ky_interpolado, 4)
 
 def obj_ic_fundacoes(x, none_variable):
     """
