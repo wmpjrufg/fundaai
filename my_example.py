@@ -202,16 +202,16 @@ def interpolar_ky(a, b):
             return round(ky_interpolado, 4)
 
 #restrição de punção para pilar central
-def restricao_geometrica(x, none_variable):
+def restricao_puncao(x, none_variable):
     #variáveis
-    a = none_variable['ap']
-    b = none_variable['bp']
+    a = 3#none_variable['ap']
+    b = 2#none_variable['bp']
     A = x[0]
     B = x[1]
-    d = h_z - 0.04 #Altura util da sapata, 0,04 é um valor qualquer que deve ser especificado , quando tiver formato inclinado inclinado d pode assumir valores diferentes em C e C'
-    MX =
-    MY =
-    Fz =
+    d = 0.2 - 0.04 #Altura util da sapata, 0,04 é um valor qualquer que deve ser especificado , quando tiver formato inclinado inclinado d pode assumir valores diferentes em C e C'
+    MX = 2
+    MY = 5
+    Fz = 4
 
     #coeficientes
     sigma_cp = 0 # tensão a mais devido a efeitos da protensão
@@ -295,11 +295,13 @@ def obj_ic_fundacoes(x, none_variable):
     # Trazendo as Restrições
     g1 = restricao_tensao(x, none_variable)
     g2 = restricao_geometrica(x, none_variable)
+    g3 = restricao_puncao(x, none_variable)
 
     # Função objetivo e restrições
     of = vol
     of += max(0, g1) * 1E6
     of += max(0, g2) * 1E6
+    of += max(0, g3) * 1E6
 
     return of
 
