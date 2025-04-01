@@ -161,6 +161,8 @@ if uploaded_file is not None:
                 dados_fundacao = { 
                                         'combinações': lista_comb[i],
                                         'sigma_adm (kPa)': row[('sigma_adm (kPa)', '')],
+                                        'ap': row[('ap (m)')],
+                                        'bp': row[('bp (m)')],
                                 }
                 # Otimização
                 algorithm_setup = {   

@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import math
 
-
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
     """
     Precisa ser alterada!!!!! Corrigida para a equação que utiliza as forças horizontais, precisa?
@@ -204,14 +203,14 @@ def interpolar_ky(a, b):
 #restrição de punção para pilar central
 def restricao_puncao(x, none_variable):
     #variáveis
-    a = 3#none_variable['ap']
-    b = 2#none_variable['bp']
-    A = x[0]
-    B = x[1]
+    a = none_variable['ap']
+    b = none_variable['bp']
+    A= dim_b # preciso chamar as dimensões da sapata que serão utilizadas em cada interação!!
+    B= dim_a # preciso chamar as dimensões da sapata que serão utilizadas em cada interação!!
     d = 0.2 - 0.04 #Altura util da sapata, 0,04 é um valor qualquer que deve ser especificado , quando tiver formato inclinado inclinado d pode assumir valores diferentes em C e C'
-    MX = 2
-    MY = 5
-    Fz = 4
+    MX = 2 #valoresw aleatórios
+    MY = 5 #valoresw aleatórios
+    Fz = 4 #valoresw aleatórios
 
     #coeficientes
     sigma_cp = 0 # tensão a mais devido a efeitos da protensão
@@ -274,7 +273,9 @@ def restricao_puncao(x, none_variable):
     else:
         g2 = 0
     
+    print(g1, g2)
     return max(g1, g2)
+x = [1,1]
 
 def obj_ic_fundacoes(x, none_variable):
     """
@@ -288,9 +289,11 @@ def obj_ic_fundacoes(x, none_variable):
     Returns:
         float: Valor da função objetivo.
     """
-    
+    #
+    h_x = x[0]
+    h_y = x[1]
     # Determina o volume do elemento de fundação
-    vol = volume_fundacao(x[0], x[1])
+    vol = volume_fundacao(h_x, h_y)
 
     # Trazendo as Restrições
     g1 = restricao_tensao(x, none_variable)
@@ -304,6 +307,7 @@ def obj_ic_fundacoes(x, none_variable):
     of += max(0, g3) * 1E6
 
     return of
+    
 
 
 def data_comb(df: pd.DataFrame) -> list:
@@ -350,7 +354,7 @@ def data_comb(df: pd.DataFrame) -> list:
 
     return lista_resultados
 
-if __name__ == '__main__':
+if __name__ == '__IC_Filipe__':
     import pandas as pd
     df = pd.read_excel('input.xlsx')
     x = [1, 1]
