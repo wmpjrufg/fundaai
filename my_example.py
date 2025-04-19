@@ -4,6 +4,12 @@ import numpy as np
 import pandas as pd
 import math
 
+#declarando apenas por estética
+fck = []
+dimensoes_sapata_a = []
+dimensoes_sapata_b = []
+
+
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
     """
     Precisa ser alterada!!!!! Corrigida para a equação que utiliza as forças horizontais, precisa?
@@ -34,9 +40,8 @@ def cargas_combinacoes(cargas: list) -> list:
         cargas_comb (list): Lista de pares de carga de cada elemento de fundação
     """
     
-    cargas_comb = list(combinations(cargas, 3)) # Aqui tem erro
+    cargas_comb = list(combinations(cargas, 3))
     return [list(comb) for comb in cargas_comb]
-
 
 def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -49,8 +54,9 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame: DataFrame com a coluna 'sigma_adm (kPa)' calculada.
     """
     # Converta a coluna 'solo' para minúsculas
-    solo_column = df[('solo', 'Unnamed: 2_level_1')]  
+    solo_column = df[('solo', 'Unnamed: 4_level_1')]  
     solo_column = solo_column.str.lower()
+    
 
     # Verifique se a coluna 'spt' existe para evitar erro
     if 'spt' not in df.columns:
@@ -63,9 +69,9 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
         (solo_column == 'silte') | (solo_column == 'argila'),
     ]
     values = [
-        df[('spt', 'Unnamed: 1_level_1')] / 30 * 1E3,  # Acessa a coluna 'spt' corretamente
-        df[('spt', 'Unnamed: 1_level_1')] / 40 * 1E3,
-        df[('spt', 'Unnamed: 1_level_1')] / 50 * 1E3,
+        df[('spt', 'Unnamed: 3_level_1')] / 30 * 1E3,  # Acessa a coluna 'spt' corretamente
+        df[('spt', 'Unnamed: 3_level_1')] / 40 * 1E3,
+        df[('spt', 'Unnamed: 3_level_1')] / 50 * 1E3,
     ]
 
     # Assegure que as condições e os valores sejam arrays 1D
@@ -77,7 +83,7 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-#Restricao de tensão
+#Restricao de tensão.... precisa ser corrigda as variaveis hx e hy
 def restricao_tensao(x, none_variable):
     # Variáveis de projeto
     h_x = x[0]
@@ -102,15 +108,15 @@ def restricao_tensao(x, none_variable):
     return of
 
 #Restiricao geometrica - Balanço
-def restricao_geometrica(x, none_variable):
+def restricao_geometrica(A, B, a, b):
 
     # Definir as dimensões da sapata
-    A = x[0] # dimensão hx(m)
-    B = x[1] # dimensão hy(m)
+    A = dimensoes_sapata_a # dimensão hx(m)
+    B = dimensoes_sapata_b # dimensão hy(m)
     
     # Buscar as dimensões dos pilares
-    a = none_variable['ap']
-    b = none_variable['bp']
+    a = dados_fundacao ['ap']
+    b = dados_fundacao ['bp']
 
     # Para calcular o balanço na direção X
     Ca = (A - a)/2
@@ -128,8 +134,8 @@ def restricao_geometrica(x, none_variable):
 ## para kx
 def interpolar_kx(a, b,):
     
-    a = none_variable['ap']
-    b = none_variable['bp']
+    a =ap
+    b = bp
     b_a = a / b
     # Tabela de valores conhecidos
     tabela = {
@@ -165,9 +171,10 @@ def interpolar_kx(a, b,):
 ##para ky
 def interpolar_ky(a, b):
 
-    a = none_variable['ap']
-    b = none_variable['bp']
+    a = dados_fundacao ['ap']
+    b = dados_fundacao ['bp']
     a_b = a / b
+
     # Tabela de valores conhecidos
     tabela = {
         0.5: 0.45,
@@ -201,16 +208,16 @@ def interpolar_ky(a, b):
             return round(ky_interpolado, 4)
 
 #restrição de punção para pilar central
-def restricao_puncao(x, none_variable):
+def restricao_puncao(a, b, A, B, MX, MY, Fz):
     #variáveis
-    a = none_variable['ap']
-    b = none_variable['bp']
-    A= dim_b # preciso chamar as dimensões da sapata que serão utilizadas em cada interação!!
-    B= dim_a # preciso chamar as dimensões da sapata que serão utilizadas em cada interação!!
-    d = 0.2 - 0.04 #Altura util da sapata, 0,04 é um valor qualquer que deve ser especificado , quando tiver formato inclinado inclinado d pode assumir valores diferentes em C e C'
-    MX = 2 #valoresw aleatórios
-    MY = 5 #valoresw aleatórios
-    Fz = 4 #valoresw aleatórios
+    a = dados_fundacao ['ap']
+    b = dados_fundacao ['bp']
+    A= dimensoes_sapata_a # preciso chamar as dimensões da sapata que serão utilizadas em cada interação!!
+    B= dimensoes_sapata_b # preciso chamar as dimensões da sapata que serão utilizadas em cada interação!!
+    d = 0.2 - 0.04 #Altura util da sapata, 0,04 é um valor qualquer que deve ser especificado , quando tiver formato inclinado, d pode assumir valores diferentes em C e C'
+    MX = combinações ['Mx']
+    MY = combinações ['My']  
+    Fz = combinações ['Fz'] 
 
     #coeficientes
     sigma_cp = 0 # tensão a mais devido a efeitos da protensão
@@ -220,8 +227,7 @@ def restricao_puncao(x, none_variable):
     ky = interpolar_ky(a, b)
 
     # calculando Fcd
-    Fck = none_variable['fck']
-    Fcd = Fck / 1.4
+    fcd = fck / 1.4
 
     # Verificando se C' está dentro da sapata!!!!!
     
@@ -231,8 +237,8 @@ def restricao_puncao(x, none_variable):
         return 0.001 * FZ / (2 * a + b * d) 
     
     # Tensão resistente em C
-    def calcular_TalRd2(Fck, Fcd):
-        return 0.27 * (1 - Fck / 250) * Fcd
+    def calcular_TalRd2(fck, fcd):
+        return 0.27 * (1 - fck / 250) * fcd
     
     # Tensão solicitante em C'
     def calcular_TalSd1(Kx, Ky, MX, MY, A, B, a, b, d, FZ):
@@ -242,11 +248,11 @@ def restricao_puncao(x, none_variable):
         return (0.001 * FZ) / (u * d) + Kx * MX * 0.001 / (Wpx * d) + Ky * MY * 0.001 / (Wpy * d) # x0.001 para colocar o resultado em MPa
     
     # tensão resististente em C'
-    def calcular_TalRd1(Ke, rô, Fck, sigma_cp):
-        return  0.13 * Ke * (100 * ro * Fck) ** (1 / 3) + 0.1 * sigma_cp
+    def calcular_TalRd1(Ke, ro, fck, sigma_cp):
+        return  0.13 * Ke * (100 * ro * fck) ** (1 / 3) + 0.1 * sigma_cp
 
-    TalRd1 = calcular_TalRd1(ke, ro, Fck, sigma_cp)
-    TalRd2 = calcular_TalRd2(Fck, Fcd)
+    TalRd1 = calcular_TalRd1(ke, ro, fck, sigma_cp)
+    TalRd2 = calcular_TalRd2(fck, fcd)
     TalSd1 = calcular_TalSd1(kx, ky, MX, MY, A, B, a, b, d, Fz)
     TalSd2 = calcular_TalSd2(Fz, a, b, d)
     
@@ -289,9 +295,9 @@ def obj_ic_fundacoes(x, none_variable):
     Returns:
         float: Valor da função objetivo.
     """
-    #
-    h_x = x[0]
-    h_y = x[1]
+    
+    h_x = dimensoes_sapata_a
+    h_y = dimensoes_sapata_b
     # Determina o volume do elemento de fundação
     vol = volume_fundacao(h_x, h_y)
 
@@ -340,7 +346,7 @@ def data_comb(df: pd.DataFrame) -> list:
     }
 
     lista_resultados = []
-    for _, row in df.iterrows():
+    for _, row in df.iterrows(): #aqui esta correto
         resultado_linha = {}
         for nome_combinacao, colunas_desejadas in combinacoes_filtradas.items():
             colunas_multiindex = [(nome_combinacao, coluna) for coluna in ['Fz', 'Mx', 'My']]
@@ -354,7 +360,8 @@ def data_comb(df: pd.DataFrame) -> list:
 
     return lista_resultados
 
-if __name__ == '__IC_Filipe__':
+#esse if esta sendo usado para testar o codigo mas não traz valores corretos
+if __name__ == 'IC_Filipe':
     import pandas as pd
     df = pd.read_excel('input.xlsx')
     x = [1, 1]

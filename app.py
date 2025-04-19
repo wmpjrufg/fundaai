@@ -150,6 +150,11 @@ if uploaded_file is not None:
         st.warning('Dimensão mínima da sapata deve ser maior ou igual a 0.60')
     dim_max = st.number_input('Dimensão máxima da sapata (m)', value=2.25)
     
+    #colocar aqui para inserir o fck também 
+    fck = st.number_input('Concreto fck (MPa)', value=25)
+    if fck < 20:   
+        st.warning('Concreto fck deve ser maior ou igual a 20')
+
     if st.button('Calculate'):
         df = tensao_adm_solo(data)
         lista_comb = data_comb(df)
