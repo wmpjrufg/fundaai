@@ -150,10 +150,12 @@ if uploaded_file is not None:
         st.warning('Dimensão mínima da sapata deve ser maior ou igual a 0.60')
     dim_max = st.number_input('Dimensão máxima da sapata (m)', value=2.25)
     
-    #colocar aqui para inserir o fck também 
     fck = st.number_input('Concreto fck (MPa)', value=25)
     if fck < 20:   
         st.warning('Concreto fck deve ser maior ou igual a 20')
+
+    rec = st.number_input('Recobrimnento (m)', value=0.025)
+    # adicionar exigencias da norma
 
     if st.button('Calculate'):
         df = tensao_adm_solo(data)
@@ -192,12 +194,12 @@ if uploaded_file is not None:
                         'algorithm': 'genetic_algorithm_01',
                         }
                 df_all_reps, df_resume_all_reps, reports, status = metaheuristic_optimizer(algorithm_setup, general_setup)
+                st.write(df_resume_all_reps)
                 df_novo = df_resume_all_reps[status]
                 dimensoes_sapata_a = list(df_novo['X_0_BEST'])[-1]
                 dimensoes_sapata_b = list(df_novo['X_1_BEST'])[-1]
                 dim_a.append(dimensoes_sapata_a)
                 dim_b.append(dimensoes_sapata_b)
-
         # Atribuição da dimensão otimizada
         df['dimensão hx (m)'] = dim_a
         df['dimensão hy (m)'] = dim_b

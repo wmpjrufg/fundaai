@@ -11,9 +11,7 @@ dimensoes_sapata_b = []
 
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
-    """
-    Precisa ser alterada!!!!! Corrigida para a equação que utiliza as forças horizontais, precisa?
-    """
+    
     m_x = abs(m_x)
     m_y = abs(m_y)
     sigma_fz = f_z / (h_x * h_y)
@@ -83,11 +81,11 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-#Restricao de tensão.... precisa ser corrigda as variaveis hx e hy
-def restricao_tensao(x, none_variable):
+#Restricao de tensão
+def restricao_tensao(none_variable,):
     # Variáveis de projeto
-    h_x = x[0]
-    h_y = x[1]
+    h_x = dimensoes_sapata_a #Aqui quero pegar o resultado que cada iteração do código, mas para isso preciso de um valor inicial
+    h_y = dimensoes_sapata_b
     comb = none_variable['combinações']
     sigma_lim = none_variable['sigma_adm (kPa)']
 
@@ -99,8 +97,6 @@ def restricao_tensao(x, none_variable):
         m_y = values[2]
         sigma_sd_max, sigma_sd_min = calcular_sigma_max(f_z, m_x, m_y, h_x, h_y)  # Retorna um tuple
         g.append(sigma_sd_max / sigma_lim - 1)  # Usa o valor máximo como o mais crítico
-
-    # Função objetivo e restrições
         
     for i in g:
         of += max(0, i)
@@ -115,8 +111,8 @@ def restricao_geometrica(A, B, a, b):
     B = dimensoes_sapata_b # dimensão hy(m)
     
     # Buscar as dimensões dos pilares
-    a = dados_fundacao ['ap']
-    b = dados_fundacao ['bp']
+    a = dados_fundacao['ap']
+    b = dados_fundacao['bp']
 
     # Para calcular o balanço na direção X
     Ca = (A - a)/2
@@ -125,17 +121,17 @@ def restricao_geometrica(A, B, a, b):
     Cb = (B - b)/2
 
     # Verificaçao todas as linhas satisfazem as restrições
-    if ((Ca/(60 - a)/2 - 1 >= 0) & (Cb/(60 - b)/2 - 1 >= 0)):
+    if ((Ca/(0.60 - a)/2 - 1 >= 0) & (Cb/(0.60 - b)/2 - 1 >= 0)):
         return 0  # Restrição satisfeita
     else:
         return 1 # Restrição não satisfeita, adiciona penalidade
     
 #Definição kx e ky para restrição de punção de acordo com NBR ....
 ## para kx
-def interpolar_kx(a, b,):
+def interpolar_kx(dados_fundacao):
     
-    a =ap
-    b = bp
+    a = dados_fundacao ['ap']
+    b = dados_fundacao ['bp']
     b_a = a / b
     # Tabela de valores conhecidos
     tabela = {
@@ -169,7 +165,7 @@ def interpolar_kx(a, b,):
             kx_interpolado = y0 + (y1 - y0) * ((b_a - x0) / (x1 - x0))
             return round(kx_interpolado, 4)
 ##para ky
-def interpolar_ky(a, b):
+def interpolar_ky(dados_fundacao):
 
     a = dados_fundacao ['ap']
     b = dados_fundacao ['bp']
@@ -208,16 +204,16 @@ def interpolar_ky(a, b):
             return round(ky_interpolado, 4)
 
 #restrição de punção para pilar central
-def restricao_puncao(a, b, A, B, MX, MY, Fz):
+def restricao_puncao(dados_fundacao, A, B, MX, MY, Fz):
     #variáveis
     a = dados_fundacao ['ap']
     b = dados_fundacao ['bp']
     A= dimensoes_sapata_a # preciso chamar as dimensões da sapata que serão utilizadas em cada interação!!
     B= dimensoes_sapata_b # preciso chamar as dimensões da sapata que serão utilizadas em cada interação!!
-    d = 0.2 - 0.04 #Altura util da sapata, 0,04 é um valor qualquer que deve ser especificado , quando tiver formato inclinado, d pode assumir valores diferentes em C e C'
-    MX = combinações ['Mx']
-    MY = combinações ['My']  
-    Fz = combinações ['Fz'] 
+    d = 0.2 - rec #Altura util da sapata d = h - rec, 0,04 é um valor qualquer que deve ser especificado , quando tiver formato inclinado, d pode assumir valores diferentes em C e C'
+    MX = combinações [1]
+    MY = combinações [2]  
+    Fz = combinações [0] 
 
     #coeficientes
     sigma_cp = 0 # tensão a mais devido a efeitos da protensão
