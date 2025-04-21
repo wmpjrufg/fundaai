@@ -6,9 +6,22 @@ import math
 
 #declarando apenas por estética
 fck = []
+a = []
+b = []
+A = []
+B = []
+rec = []
+MX = []
+MY = []
+Fz = []
 dimensoes_sapata_a = []
 dimensoes_sapata_b = []
-
+dados_fundacao = []
+combinações = []
+h_x = []
+h_y = []
+h_z = []
+none_variable = []
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
     
@@ -21,9 +34,10 @@ def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: floa
     return (sigma_fz) * (1 + aux_mx + aux_my), (sigma_fz) * (1 - aux_mx - aux_my)
 
 
-def volume_fundacao(h_x: float, h_y: float, h_z: float=0.60) -> float:
-    """
-    """
+def volume_fundacao(h_x, h_y, h_z):
+    
+    h_z= 0.6
+
     return h_x * h_y * h_z
 
 
@@ -82,26 +96,26 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 #Restricao de tensão
-def restricao_tensao(none_variable,):
+def restricao_tensao(none_variable,h_x, h_y):
     # Variáveis de projeto
     h_x = dimensoes_sapata_a #Aqui quero pegar o resultado que cada iteração do código, mas para isso preciso de um valor inicial
     h_y = dimensoes_sapata_b
-    comb = none_variable['combinações']
-    sigma_lim = none_variable['sigma_adm (kPa)']
+    comb = dados_fundacao['combinações']
+    sigma_lim = dados_fundacao['sigma_adm (kPa)']
 
     # Verificação da restrição
-    g = []
+    result = []
     for key, values in comb.items():
         f_z = values[0]
         m_x = values[1]
         m_y = values[2]
         sigma_sd_max, sigma_sd_min = calcular_sigma_max(f_z, m_x, m_y, h_x, h_y)  # Retorna um tuple
-        g.append(sigma_sd_max / sigma_lim - 1)  # Usa o valor máximo como o mais crítico
-        
-    for i in g:
-        of += max(0, i)
+        result.append(sigma_sd_max / sigma_lim - 1)  # Usa o valor máximo como o mais crítico
+    
+    for i in result:
+        result += max(0, i)
 
-    return of
+    return result
 
 #Restiricao geometrica - Balanço
 def restricao_geometrica(A, B, a, b):
@@ -124,7 +138,7 @@ def restricao_geometrica(A, B, a, b):
     if ((Ca/(0.60 - a)/2 - 1 >= 0) & (Cb/(0.60 - b)/2 - 1 >= 0)):
         return 0  # Restrição satisfeita
     else:
-        return 1 # Restrição não satisfeita, adiciona penalidade
+        return 1 # Restrição não satisfeita
     
 #Definição kx e ky para restrição de punção de acordo com NBR ....
 ## para kx
@@ -204,7 +218,7 @@ def interpolar_ky(dados_fundacao):
             return round(ky_interpolado, 4)
 
 #restrição de punção para pilar central
-def restricao_puncao(dados_fundacao, A, B, MX, MY, Fz):
+def restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, combinações, rec):
     #variáveis
     a = dados_fundacao ['ap']
     b = dados_fundacao ['bp']
@@ -279,7 +293,7 @@ def restricao_puncao(dados_fundacao, A, B, MX, MY, Fz):
     return max(g1, g2)
 x = [1,1]
 
-def obj_ic_fundacoes(x, none_variable):
+def obj_ic_fundacoes(h_x, h_y,  h_z, A, B, a, b, dados_fundacao, MX, MY, Fz, combinações, rec, of, none_variable):
     """
     Calcula a função objetivo para o problema de fundações.
     
@@ -292,23 +306,23 @@ def obj_ic_fundacoes(x, none_variable):
         float: Valor da função objetivo.
     """
     
-    h_x = dimensoes_sapata_a
-    h_y = dimensoes_sapata_b
+    h_x = 1
+    h_y = 1
     # Determina o volume do elemento de fundação
-    vol = volume_fundacao(h_x, h_y)
+    vol = volume_fundacao(h_x, h_y, h_z)
 
     # Trazendo as Restrições
-    g1 = restricao_tensao(x, none_variable)
-    g2 = restricao_geometrica(x, none_variable)
-    g3 = restricao_puncao(x, none_variable)
+    g1 = restricao_tensao(none_variable, h_x, h_y)
+    g2 = restricao_geometrica(A, B, a, b)
+    g3 = restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, combinações, rec)
 
     # Função objetivo e restrições
     of = vol
     of += max(0, g1) * 1E6
     of += max(0, g2) * 1E6
     of += max(0, g3) * 1E6
-
-    return of
+    print("aqui é o of:", of)
+    return float(of)
     
 
 
@@ -355,7 +369,7 @@ def data_comb(df: pd.DataFrame) -> list:
             lista_resultados.append(resultado_linha)
 
     return lista_resultados
-
+'''
 #esse if esta sendo usado para testar o codigo mas não traz valores corretos
 if __name__ == 'IC_Filipe':
     import pandas as pd
@@ -369,3 +383,10 @@ if __name__ == 'IC_Filipe':
                      'My,min (kN.m)': -300,
                      'sigma_adm (kPa)': 333.33}
     print(obj_ic_fundacoes(x, none_variable))
+'''
+print(none_variable)
+
+if __name__== '__main__':
+    print(obj_ic_fundacoes(x, h_x, h_y,  h_z, A, B, a, b, dados_fundacao, MX, MY, Fz, combinações, rec, none_variable))
+else :
+    print("nada")

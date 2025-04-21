@@ -7,7 +7,7 @@ import ezdxf
 import tempfile
 
 from io import BytesIO
-from my_example import obj_ic_fundacoes, tensao_adm_solo, data_comb
+from my_example import obj_ic_fundacoes, tensao_adm_solo, data_comb, restricao_tensao
 from metapy_toolbox import metaheuristic_optimizer
 
 # Função para plotar o gráfico com os quadrados
@@ -194,7 +194,6 @@ if uploaded_file is not None:
                         'algorithm': 'genetic_algorithm_01',
                         }
                 df_all_reps, df_resume_all_reps, reports, status = metaheuristic_optimizer(algorithm_setup, general_setup)
-                st.write(df_resume_all_reps)
                 df_novo = df_resume_all_reps[status]
                 dimensoes_sapata_a = list(df_novo['X_0_BEST'])[-1]
                 dimensoes_sapata_b = list(df_novo['X_1_BEST'])[-1]
