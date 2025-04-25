@@ -187,7 +187,6 @@ if uploaded_file is not None:
                                                 }
                         }
 
-                st.write(type(algorithm_setup['objective function']))
                 n_rep = 5
                 general_setup = {  
                         'number of repetitions': n_rep,
