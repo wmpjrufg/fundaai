@@ -24,6 +24,16 @@ none_variable = []
 of = []
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
+    """
+    Esta função determina a tensão máxima e a tensão mínima na fundação rasa do tipo sapata
+
+    Args
+    f_z: carregamento na direção (kN)
+
+    Returns
+    sigma_max: 
+
+    """
     
     m_x = abs(m_x)
     m_y = abs(m_y)
@@ -292,34 +302,40 @@ def restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, rec):
     print(g1, g2)
     return max(g1, g2)
 
-def obj_ic_fundacoes(h_x, h_y, A, B, a, b, dados_fundacao, MX, MY, Fz, combinations, rec, of, none_variable):
-    """
-    Calcula a função objetivo para o problema de fundações.
+def obj_ic_fundacoes(x, none_variable):
     
-    Args:
-        x (list): Lista com as variáveis de projeto [h_x, h_y].
-        none_variable (dict): Dicionário contendo os dados de entrada. 
-                              Deve conter a chave 'dados' com o DataFrame.
+    h_x = x[0]
+    h_y = x[1]
+    h_z = none_variable['h_z (m)']
+    df = none_variable['dados estrutura']
+    vol = 0 
+    for i in range(len(df)):
+        aux = volume_fundacao(h_x, h_y, h_z)
+        vol += aux
     
-    Returns:
-        float: Valor da função objetivo.
-    """
-    
-    h_x = 1
-    h_y = 1
-    # Determina o volume do elemento de fundação
-    vol = volume_fundacao(h_x, h_y, h_z)
+    print(vol)
 
-    # Trazendo as Restrições
-    g1 = restricao_tensao(none_variable, h_x, h_y, calcular_sigma_max )
-    g2 = restricao_geometrica(A, B, a, b)
-    g3 = restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, combinations, rec)
+    g_c1 = []
+    for index, row in df.iterrows():
+        f_z = row['Fz-c1']
+        m_x = row['Mx-c1']
+        m_y = row['My-c1']
+        g = calcular_sigma_max(f_z: float, m_x: float, m_y, h_x, h_y)
+        g_c1.append(g)
 
-    # Função objetivo e restrições
-    of = vol
-    of += max(0, g1) * 1E6
-    of += max(0, g2) * 1E6
-    of += max(0, g3) * 1E6
+    # # Determina o volume do elemento de fundação
+    
+
+    # # Trazendo as Restrições
+    # g1 = restricao_tensao(none_variable, h_x, h_y, calcular_sigma_max )
+    # g2 = restricao_geometrica(A, B, a, b)
+    # g3 = restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, combinations, rec)
+
+    # # Função objetivo e restrições
+    # of = vol
+    # of += max(0, g1) * 1E6
+    # of += max(0, g2) * 1E6
+    # of += max(0, g3) * 1E6
     
     return of
     
@@ -385,7 +401,13 @@ if __name__ == 'IC_Filipe':
 '''
 
 if __name__== '__main__':
-    ofi = obj_ic_fundacoes(h_x, h_y, A, B, a, b, dados_fundacao, MX, MY, Fz, combinations, rec, of, none_variable)
-    print(ofi)
+    df = pd.read_excel("teste_wand.xlsx")
+    print(df)
+    a = 0.6
+    b = 0.6
+    x = [a, b]
+    none_variable = {'dados estrutura': df, 'h_z (m)': 0.6}
+    ofi = obj_ic_fundacoes(x, none_variable)
+    # print(ofi)
 else :
     print("nada")
