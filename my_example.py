@@ -17,11 +17,11 @@ Fz = []
 dimensoes_sapata_a = []
 dimensoes_sapata_b = []
 dados_fundacao = []
-combinações = []
 h_x = []
 h_y = []
 h_z = []
 none_variable = []
+of = []
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
     
@@ -96,7 +96,7 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 #Restricao de tensão
-def restricao_tensao(none_variable,h_x, h_y):
+def restricao_tensao(dados_fundacao,h_x, h_y, calcular_sigma_max):
     # Variáveis de projeto
     h_x = dimensoes_sapata_a #Aqui quero pegar o resultado que cada iteração do código, mas para isso preciso de um valor inicial
     h_y = dimensoes_sapata_b
@@ -218,16 +218,16 @@ def interpolar_ky(dados_fundacao):
             return round(ky_interpolado, 4)
 
 #restrição de punção para pilar central
-def restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, combinações, rec):
+def restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, rec):
     #variáveis
     a = dados_fundacao ['ap']
     b = dados_fundacao ['bp']
     A= dimensoes_sapata_a # preciso chamar as dimensões da sapata que serão utilizadas em cada interação!!
     B= dimensoes_sapata_b # preciso chamar as dimensões da sapata que serão utilizadas em cada interação!!
     d = 0.2 - rec #Altura util da sapata d = h - rec, 0,04 é um valor qualquer que deve ser especificado , quando tiver formato inclinado, d pode assumir valores diferentes em C e C'
-    MX = combinações [1]
-    MY = combinações [2]  
-    Fz = combinações [0] 
+    MX = dados_fundacao[1]['combinações'] #MX = combinations [1]
+    MY = dados_fundacao[2]['combinções']  
+    Fz = dados_fundacao[0]['combinações']
 
     #coeficientes
     sigma_cp = 0 # tensão a mais devido a efeitos da protensão
@@ -291,9 +291,8 @@ def restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, combinações, rec):
     
     print(g1, g2)
     return max(g1, g2)
-x = [1,1]
 
-def obj_ic_fundacoes(h_x, h_y,  h_z, A, B, a, b, dados_fundacao, MX, MY, Fz, combinações, rec, of, none_variable):
+def obj_ic_fundacoes(h_x, h_y, A, B, a, b, dados_fundacao, MX, MY, Fz, combinations, rec, of, none_variable):
     """
     Calcula a função objetivo para o problema de fundações.
     
@@ -312,17 +311,17 @@ def obj_ic_fundacoes(h_x, h_y,  h_z, A, B, a, b, dados_fundacao, MX, MY, Fz, com
     vol = volume_fundacao(h_x, h_y, h_z)
 
     # Trazendo as Restrições
-    g1 = restricao_tensao(none_variable, h_x, h_y)
+    g1 = restricao_tensao(none_variable, h_x, h_y, calcular_sigma_max )
     g2 = restricao_geometrica(A, B, a, b)
-    g3 = restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, combinações, rec)
+    g3 = restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, combinations, rec)
 
     # Função objetivo e restrições
     of = vol
     of += max(0, g1) * 1E6
     of += max(0, g2) * 1E6
     of += max(0, g3) * 1E6
-    print("aqui é o of:", of)
-    return float(of)
+    
+    return of
     
 
 
@@ -384,9 +383,9 @@ if __name__ == 'IC_Filipe':
                      'sigma_adm (kPa)': 333.33}
     print(obj_ic_fundacoes(x, none_variable))
 '''
-print(none_variable)
 
 if __name__== '__main__':
-    print(obj_ic_fundacoes(x, h_x, h_y,  h_z, A, B, a, b, dados_fundacao, MX, MY, Fz, combinações, rec, none_variable))
+    ofi = obj_ic_fundacoes(h_x, h_y, A, B, a, b, dados_fundacao, MX, MY, Fz, combinations, rec, of, none_variable)
+    print(ofi)
 else :
     print("nada")

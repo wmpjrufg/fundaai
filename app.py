@@ -174,7 +174,7 @@ if uploaded_file is not None:
                 # Otimização
                 algorithm_setup = {   
                         'number of iterations': 100,
-                        'number of population': 5,
+                        'number of populat  ion': 5,
                         'number of dimensions': 2,
                         'x pop lower limit': [dim_min, dim_min], # 0.60
                         'x pop upper limit': [dim_max, dim_max], # 2.25
@@ -186,13 +186,16 @@ if uploaded_file is not None:
                                                 'mutation': {'mutation rate (%)': 12, 'type': 'hill climbing', 'cov (%)': 15, 'pdf': 'gaussian'},
                                                 }
                         }
+
+                st.write(type(algorithm_setup['objective function']))
                 n_rep = 5
-                general_setup = {   
+                general_setup = {  
                         'number of repetitions': n_rep,
                         'type code': 'real code',
                         'initial pop. seed': [None] * n_rep,
                         'algorithm': 'genetic_algorithm_01',
                         }
+                
                 df_all_reps, df_resume_all_reps, reports, status = metaheuristic_optimizer(algorithm_setup, general_setup)
                 df_novo = df_resume_all_reps[status]
                 dimensoes_sapata_a = list(df_novo['X_0_BEST'])[-1]
