@@ -151,39 +151,55 @@ def restricao_tensao(h_x: float, h_y: float, none_variable, calcular_sigma_max):
     return result
 
 #Restiricao geometrica - Balanço
-def restricao_geometrica(A: float, B: float, a: float, b: float):
-    '''
-    Esta função cálcula o balanço da sapata e verifica se esta de acordo as dimensões permitidadas
+def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float) -> tuple[float, float, float , float]:
+    """
+    Esta função calcula o balanço da sapata e verifica se esta de acordo as dimensões permitidas
 
     args:
-        A (float): dimensões em x (m)
-        B (float): dimensões em y (m)  
-        a (float): dimensões dos pilares em x (m)
-        b (float): dimensões dos pilares em y (m)
-        none_variable (dicionário): dicionário com as dimensões dos pilares (m)
-
-    Returns:
+        h_x (float): dimensões da sapata em x (m)
+        h_y (float): dimensões da sapata em y (m)  
+        a_p (float): dimensões dos pilares em x (m)
+        b_p (float): dimensões dos pilares em y (m)
+        
+    returns:
         result (float): valor da penalidade (admensional)
-    '''
-    # Dimensões da sapata
-    A = x[0]  # dimensão hx(m)
-    B = x[1] # dimensão hy(m)
-    
-    # Dimensões dos pilares
-    a = none_variable['dados estrutura']['ap (m)']
-    b = none_variable['dados estrutura']['bp (m)']
+    """
 
     # Balanço na direção X
-    Ca = (A - a)/2
+    cap = (h_x - a_p)/2
 
     # Balanço na direção Y
-    Cb = (B - b)/2
+    cbp = (h_y - b_p)/2
+    
+    # Restrições laterais do balanço
+    g_0 = (2 * h_z) / cap  - 1
+    g_1 = (2 * h_z) / cbp  - 1
+    g_2 = (h_z / 2) / cap - 1
+    g_3 = (h_z / 2) / cbp - 1
+    
+    return g_0, g_1, g_2, g_3
+    
+#Restiricao geometrica - Balanço
+def restricao_geometrica_pilar_sapata_b(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float) -> tuple[float, float]:
+    """
+    Esta função calcula o balanço da sapata e verifica se esta de acordo as dimensões permitidas
 
-    # Verificaçao se satisfazem as restrições
-    if (Ca/(0.60 - a)/2 - 1 >= 0) and (Cb/(0.60 - b)/2 - 1 >= 0):
-        return 0  # Restrição satisfeita
-    else:
-        return 1 # Restrição não satisfeita
+    args:
+        h_x (float): dimensões da sapata em x (m)
+        h_y (float): dimensões da sapata em y (m)  
+        a_p (float): dimensões dos pilares em x (m)
+        b_p (float): dimensões dos pilares em y (m)
+        
+    returns:
+        result (float): valor da penalidade (admensional)
+    """
+
+    # Balanço na direção X
+    ap <= hx
+    bp <= hy
+    
+    return g_0, g_1
+
     
 #Definição kx e ky para restrição de punção de acordo com NBR ....
 ## para kx
@@ -373,19 +389,35 @@ def restricao_puncao(A: float, B: float, a: float, b: float, h_z: 0.6, rec: floa
     return max(g1, g2)
 
 def obj_ic_fundacoes(x, none_variable):
-    
+    # Organização variáveis de projeto e variáveis do problema de engenharia
     h_x = x[0]
     h_y = x[1]
     h_z = none_variable['h_z (m)']
     df = none_variable['dados estrutura']
     vol = 0 
-    for i in range(len(df)):
+    g = []
+    for _ in range(len(df)):
         aux = volume_fundacao(h_x, h_y, h_z)
         vol += aux
     
-    print(vol)
+    # Verificação geometria balanço dos pilares
+    for _, row in df.iterrows():
+        a_p = row['ap (m)']
+        b_p = row['bp (m)']
+        g_0, g_1, g_2, g_3 = restricao_geometrica_balanco_pilar_sapata(h_x, h_y, h_z, a_p, b_p)
+        g.append(g_0)
+        g.append(g_1)
+        g.append(g_2)
+        g.append(g_3)
+        # g_0, g_1, g_2, g_3 = restricao_geometrica_balanco_pilar_sapata(h_x, h_y, h_z, a_p, b_p)
+    print(g)
+    
+    # Função pseudo-objetivo
+    of = vol
+    for i in g:
+        of += max(0, i) * 1E6
 
-    g_c = []
+    # g_c = []
     
     #for index, row in df.iterrows():
         #f_z = row['Fz-c1']
@@ -393,13 +425,13 @@ def obj_ic_fundacoes(x, none_variable):
         #m_y = row['My-c1']
         #g = calcular_sigma_max(f_z, m_x, m_y, h_x, h_y)
         #g_c1.append(g)
-    for index, row in df.iterrows():
-        for i in range(1, 4): #alterar para 1, 11 quando for usar a tabela correta
-            f_z = row[f'Fz-c{i}']
-            m_x = row[f'Mx-c{i}']
-            m_y = row[f'My-c{i}']
-            g = calcular_sigma_max (f_z, m_x, m_y, h_x, h_y,)
-            g_c.append(g)
+    # for index, row in df.iterrows():
+    #     for i in range(1, 4): #alterar para 1, 11 quando for usar a tabela correta
+    #         f_z = row[f'Fz-c{i}']
+    #         m_x = row[f'Mx-c{i}']
+    #         m_y = row[f'My-c{i}']
+    #         g = calcular_sigma_max (f_z, m_x, m_y, h_x, h_y,)
+    #         g_c.append(g)
     
     # # Determina o volume do elemento de fundação
     
@@ -480,14 +512,12 @@ if __name__ == 'IC_Filipe':
 
 if __name__== '__main__':
     df = pd.read_excel("teste_wand.xlsx")
-    #print(df)
+    print(df)
     a = 0.6
     b = 0.6
     x = [a, b]
     none_variable = {'dados estrutura': df, 'h_z (m)': 0.6, 'rec (m)': 0.025, 'fck (MPa)': 25 }
     ofi = obj_ic_fundacoes(x, none_variable)
-    #print("resultado ofi: ",ofi)
-    teste = restricao_geometrica(A, B, a, b)
-    print(teste)
-else :
-    print("nada")
+    # #print("resultado ofi: ",ofi)
+    # teste = restricao_geometrica(A, B, a, b)
+    # print(teste)
