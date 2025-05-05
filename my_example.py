@@ -317,8 +317,8 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
     talsd1 = (0.001 * f_z) / (u * d) + kx * m_x * 0.001 / (wpx * d) + ky * m_y * 0.001 / (wpy * d) # (MPa)
     talrd1 = 0.13 * ke * (100 * ro * fck) ** (1 / 3) + 0.1 * sigma_cp # (MPa)
 
-    g_6 = 4 * d / (h_x - a_p) - 1 #se a area crítica esta dentro da sapata em x
-    g_7 = 4 * d / (h_y - b_p) - 1 #se a area crítica esta dentro da sapata em y
+    g_6 = (h_x - a_p) / 4 * d - 1 #4 * d / (h_x - a_p) - 1 #se a area crítica esta dentro da sapata em x adiciona punição
+    g_7 = (h_y - b_p) / 4 * d - 1 #4 * d / (h_y - b_p) - 1 #se a area crítica esta dentro da sapata em y adiciona punição
     g_8 = ro / 0.02 - 1 # taxa de aço de flexão aderente, 
     g_9 =  ke / 2 - 1 
     g_10 = sigma_cp / 3.5 - 1
