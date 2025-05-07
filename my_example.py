@@ -6,6 +6,13 @@ import math
 
 #declarando apenas por estética
 
+def restrcao_tensao(sigma_rd, sigma_sd):
+
+    g = sigma_sd / sigma_rd - 1
+    
+    return g
+
+
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
     """
     Esta função determina a tensão máxima e a tensão mínima na fundação rasa do tipo sapata
@@ -328,20 +335,24 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
     return  g_6, g_7, g_8, g_9, g_10, g_11, g_12
     
 def obj_ic_fundacoes(x, none_variable):
-    # Organização variáveis de projeto e variáveis do problema de engenharia
     h_x = x[0]
     h_y = x[1]
     h_z = 0.6
-    rec = 0.02
+    rec = none_variable['cob (m)']
+    n_comb = none_variable['número de combinações estruturais']
     ro = 0.01
     df = none_variable['dados estrutura']
+    fck = none_variable['fck (kPa)']
     vol = 0 
     g = []
     
+    # Volume total da fundação
     for _ in range(len(df)):
         aux = volume_fundacao(h_x, h_y, h_z)
         vol += aux
-    
+    t_max = []
+    t_min = []            
+
     # Verificação geometria balanço dos pilares
     for _, row in df.iterrows():
         a_p = row['ap (m)']
@@ -367,8 +378,13 @@ def obj_ic_fundacoes(x, none_variable):
         g.append(g_10)
         g.append(g_11)
         g.append(g_12)
-    print(g)
     
+    # Cálculo da tensão máxima e mínima para cada combinação de carga
+    for i in range(1, n_comb+1):
+        aux = f'c{i}'
+        for _, row in df.iterrows():
+            t_max_aux, t_min_aux = calcular_sigma_max(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], 0.60, 0.60)  
+            
     
     
     # Função pseudo-objetivo
@@ -472,6 +488,6 @@ if __name__== '__main__':
     a = 0.6
     b = 0.6
     x = [a, b]
-    none_variable = {'dados estrutura': df, 'h_z (m)': 0.6, 'rec (m)': 0.025, 'fck (MPa)': 25 }
+    none_variable = {'dados estrutura': df, 'h_z (m)': 0.6, 'cob (m)': 0.025, 'fck (kPa)': 25000, 'número de combinações estruturais': 3}
     of = obj_ic_fundacoes(x, none_variable)
     print(of)
