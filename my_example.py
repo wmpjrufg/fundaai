@@ -8,7 +8,7 @@ import math
 
 def restrcao_tensao(sigma_rd, sigma_sd):
 
-    g = sigma_sd / sigma_rd - 1
+    g = sigma_sd * 1.30 / sigma_rd - 1
     
     return g
 
@@ -384,7 +384,7 @@ def obj_ic_fundacoes(x, none_variable):
         aux = f'c{i}'
         for _, row in df.iterrows():
             t_max_aux, t_min_aux = calcular_sigma_max(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], 0.60, 0.60)  
-            
+
     
     
     # Função pseudo-objetivo
