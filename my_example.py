@@ -6,23 +6,35 @@ import math
 
 #declarando apenas por estética
 
-def restrcao_tensao(sigma_rd, sigma_sd):
+def restricao_tensao1(t_max_value: float, sigma_rd: float)-> float:
+    """
+    Esta função verifica a restrição de tensão na fundação rasa do tipo sapata, com majoração devido a incerteza do tipo de carregamento
 
-    g = sigma_sd * 1.30 / sigma_rd - 1
+    Args:
+        sigma_rd (float): tensão resistente na direção z (KPa)
+        sigma_sd (float): tensão solicitante na direção z (KPa)
+
+    Returns:
+        g (float): restrição de tensão (admensional)
+    """
+    
+
+    g = t_max_value * 1.30 / sigma_rd - 1 #1,30 = majoração devido a não saber se é o vento é ou não o carregamento variável principal
     
     return g
-
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
     """
     Esta função determina a tensão máxima e a tensão mínima na fundação rasa do tipo sapata
 
     Args
-    f_z: carregamento na direção z (kN)
+    f_z: Carregamento na direção z, da combinação mais desfavorável (kN)
+    m_x: Momento em x da combinação mais desfavorável (kN.m)
+    m_y: Momento em y da combinação mais desfavorável (kN.m)
 
     Returns
-    sigma_max: Tensão máxima suportada pela sapata (kN/m2)
-    sigma_min: Tensão minima suportada pela sapata (kN/m2)
+    sigma_max: Tensão máxima que age na sapata (kPa)
+    sigma_min: Tensão minima que age na sapata (kPa)
 
     """
     
@@ -76,10 +88,10 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame: DataFrame com a coluna 'sigma_adm (kPa)' calculada.
     """
     # Converta a coluna 'solo' para minúsculas
-    solo_column = df[('solo', 'Unnamed: 4_level_1')]  
+    solo_column = df[('solo')]  
     solo_column = solo_column.str.lower()
     
-
+    
     # Verifique se a coluna 'spt' existe para evitar erro
     if 'spt' not in df.columns:
         raise KeyError("A coluna 'spt' deve estar presente no DataFrame.")
@@ -91,9 +103,9 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
         (solo_column == 'silte') | (solo_column == 'argila'),
     ]
     values = [
-        df[('spt', 'Unnamed: 3_level_1')] / 30 * 1E3,  # Acessa a coluna 'spt' corretamente
-        df[('spt', 'Unnamed: 3_level_1')] / 40 * 1E3,
-        df[('spt', 'Unnamed: 3_level_1')] / 50 * 1E3,
+        df[('spt')] / 30 * 1E3,  # Acessa a coluna 'spt' corretamente
+        df[('spt')] / 40 * 1E3,
+        df[('spt')] / 50 * 1E3,
     ]
 
     # Assegure que as condições e os valores sejam arrays 1D
@@ -120,9 +132,6 @@ def restricao_tensao(h_x: float, h_y: float, none_variable, calcular_sigma_max):
         result (float): valor da penalidade (admensional)
     '''
 
-    # Variáveis de projeto
-    h_x = x[0]
-    h_y = x[1]
     comb = none_variable['combinações'] #é preciso fazer o for duplo
     sigma_lim = none_variable['sigma_adm (kPa)']
 
@@ -285,7 +294,7 @@ def interpolar_ky(a_p: float, b_p: float):
             ky_interpolado = y0 + (y1 - y0) * ((a_b - x0) / (x1 - x0))
             return round(ky_interpolado, 4)
 
-def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float, f_z: float, m_x: float, m_y: float, ro: float, rec: float, fck: float, fcd: float) -> tuple[float, float, float, float, float, float, float,]:
+def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float, f_z: float, m_x: float, m_y: float, ro: float, cob: float, fck: float, fcd: float) -> tuple[float, float, float, float, float, float, float,]:
     """
     Esta função  calcula a tensão resistente e solicitante que há na borda do pilar e no perímetro crítico C' da sapata
     em seguida contempla a verificações de restrição de acordo com a NBR6118-2023
@@ -308,7 +317,7 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
        g6, g7, g8, g9, g10, g11, g12 (tuple[float, float, float, float, float, float, float]): verificação das restrições 
        da linha critica, da taxa de aço de flexão aderenente, da tensão de protensão e das tensões em C e C'
     """
-    d = h_z - rec #altura util da sapata
+    d = h_z - cob #altura util da sapata
     sigma_cp = 0 # tensão a mais devido a efeitos da protensão do concreto <= 3,5 MPa, depois criar uma def para calcular essa tensão!
     # taxa geométrica de armadura de flexão aderente <0,02 (NBR6118-2023)
     ke = 1 + math.sqrt(20 / (d * 100))  
@@ -338,33 +347,51 @@ def obj_ic_fundacoes(x, none_variable):
     h_x = x[0]
     h_y = x[1]
     h_z = 0.6
-    rec = none_variable['cob (m)']
+    cob = none_variable['cob (m)']
     n_comb = none_variable['número de combinações estruturais']
     ro = 0.01
     df = none_variable['dados estrutura']
     fck = none_variable['fck (kPa)']
     vol = 0 
+    n_comb = none_variable['número de combinações estruturais']
     g = []
-    
+    t_max = []
+    t_min = []
+    f_z = []
+    m_x = []
+    m_y = []  
+
     # Volume total da fundação
     for _ in range(len(df)):
-        aux = volume_fundacao(h_x, h_y, h_z)
-        vol += aux
-    t_max = []
-    t_min = []            
-
-    # Verificação geometria balanço dos pilares
+        v_aux = volume_fundacao(h_x, h_y, h_z)
+        vol += v_aux
+    
+    # determinando a combinação mais desfavorável
     for _, row in df.iterrows():
+        for i in range(1, n_comb+1):
+            aux = f'c{i}'
+            t_max_aux, t_min_aux = calcular_sigma_max(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], h_x, h_y)
+            t_max.append(t_max_aux)
+            t_min.append(t_min_aux)
+            if t_max_aux >= t_max[-1]:
+                f_z = row[f'Fz-{aux}']
+                m_x = row[f'Mx-{aux}']
+                m_y = row[f'My-{aux}']
+        
+        t_max_value = max(t_max)
+        t_min_value = min(t_min)
+        print(f_z, m_x, m_y)
+    
         a_p = row['ap (m)']
         b_p = row['bp (m)']
-        f_z = max(row['Fz-c1'], row['Fz-c2'], row['Fz-c3']) # jeito errado  de recolher os dados
-        m_x = max(row['Mx-c1'], row['Mx-c2'], row['Mx-c3']) # jeito errado  de recolher os dados
-        m_y = max(row['My-c1'], row['My-c2'], row['My-c3']) # jeito errado  de recolher os dados
-        fck = none_variable['fck (MPa)']
         fcd = fck / 1.4
+        sigma_rd = row['sigma_adm (kPa)']
+
+    # verificando as restrições
         g_0, g_1, g_2, g_3 = restricao_geometrica_balanco_pilar_sapata(h_x, h_y, h_z, a_p, b_p)
         g_4, g_5 = restricao_geometrica_pilar_sapata(h_x, h_y, a_p, b_p)
-        g_6, g_7, g_8, g_9, g_10, g_11, g_12 = restricao_puncao(h_x, h_y, h_z, a_p, b_p, f_z, m_x, m_y, ro, rec, fck, fcd)
+        g_6, g_7, g_8, g_9, g_10, g_11, g_12 = restricao_puncao(h_x, h_y, h_z, a_p, b_p, f_z, m_x, m_y, ro, cob, fck, fcd)
+        g_13 = restricao_tensao1(t_max_value, sigma_rd)
         g.append(g_0)
         g.append(g_1)
         g.append(g_2)
@@ -378,49 +405,12 @@ def obj_ic_fundacoes(x, none_variable):
         g.append(g_10)
         g.append(g_11)
         g.append(g_12)
-    
-    # Cálculo da tensão máxima e mínima para cada combinação de carga
-    for i in range(1, n_comb+1):
-        aux = f'c{i}'
-        for _, row in df.iterrows():
-            t_max_aux, t_min_aux = calcular_sigma_max(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], 0.60, 0.60)  
-
-    
-    
+        g.append(g_13)
+        
     # Função pseudo-objetivo
     of = vol
     for i in g:
         of += max(0, i) * 1E6
-    
-        # g_c = []
-    
-    #for index, row in df.iterrows():
-        #f_z = row['Fz-c1']
-       # m_x = row['Mx-c1']
-        #m_y = row['My-c1']
-        #g = calcular_sigma_max(f_z, m_x, m_y, h_x, h_y)
-        #g_c1.append(g)
-    # for index, row in df.iterrows():
-    #     for i in range(1, 4): #alterar para 1, 11 quando for usar a tabela correta
-    #         f_z = row[f'Fz-c{i}']
-    #         m_x = row[f'Mx-c{i}']
-    #         m_y = row[f'My-c{i}']
-    #         g = calcular_sigma_max (f_z, m_x, m_y, h_x, h_y,)
-    #         g_c.append(g)
-    
-    # # Determina o volume do elemento de fundação
-    
-
-    # # Trazendo as Restrições
-    # g1 = restricao_tensao(none_variable, h_x, h_y, calcular_sigma_max )
-    # g2 = restricao_geometrica(A, B, a, b)
-    # g3 = restricao_puncao(dados_fundacao, A, B, MX, MY, Fz, combinations, rec)
-
-    # # Função objetivo e restrições
-    # of = vol
-    # of += max(0, g1) * 1E6
-    # of += max(0, g2) * 1E6
-    # of += max(0, g3) * 1E6
     
     return of
 
@@ -485,9 +475,11 @@ if __name__ == 'IC_Filipe':
 
 if __name__== '__main__':
     df = pd.read_excel("teste_wand.xlsx")
+    df = tensao_adm_solo(df)
     a = 0.6
     b = 0.6
     x = [a, b]
     none_variable = {'dados estrutura': df, 'h_z (m)': 0.6, 'cob (m)': 0.025, 'fck (kPa)': 25000, 'número de combinações estruturais': 3}
     of = obj_ic_fundacoes(x, none_variable)
+
     print(of)
