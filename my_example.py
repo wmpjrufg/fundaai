@@ -357,9 +357,9 @@ def obj_ic_fundacoes(x, none_variable):
     g = []
     t_max = []
     t_min = []
-    f_z = []
-    m_x = []
-    m_y = []  
+    fz_list = []
+    mx_list = []
+    my_list = []  
 
     # Volume total da fundação
     for _ in range(len(df)):
@@ -374,14 +374,21 @@ def obj_ic_fundacoes(x, none_variable):
             t_max.append(t_max_aux)
             t_min.append(t_min_aux)
             if t_max_aux >= t_max[-1]:
-                f_z = row[f'Fz-{aux}']
-                m_x = row[f'Mx-{aux}']
-                m_y = row[f'My-{aux}']
-        
+                fz_aux = row[f'Fz-{aux}']
+                mx_aux = row[f'Mx-{aux}']
+                my_aux = row[f'My-{aux}']
+                fz_list.append(fz_aux)
+                mx_list.append(mx_aux)
+                my_list.append(my_aux)
+        f_z = max(fz_list)
+        m_x = max(mx_list)
+        m_y = max(my_list)
         t_max_value = max(t_max)
         t_min_value = min(t_min)
+        
         print(f_z, m_x, m_y)
-    
+        print(t_max_value, t_min_value)
+
         a_p = row['ap (m)']
         b_p = row['bp (m)']
         fcd = fck / 1.4
