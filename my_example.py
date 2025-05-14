@@ -6,7 +6,7 @@ import math
 
 #declarando apenas por estética
 
-def restricao_tensao1(t_max_value: float, sigma_rd: float)-> float:
+def restricao_tensao1(t_value: float, sigma_rd: float)-> float:
     """
     Esta função verifica a restrição de tensão na fundação rasa do tipo sapata, com majoração devido a incerteza do tipo de carregamento
 
@@ -18,9 +18,10 @@ def restricao_tensao1(t_max_value: float, sigma_rd: float)-> float:
         g (float): restrição de tensão (admensional)
     """
     
-
-    g = t_max_value * 1.30 / sigma_rd - 1 #1,30 = majoração devido a não saber se é o vento é ou não o carregamento variável principal
-    
+    if t_value >= 0:
+        g = t_value * 1.30 / sigma_rd - 1 #1,30 = majoração devido a não saber se é o vento é ou não o carregamento variável principal
+    else:
+        g = -t_value / sigma_rd
     return g
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
