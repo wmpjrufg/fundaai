@@ -343,7 +343,38 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
     g_12 = talsd2 / talrd2 - 1
     
     return  g_6, g_7, g_8, g_9, g_10, g_11, g_12
-    
+
+def restricao_geometrica_sobreposicao(df, h_x, h_y, idx):
+    """
+    Verifica a soma da área de sobreposição da sapata atual (em sapata_index)
+    com todas as outras sapatas do DataFrame.
+
+    Retorna:
+        area_total_sobreposta (float): penalização proporcional à área de sobreposição.
+    """
+    area_total = 0
+    xi, yi = df.loc[idx, 'xg (m)'], df.loc[idx, 'yg (m)']
+
+    xi_min, xi_max = xi - h_x / 2, xi + h_x / 2
+    yi_min, yi_max = yi - h_y / 2, yi + h_y / 2
+
+    for j, row in df.iterrows():
+        if j == idx:
+            continue  # Ignorar a própria sapata
+
+        xj, yj = row['xg (m)'], row['yg (m)']
+        xj_min, xj_max = xj - h_x / 2, xj + h_x / 2
+        yj_min, yj_max = yj - h_y / 2, yj + h_y / 2
+
+        # Calcular sobreposição
+        overlap_x = max(0, min(xi_max, xj_max) - max(xi_min, xj_min))
+        overlap_y = max(0, min(yi_max, yj_max) - max(yi_min, yj_min))
+        area_overlap = overlap_x * overlap_y
+
+        area_total += area_overlap
+
+    return area_total / (h_x * h_y)  # penalização normalizada
+
 def obj_ic_fundacoes(x, none_variable):
     h_x = x[0]
     h_y = x[1]
@@ -369,7 +400,7 @@ def obj_ic_fundacoes(x, none_variable):
         vol += v_aux
     
     # determinando a combinação mais desfavorável
-    for _, row in df.iterrows():
+    for idx, row in df.iterrows():
         for i in range(1, n_comb+1):
             aux = f'c{i}'
             t_max_aux, t_min_aux = calcular_sigma_max(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], h_x, h_y)
@@ -399,6 +430,7 @@ def obj_ic_fundacoes(x, none_variable):
         g_4, g_5 = restricao_geometrica_pilar_sapata(h_x, h_y, a_p, b_p)
         g_6, g_7, g_8, g_9, g_10, g_11, g_12 = restricao_puncao(h_x, h_y, h_z, a_p, b_p, f_z, m_x, m_y, ro, cob, fck, fcd)
         g_13 = restricao_tensao1(t_value, sigma_rd)
+        g_14 = restricao_geometrica_sobreposicao(df, h_x, h_y, idx)
         g.append(g_0)
         g.append(g_1)
         g.append(g_2)
@@ -413,7 +445,8 @@ def obj_ic_fundacoes(x, none_variable):
         g.append(g_11)
         g.append(g_12)
         g.append(g_13)
-
+        g.append(g_14)
+        print(g_14)
     # Função pseudo-objetivo
     of = vol
     for i in g:
@@ -483,8 +516,8 @@ if __name__ == 'IC_Filipe':
 if __name__== '__main__':
     df = pd.read_excel("teste_wand.xlsx")
     df = tensao_adm_solo(df)
-    a = 0.6
-    b = 0.6
+    a = 1.2
+    b = 1.2
     x = [a, b]
     none_variable = {'dados estrutura': df, 'h_z (m)': 0.6, 'cob (m)': 0.025, 'fck (kPa)': 25000, 'número de combinações estruturais': 3}
     of = obj_ic_fundacoes(x, none_variable)
