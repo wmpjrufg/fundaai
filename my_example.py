@@ -17,12 +17,13 @@ def restricao_tensao1(t_value: float, sigma_rd: float)-> float:
     Returns:
         g (float): restrição de tensão (admensional)
     """
-    
-    if t_value >= 0:
-        g = t_value * 1.30 / sigma_rd - 1 #1,30 = majoração devido a não saber se é o vento é ou não o carregamento variável principal
-    else:
-        g = -t_value / sigma_rd
-    return g
+    return t_value * 1.30 / sigma_rd - 1
+
+   # if t_value >= 0:
+    #    g = t_value * 1.30 / sigma_rd - 1 #1,30 = majoração devido a não saber se é o vento é ou não o carregamento variável principal
+    #else:
+    #    g = -t_value / sigma_rd - 1
+    #return g
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
     """
@@ -121,7 +122,7 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
 #Restricao de tensão
 def restricao_tensao(h_x: float, h_y: float, none_variable, calcular_sigma_max):
     '''
-   Esta função verifica se a tensão máxima é superior ou não a tensão admissível.
+   Esta função verifica se a tensão máxima é superior ou não a tensão admissível. Não usada
    
    args:
        h_x (float): dimensão em x (m)
@@ -320,7 +321,6 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
     """
     d = h_z - cob #altura util da sapata
     sigma_cp = 0 # tensão a mais devido a efeitos da protensão do concreto <= 3,5 MPa, depois criar uma def para calcular essa tensão!
-    # taxa geométrica de armadura de flexão aderente <0,02 (NBR6118-2023)
     ke = 1 + math.sqrt(20 / (d * 100))  
     kx = interpolar_kx(a_p, b_p)
     ky = interpolar_ky(a_p, b_p)
@@ -350,11 +350,12 @@ def obj_ic_fundacoes(x, none_variable):
     h_z = 0.6
     cob = none_variable['cob (m)']
     n_comb = none_variable['número de combinações estruturais']
-    ro = 0.01
+    ro = 0.01 #esse valor deve ser calculado
     df = none_variable['dados estrutura']
     fck = none_variable['fck (kPa)']
     vol = 0 
     n_comb = none_variable['número de combinações estruturais']
+    
     g = []
     t_max = []
     t_min = []
@@ -386,9 +387,7 @@ def obj_ic_fundacoes(x, none_variable):
         m_y = max(my_list)
         t_max_value = max(t_max)
         t_min_value = min(t_min)
-        
-        print(f_z, m_x, m_y)
-        print(t_max_value, t_min_value)
+        t_value = max(abs(t_max_value), abs(t_min_value))
 
         a_p = row['ap (m)']
         b_p = row['bp (m)']
@@ -399,7 +398,7 @@ def obj_ic_fundacoes(x, none_variable):
         g_0, g_1, g_2, g_3 = restricao_geometrica_balanco_pilar_sapata(h_x, h_y, h_z, a_p, b_p)
         g_4, g_5 = restricao_geometrica_pilar_sapata(h_x, h_y, a_p, b_p)
         g_6, g_7, g_8, g_9, g_10, g_11, g_12 = restricao_puncao(h_x, h_y, h_z, a_p, b_p, f_z, m_x, m_y, ro, cob, fck, fcd)
-        g_13 = restricao_tensao1(t_max_value, sigma_rd)
+        g_13 = restricao_tensao1(t_value, sigma_rd)
         g.append(g_0)
         g.append(g_1)
         g.append(g_2)
@@ -414,7 +413,7 @@ def obj_ic_fundacoes(x, none_variable):
         g.append(g_11)
         g.append(g_12)
         g.append(g_13)
-        
+
     # Função pseudo-objetivo
     of = vol
     for i in g:
@@ -489,5 +488,5 @@ if __name__== '__main__':
     x = [a, b]
     none_variable = {'dados estrutura': df, 'h_z (m)': 0.6, 'cob (m)': 0.025, 'fck (kPa)': 25000, 'número de combinações estruturais': 3}
     of = obj_ic_fundacoes(x, none_variable)
-
+    
     print(of)
