@@ -384,7 +384,7 @@ def obj_ic_fundacoes(x, none_variable):
     df = none_variable['dados estrutura']
     fck = none_variable['fck (kPa)']
     vol = 0 
-    n_comb = none_variable['número de combinações estruturais']
+    # n_comb = none_variable['número de combinações estruturais']
 
     g = []
     t_max = []
