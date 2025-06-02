@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import math
 
-#declarando apenas por estética
 
 def restricao_tensao1(t_value: float, sigma_rd: float)-> float:
     """
@@ -90,7 +89,7 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame: DataFrame com a coluna 'sigma_adm (kPa)' calculada.
     """
     # Converta a coluna 'solo' para minúsculas
-    solo_column = df[('solo')]  
+    solo_column = df[('solo')] 
     solo_column = solo_column.str.lower()
     
     
@@ -386,13 +385,14 @@ def obj_ic_fundacoes(x, none_variable):
     fck = none_variable['fck (kPa)']
     vol = 0 
     n_comb = none_variable['número de combinações estruturais']
-    
+
     g = []
     t_max = []
     t_min = []
     fz_list = []
     mx_list = []
-    my_list = []  
+    my_list = []
+    lista_restricoes = [] 
 
     # Volume total da fundação
     for _ in range(len(df)):
@@ -406,6 +406,7 @@ def obj_ic_fundacoes(x, none_variable):
             t_max_aux, t_min_aux = calcular_sigma_max(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], h_x, h_y)
             t_max.append(t_max_aux)
             t_min.append(t_min_aux)
+            # if para garantir que os valores de FZ mx e my sejam correspondente à combinação mais desfavorável
             if t_max_aux >= t_max[-1]:
                 fz_aux = row[f'Fz-{aux}']
                 mx_aux = row[f'Mx-{aux}']
@@ -431,28 +432,117 @@ def obj_ic_fundacoes(x, none_variable):
         g_6, g_7, g_8, g_9, g_10, g_11, g_12 = restricao_puncao(h_x, h_y, h_z, a_p, b_p, f_z, m_x, m_y, ro, cob, fck, fcd)
         g_13 = restricao_tensao1(t_value, sigma_rd)
         g_14 = restricao_geometrica_sobreposicao(df, h_x, h_y, idx)
-        g.append(g_0)
-        g.append(g_1)
-        g.append(g_2)
-        g.append(g_3)
-        g.append(g_4)
-        g.append(g_5)
-        g.append(g_6)
-        g.append(g_7)
-        g.append(g_8)
-        g.append(g_9)
-        g.append(g_10)
-        g.append(g_11)
-        g.append(g_12)
-        g.append(g_13)
-        g.append(g_14)
-        print(g_14)
+        # g.append(g_0)
+        # g.append(g_1)
+        # g.append(g_2)
+        # g.append(g_3)
+        # g.append(g_4)
+        # g.append(g_5)
+        # g.append(g_6)
+        # g.append(g_7)
+        # g.append(g_8)
+        # g.append(g_9)
+        # g.append(g_10)
+        # g.append(g_11)
+        # g.append(g_12)
+        # g.append(g_13)
+        # g.append(g_14)
+        # print(g_14)
+
+        restricoes = [g_0, g_1, g_2, g_3, g_4, g_5, g_6, g_7, g_8, g_9, g_10, g_11, g_12, g_13, g_14]
+        lista_restricoes.append(restricoes)
+
+    # Penalização no volume
+    penalizacao = sum([sum(max(0, g) * 1e6 for g in linha) for linha in lista_restricoes]) #não sei se ta certo
+    of = vol + penalizacao
+
     # Função pseudo-objetivo
-    of = vol
-    for i in g:
-        of += max(0, i) * 1E6
+    # of = vol
+    # for i in g:
+    #     of += max(0, i) * 1E6
     
-    return of
+     # Criação de DataFrame com restrições
+    colunas_g = [f'g_{i}' for i in range(15)]
+    df_restricoes = pd.DataFrame(lista_restricoes, columns=colunas_g)
+
+    df_resultado = pd.concat([df.reset_index(drop=True), df_restricoes], axis=1)
+
+    return of, df_resultado
+
+# def obj_ic_fundacoes(x, none_variable):
+        # Lista para registrar todas as linhas com restrições
+    h_x = x[0]
+    h_y = x[1]
+    h_z = none_variable['h_z (m)']
+    cob = none_variable['cob (m)']
+    n_comb = none_variable['número de combinações estruturais']
+    ro = 0.01 #esse valor deve ser calculado
+    df = none_variable['dados estrutura']
+    fck = none_variable['fck (kPa)']
+    vol = 0   
+    lista_restricoes = []
+
+    # Volume total da fundação
+    for _ in range(len(none_variable['dados estrutura'])):
+        v_aux = volume_fundacao(h_x, h_y, h_z)
+        vol += v_aux
+
+    for idx, row in df.iterrows():
+        fz_list = []
+        mx_list = []
+        my_list = []
+        t_max = []
+        t_min = []
+
+        for i in range(1, n_comb+1):
+            aux = f'c{i}'
+            sigma_max, sigma_min = calcular_sigma_max(
+                row[f'Fz-{aux}'],
+                row[f'Mx-{aux}'],
+                row[f'My-{aux}'],
+                h_x, h_y
+            )
+            t_max.append(sigma_max)
+            t_min.append(sigma_min)
+
+            if sigma_max >= max(t_max):
+                fz_list.append(row[f'Fz-{aux}'])
+                mx_list.append(row[f'Mx-{aux}'])
+                my_list.append(row[f'My-{aux}'])
+
+        f_z = max(fz_list)
+        m_x = max(mx_list)
+        m_y = max(my_list)
+        t_value = max(abs(min(t_min)), abs(max(t_max)))
+
+        a_p = row['ap (m)']
+        b_p = row['bp (m)']
+        fcd = fck / 1.4
+        sigma_rd = row['sigma_adm (kPa)']
+
+        # Restrições
+        g_0, g_1, g_2, g_3 = restricao_geometrica_balanco_pilar_sapata(h_x, h_y, h_z, a_p, b_p)
+        g_4, g_5 = restricao_geometrica_pilar_sapata(h_x, h_y, a_p, b_p)
+        g_6, g_7, g_8, g_9, g_10, g_11, g_12 = restricao_puncao(h_x, h_y, h_z, a_p, b_p, f_z, m_x, m_y, ro, cob, fck, fcd)
+        g_13 = restricao_tensao1(t_value, sigma_rd)
+        g_14 = restricao_geometrica_sobreposicao(df, h_x, h_y, idx)
+
+        restricoes = [g_0, g_1, g_2, g_3, g_4, g_5, g_6, g_7, g_8, g_9, g_10, g_11, g_12, g_13, g_14]
+        lista_restricoes.append(restricoes)
+
+    # Penalização no volume
+    penalizacao = sum([sum(max(0, g) * 1e6 for g in linha) for linha in lista_restricoes])
+    of = vol + penalizacao
+
+    # Criação de DataFrame com restrições
+    colunas_g = [f'g_{i}' for i in range(15)]
+    df_restricoes = pd.DataFrame(lista_restricoes, columns=colunas_g)
+
+    df_resultado = pd.concat([df.reset_index(drop=True), df_restricoes], axis=1)
+
+    return of, df_resultado
+
+
 
 def data_comb(df: pd.DataFrame,) -> list:
     """
@@ -516,8 +606,8 @@ if __name__ == 'IC_Filipe':
 if __name__== '__main__':
     df = pd.read_excel("teste_wand.xlsx")
     df = tensao_adm_solo(df)
-    a = 1.2
-    b = 1.2
+    a = 0.6
+    b = 0.6
     x = [a, b]
     none_variable = {'dados estrutura': df, 'h_z (m)': 0.6, 'cob (m)': 0.025, 'fck (kPa)': 25000, 'número de combinações estruturais': 3}
     of = obj_ic_fundacoes(x, none_variable)
