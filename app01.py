@@ -1,6 +1,41 @@
 import streamlit as st 
 import pandas as pd
 from my_example import obj_ic_fundacoes, tensao_adm_solo
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+def plot_sapatas(df_resultado, h_x, h_y):
+    """
+    Gera uma figura matplotlib com a planta das sapatas.
+
+    Parâmetros:
+        df_resultado (DataFrame): Resultado contendo colunas 'Elemento', 'xg (m)', 'yg (m)'
+        h_x (float): Dimensão da sapata em x (largura)
+        h_y (float): Dimensão da sapata em y (comprimento)
+
+    Retorna:
+        fig (matplotlib.figure.Figure): Figura com a plotagem
+    """
+    labels = df_resultado['Elemento'].tolist()
+    x = df_resultado['xg (m)'].tolist()
+    y = df_resultado['yg (m)'].tolist()
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    for i in range(len(x)):
+        rect = patches.Rectangle((x[i] - h_x/2, y[i] - h_y/2), h_x, h_y,
+                                 linewidth=1, edgecolor='blue', facecolor='none')
+        ax.add_patch(rect)
+        ax.scatter(x[i], y[i], color='red', marker='+', s=100)
+        ax.annotate(labels[i], (x[i], y[i]), textcoords="offset points", xytext=(0, 10), ha='center')
+
+    ax.set_xlabel('X (m)')
+    ax.set_ylabel('Y (m)')
+    ax.set_title('Planta das Sapatas')
+    ax.grid(True)
+    ax.set_aspect('equal')
+    return fig
+
 
 st.title('Dimensionamento de Sapatas')
 st.write(r'''
@@ -22,12 +57,13 @@ st.write(r'''
                                         <li>solo: Tipo de solo</li>                                                                                    
                                         <li>xg (m): Coordenada x do pilar (m)</li>
                                         <li>yg (m): Coordenada y do pilar (m)</li>
-                                        <li>Fz-ci (kN): Força vertical aplicada no pilar da combinação 1(kN)</li> 
+                                        <li>Fz-ci (kN): Força vertical aplicada no pilar da combinação i(kN)</li> 
                                         <li>Mx-ci (kNm): Momento fletor em torno do eixo x (kNm) da combinação i</li>
                                         <li>My-c1 (kNm): Momento fletor em torno do eixo y (kNm) da combinação i</li>
                                 </ul>  
                         <li>Não modifique o cabeçalho da planilha, pois o aplicativo faz referência a ele.</li>
                         <li>Qualquer numero de combinações podem ser informados na planilha, seguindo o padrão de nomenclatura.</li>
+                        <li>Aplicação em construção, atualmete ela é capaz de analisar para uma dada dimensão de sapata se passa ou não em varias verificações.</li>
                         </li>
                 </ul>   
          
@@ -48,7 +84,7 @@ uploaded_file = st.file_uploader("Uploaded file", type=['xlsx'])
 if uploaded_file is not None:
     data = pd.read_excel(uploaded_file,)
     
-    fck = st.number_input('Concreto fck (KPa)', value=2500)
+    fck = st.number_input('Concreto fck (KPa)', value=25000)
     if fck < 20000:   
         st.warning('Concreto fck deve ser maior ou igual a 20000')
 
@@ -67,20 +103,26 @@ if uploaded_file is not None:
     h_z = st.number_input('Dimensão z da sapata (m)', value=0.6)
     if h_z < 0.6:
         st.warning('Dimensão z da sapata deve ser maior ou igual a 0.6')
+    if st.button("calacular"):
+        x = [h_x, h_y]
+        data[('fck (kPa)')] = fck
+        data[('cob (m)')] = cob
+        data[('n_comb')] = n_comb
+        data[('h_z (m)')] = h_z
 
-    x = [h_x, h_y]
+        data = tensao_adm_solo(data)
 
-    data[('fck (kPa)')] = fck
-    data[('cob (m)')] = cob
-    data[('n_comb')] = n_comb
-    data[('h_z (m)')] = h_z
+        none_variable = {'cob (m)': cob, 'fck (kPa)': fck, 'número de combinações estruturais': n_comb, 'dados estrutura': data, 'h_z (m)': h_z}
 
-    data = tensao_adm_solo(data)
+        resultado, df_resultado = obj_ic_fundacoes(x, none_variable)
+        st.success(f'Volume otimizado (com penalização por restrições): {resultado:.4f} m³')
+        st.dataframe(df_resultado)
 
-    none_variable = {'cob (m)': cob, 'fck (kPa)': fck, 'número de combinações estruturais': n_comb, 'dados estrutura': data, 'h_z (m)': h_z}
+        fig = plot_sapatas(df_resultado, h_x, h_y)
+        st.pyplot(fig)
 
-    resultado, df_resultado = obj_ic_fundacoes(x, none_variable)
-    st.success(f'Volume otimizado (com penalização por restrições): {resultado:.4f} m³')
-    st.dataframe(df_resultado)
+
+
+
 
     
