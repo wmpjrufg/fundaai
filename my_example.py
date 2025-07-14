@@ -383,8 +383,7 @@ def obj_ic_fundacoes(x, none_variable):
     ro = 0.01 #esse valor deve ser calculado
     df = none_variable['dados estrutura']
     fck = none_variable['fck (kPa)']
-    vol = 0 
-    # n_comb = none_variable['número de combinações estruturais']
+    vol = 0
 
     g = []
     t_max = []
@@ -461,7 +460,7 @@ def obj_ic_fundacoes(x, none_variable):
     # for i in g:
     #     of += max(0, i) * 1E6
     
-     # Criação de DataFrame com restrições
+     # Criação de DataFrame com as restrições
     colunas_g = [f'g_{i}' for i in range(15)]
     df_restricoes = pd.DataFrame(lista_restricoes, columns=colunas_g)
 

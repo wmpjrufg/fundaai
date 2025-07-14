@@ -120,9 +120,3 @@ if uploaded_file is not None:
 
         fig = plot_sapatas(df_resultado, h_x, h_y)
         st.pyplot(fig)
-
-
-
-
-
-    
