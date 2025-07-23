@@ -11,7 +11,7 @@ def restricao_tensao1(t_value: float, sigma_rd: float)-> float:
 
     Args:
         sigma_rd (float): tensão resistente na direção z (KPa)
-        sigma_sd (float): tensão solicitante na direção z (KPa)
+        t_value (float): tensão solicitante na direção z (KPa)
 
     Returns:
         g (float): restrição de tensão (admensional)
@@ -26,7 +26,7 @@ def restricao_tensao1(t_value: float, sigma_rd: float)-> float:
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
     """
-    Esta função determina a tensão máxima e a tensão mínima na fundação rasa do tipo sapata
+    Esta função determina a tensão máxima e a tensão mínima solicitante na fundação rasa do tipo sapata
 
     Args
     f_z: Carregamento na direção z, da combinação mais desfavorável (kN)
@@ -343,7 +343,7 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
     
     return  g_6, g_7, g_8, g_9, g_10, g_11, g_12
 
-def restricao_geometrica_sobreposicao(df, h_x, h_y, idx):
+def restricao_geometrica_sobreposicao(df: pd.Dataframe, h_x: float, h_y: float, idx: float)-> float:
     """
     Verifica a soma da área de sobreposição da sapata atual (em sapata_index)
     com todas as outras sapatas do DataFrame.
