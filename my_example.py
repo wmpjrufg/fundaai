@@ -7,36 +7,31 @@ import math
 
 def restricao_tensao1(t_value: float, sigma_rd: float)-> float:
     """
-    Esta função verifica a restrição de tensão na fundação rasa do tipo sapata, com majoração devido a incerteza do tipo de carregamento
+    Verifica a restrição de tensão solicitante máxima na sapata, com majoração de 30%
+    para incertezas na combinação de ações verticais (ex: ação do vento).
 
     Args:
-        sigma_rd (float): tensão resistente na direção z (KPa)
-        t_value (float): tensão solicitante na direção z (KPa)
+        t_value (float): Valor absoluto da tensão solicitante mais crítica (kPa)
+        sigma_rd (float): Tensão admissível do solo (kPa).
 
     Returns:
-        g (float): restrição de tensão (admensional)
+        float: Valor da restrição adimensional (g). g ≤ 0 indica atendimento.
     """
     return t_value * 1.30 / sigma_rd - 1
 
-   # if t_value >= 0:
-    #    g = t_value * 1.30 / sigma_rd - 1 #1,30 = majoração devido a não saber se é o vento é ou não o carregamento variável principal
-    #else:
-    #    g = -t_value / sigma_rd - 1
-    #return g
-
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
     """
-    Esta função determina a tensão máxima e a tensão mínima solicitante na fundação rasa do tipo sapata
+   Calcula as tensões máxima e mínima atuantes na sapata, considerando excentricidades nos dois eixos.
 
     Args
-    f_z: Carregamento na direção z, da combinação mais desfavorável (kN)
-    m_x: Momento em x da combinação mais desfavorável (kN.m)
-    m_y: Momento em y da combinação mais desfavorável (kN.m)
+        f_z (float): Esforço axial (kN).
+        m_x (float): Momento em x (kN·m).
+        m_y (float): Momento em y (kN·m).
+        h_x (float): Dimensão da sapata em x (m).
+        h_y (float): Dimensão da sapata em y (m).
 
     Returns
-    sigma_max: Tensão máxima que age na sapata (kPa)
-    sigma_min: Tensão minima que age na sapata (kPa)
-
+        tuple[float, float]: Tensão máxima e mínima (kPa).
     """
     
     m_x = abs(m_x)
@@ -47,18 +42,18 @@ def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: floa
     
     return (sigma_fz) * (1 + aux_mx + aux_my), (sigma_fz) * (1 - aux_mx - aux_my)
 
-def volume_fundacao(h_x, h_y, h_z):
-    '''
-    Esta função cálcula o volume da sapata
+def volume_fundacao(h_x: float, h_y: float, h_z: float) -> float:
+    """
+    Calcula o volume de concreto da sapata.
 
     args:
-        h_x (float): dimensão hx(m)
-        h_y (float): dimensão hy(m)
-        h_z (float): dimensão hz(m)
+        h_x (float): Largura da sapata (m).
+        h_y (float): Comprimento da sapata (m).
+        h_z (float): Altura da sapata (m).
 
     Returns:
-        volume (float): volume da sapata (m3)
-    '''
+      float: volume da sapata (m3)
+    """
 
     h_z= 0.6
 
@@ -66,32 +61,33 @@ def volume_fundacao(h_x, h_y, h_z):
 
 def cargas_combinacoes(cargas: list) -> list:
     """
-    Esta função determina os pares de carga de cada elemento de fundação considerando todas as condições possíveis para fz, mx e my.
+    Gera todas as combinações possíveis de cargas com Fz, Mx e My.
 
     Args: 
-        cargas (list): Lista de cargas de cada elemento de fundação
+        cargas (list):  Lista com os valores individuais de cargas dos elemntos de fundação.
     
     Returns:
-        cargas_comb (list): Lista de pares de carga de cada elemento de fundação
+        cargas_comb (list): Lista de trios de combinações.
     """
     
     cargas_comb = list(combinations(cargas, 3))
+
     return [list(comb) for comb in cargas_comb]
 
 def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Calcula a tensão admissível do solo.
+    Calcula a tensão admissível do solo com base no tipo de solo e no Nspt pelo método ....
 
     Args:
-        df (DataFrame): DataFrame com os dados de entrada, contendo as colunas 'spt' e 'solo'.
+        df (DataFrame): DataFrame com os dados de entrada, contendo colunas 'spt' e 'solo'.
 
     Returns:
-        DataFrame: DataFrame com a coluna 'sigma_adm (kPa)' calculada.
+        DataFrame: DataFrame acrescido da coluna 'sigma_adm (kPa)' calculada.
     """
+
     # Converta a coluna 'solo' para minúsculas
     solo_column = df[('solo')] 
     solo_column = solo_column.str.lower()
-    
     
     # Verifique se a coluna 'spt' existe para evitar erro
     if 'spt' not in df.columns:
@@ -118,20 +114,19 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-#Restricao de tensão
-def restricao_tensao(h_x: float, h_y: float, none_variable, calcular_sigma_max):
-    '''
-   Esta função verifica se a tensão máxima é superior ou não a tensão admissível. Não usada
-   
+def restricao_tensao(h_x: float, h_y: float, none_variable: dict, calcular_sigma_max)-> list[float]:
+    """
+   Aplica a verificação de tensão atuante máxima sobre a sapata em comparação com a tensão admissível do solo.
+
    args:
-       h_x (float): dimensão em x (m)
-       h_y (float): dimensão em y (m) 
-       comb (list): contendo as combinações de carregamento
-       sigma_lim (float): tensão admissível (kPa)
+        h_x (float): Largura da sapata (m).
+        h_y (float): Comprimento da sapata (m).
+        none_variable (dict): Dicionário com 'combinações' e 'sigma_adm (kPa)'.
+        calcular_sigma_max (Callable): Função que calcula a tensão max.
 
    Returns:
-        result (float): valor da penalidade (admensional)
-    '''
+        list[float]: Lista de valores de restrição (g) por combinação.
+    """
 
     comb = none_variable['combinações'] #é preciso fazer o for duplo
     sigma_lim = none_variable['sigma_adm (kPa)']
@@ -150,10 +145,9 @@ def restricao_tensao(h_x: float, h_y: float, none_variable, calcular_sigma_max):
 
     return result
 
-#Restiricao geometrica - Balanço
 def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float) -> tuple[float, float, float , float]:
     """
-    Esta função calcula o balanço da sapata e verifica se esta apto a ser calculado de acordo com o método CEB-70
+    Verifica o balanço da sapata segundo os limites geométricos do método CEB-70.
 
     args:
         h_x (float): dimensões da sapata em x (m)
@@ -162,7 +156,7 @@ def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float
         b_p (float): dimensões dos pilares em y (m)
         
     returns:
-        result (float): valor da penalidade (admensional)
+        result (tubple[float, float, float, float]): valor da penalidade para cada restrição (admensional)
     """
 
     # Balanço na direção X
@@ -179,10 +173,9 @@ def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float
     
     return g_0, g_1, g_2, g_3
     
-#Restiricao geometrica - Balanço
 def restricao_geometrica_pilar_sapata(h_x: float, h_y: float, a_p: float, b_p: float) -> tuple[float, float]:
     """
-    Esta função verifica se a dimensão do pilar é maior ou menor que a da sapata
+    Verifica se as dimensões do pilar são maiores que as dimensões da sapata
 
     args:
         h_x (float): dimensões da sapata em x (m)
@@ -191,10 +184,9 @@ def restricao_geometrica_pilar_sapata(h_x: float, h_y: float, a_p: float, b_p: f
         b_p (float): dimensões dos pilares em y (m)
         
     returns:
-        result (float): valor da penalidade (admensional)
+        result (tuple[float, float]): valor da penalidade (admensional)
     """
-
-        
+    
     #Restrição da dimensão do pilar em relação a dimensão da sapata
     g_4 = a_p / h_x - 1
     g_5 = b_p / h_y - 1
@@ -204,19 +196,19 @@ def restricao_geometrica_pilar_sapata(h_x: float, h_y: float, a_p: float, b_p: f
 #Definição kx e ky para restrição de punção de acordo com NBR 6118
 ## para kx
 def interpolar_kx(a_p: float, b_p: float) -> float:
-    '''
-    Esta função interpola o valor de Kx (coeficiente que indica a parcela do momento transmitida ao pilar na punçao)
+    """
+    Interpola o valor de Kx com base na proporção do pilar, segundo nbr 6118:2023
+    (coeficiente que indica a parcela do momento transmitida ao pilar na punção)
     
-
     args:
         a_p (float): dimensões dos pilares em x (m)
         b_p (float): dimensões dos pilares em y (m)
     returns:
-        kx_interpolado (float): valor de Kx interpolado (admensional) 
-    '''
+        float: Coeficiente interpolado (adimensional).
+    """
     
     b_a = b_p / a_p
-    # Tabela de valores conhecidos da NBR...
+    # Tabela 19.2 de valores conhecidos da NBR 6118:2023
     tabela = {
         0.5: 0.45,
         1.0: 0.60,
@@ -250,16 +242,17 @@ def interpolar_kx(a_p: float, b_p: float) -> float:
 
 ##para ky
 def interpolar_ky(a_p: float, b_p: float):
-    '''
-    Esta função interpola o valor de Ky (coeficiente que indica a parcela do momento transmitida ao pilar na punçao)
+    """
+    Esta função interpola o valor de Ky com base nas proporções do pilar, segundo nbr 6118:2023
+    (coeficiente que indica a parcela do momento transmitida ao pilar na punção)
     
-
     args:
         a_p (float): dimensões dos pilares em x (m)
         b_p (float): dimensões dos pilares em y (m)
+
     returns:
-        ky_interpolado (float): valor de Ky interpolado (admensional)
-    '''
+        float: Coeficiente interpolado (adimensional).
+    """
 
     a_b = a_p / b_p
 
@@ -297,7 +290,7 @@ def interpolar_ky(a_p: float, b_p: float):
 
 def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float, f_z: float, m_x: float, m_y: float, ro: float, cob: float, fck: float, fcd: float) -> tuple[float, float, float, float, float, float, float,]:
     """
-    Esta função  calcula a tensão resistente e solicitante que há na borda do pilar e no perímetro crítico C' da sapata
+    Calcula a tensão resistente e solicitante que há na borda do pilar e no perímetro crítico C' da sapata
     em seguida contempla a verificações de restrição de acordo com a NBR6118-2023
 
     Args:
@@ -309,14 +302,14 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
         f_z (float): Esforço axial (KN)
         m_x (float): Momento fletor na direção x (KN.m)
         m_y (float): Momento fletor na direção y (KN.m)
-        ro (float): Densidade do concreto (adimensional)
-        cob (float): Comprimento de recobramento da sapata (m) 
-        fck (float): Resistência característica a compressão do concreto (MPa)
-        fcd (float): Resistência de projeto a compressão do concreto (MPa)
+        ro (float): taxa de armadura aderente (adimensional)
+        cob (float): Comprimento (m) 
+        fck (float): Resistência característica (MPa)
+        fcd (float): Resistência de projeto (MPa)
 
     Returns:
-       g6, g7, g8, g9, g10, g11, g12 (tuple[float, float, float, float, float, float, float]): verificação das restrições 
-       da linha critica, da taxa de aço de flexão aderenente, da tensão de protensão e das tensões em C e C'
+        tuple[float, float, float, float, float, float, float]: verificação das restrições 
+        da linha critica, da taxa de aço de flexão aderenente, da tensão de protensão e das tensões em C e C'
     """
     d = h_z - cob #altura util da sapata
     sigma_cp = 0 # tensão a mais devido a efeitos da protensão do concreto <= 3,5 MPa, depois criar uma def para calcular essa tensão!
@@ -343,13 +336,17 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
     
     return  g_6, g_7, g_8, g_9, g_10, g_11, g_12
 
-def restricao_geometrica_sobreposicao(df: pd.Dataframe, h_x: float, h_y: float, idx: float)-> float:
+def restricao_geometrica_sobreposicao(df: pd.DataFrame, h_x: float, h_y: float, idx: int)-> float:
     """
-    Verifica a soma da área de sobreposição da sapata atual (em sapata_index)
-    com todas as outras sapatas do DataFrame.
+    Verifica a área de sobreposição da sapata (em sapata_index)
+    com as demais sapatas do DataFrame.
 
+    Args:
+        df (pd.DataFrame): DataFrame com posições das sapatas.
+        h_x, h_y (float): Dimensões da sapata (m).
+        idx (int): Índice da sapata atual.
     Retorna:
-        area_total_sobreposta (float): penalização proporcional à área de sobreposição.
+        float: penalização proporcional à área de sobreposição.
     """
     area_total = 0
     xi, yi = df.loc[idx, 'xg (m)'], df.loc[idx, 'yg (m)']
@@ -374,7 +371,28 @@ def restricao_geometrica_sobreposicao(df: pd.Dataframe, h_x: float, h_y: float, 
 
     return area_total / (h_x * h_y)  # penalização normalizada
 
-def obj_ic_fundacoes(x, none_variable):
+def obj_ic_fundacoes(x: list, none_variable: dict)-> float:
+    """
+    Função objetivo para a otimização do dimensionamento de fundações rasas do tipo sapata.
+
+    Esta função calcula o volume total das fundações e aplica penalizações associadas
+    a violações de restrições geométricas, de punção e de tensões admissíveis,
+    retornando um valor de função objetivo a ser minimizado por um algoritmo de otimização.
+
+    Parâmetros:
+        x (List[float]): Vetor com as variáveis de projeto (dimensões da sapata) [h_x, h_y].
+        none_variable (dict): Dicionário contendo parâmetros auxiliares e dados estruturais:
+            - 'cob (m)' (float): Cobrimento mínimo do concreto.
+            - 'fck (kPa)' (float): Resistência característica do concreto.
+            - 'número de combinações estruturais' (int): Número de combinações de carregamento.
+            - 'dados estrutura' (DataFrame): Tabela com dados dos pilares e esforços.
+            - 'h_z (m)' (float): Altura da sapata.
+
+    Retorna:
+        Tuple[float, pd.DataFrame]:
+            - float: Valor da função objetivo (volume com penalização por restrições).
+            - DataFrame: Tabela com os resultados de dimensionamento por pilar.
+    """
     h_x = x[0]
     h_y = x[1]
     h_z = 0.6
@@ -385,7 +403,6 @@ def obj_ic_fundacoes(x, none_variable):
     fck = none_variable['fck (kPa)']
     vol = 0
 
-    g = []
     t_max = []
     t_min = []
     fz_list = []
@@ -425,101 +442,7 @@ def obj_ic_fundacoes(x, none_variable):
         fcd = fck / 1.4
         sigma_rd = row['sigma_adm (kPa)']
 
-    # verificando as restrições
-        g_0, g_1, g_2, g_3 = restricao_geometrica_balanco_pilar_sapata(h_x, h_y, h_z, a_p, b_p)
-        g_4, g_5 = restricao_geometrica_pilar_sapata(h_x, h_y, a_p, b_p)
-        g_6, g_7, g_8, g_9, g_10, g_11, g_12 = restricao_puncao(h_x, h_y, h_z, a_p, b_p, f_z, m_x, m_y, ro, cob, fck, fcd)
-        g_13 = restricao_tensao1(t_value, sigma_rd)
-        g_14 = restricao_geometrica_sobreposicao(df, h_x, h_y, idx)
-        # g.append(g_0)
-        # g.append(g_1)
-        # g.append(g_2)
-        # g.append(g_3)
-        # g.append(g_4)
-        # g.append(g_5)
-        # g.append(g_6)
-        # g.append(g_7)
-        # g.append(g_8)
-        # g.append(g_9)
-        # g.append(g_10)
-        # g.append(g_11)
-        # g.append(g_12)
-        # g.append(g_13)
-        # g.append(g_14)
-        # print(g_14)
-
-        restricoes = [g_0, g_1, g_2, g_3, g_4, g_5, g_6, g_7, g_8, g_9, g_10, g_11, g_12, g_13, g_14]
-        lista_restricoes.append(restricoes)
-
-    # Penalização no volume
-    penalizacao = sum([sum(max(0, g) * 1e6 for g in linha) for linha in lista_restricoes]) #não sei se ta certo
-    of = vol + penalizacao
-
-    # Função pseudo-objetivo
-    # of = vol
-    # for i in g:
-    #     of += max(0, i) * 1E6
-    
-     # Criação de DataFrame com as restrições
-    colunas_g = [f'g_{i}' for i in range(15)]
-    df_restricoes = pd.DataFrame(lista_restricoes, columns=colunas_g)
-
-    df_resultado = pd.concat([df.reset_index(drop=True), df_restricoes], axis=1)
-
-    return of, df_resultado
-
-# def obj_ic_fundacoes(x, none_variable):
-        # Lista para registrar todas as linhas com restrições
-    h_x = x[0]
-    h_y = x[1]
-    h_z = none_variable['h_z (m)']
-    cob = none_variable['cob (m)']
-    n_comb = none_variable['número de combinações estruturais']
-    ro = 0.01 #esse valor deve ser calculado
-    df = none_variable['dados estrutura']
-    fck = none_variable['fck (kPa)']
-    vol = 0   
-    lista_restricoes = []
-
-    # Volume total da fundação
-    for _ in range(len(none_variable['dados estrutura'])):
-        v_aux = volume_fundacao(h_x, h_y, h_z)
-        vol += v_aux
-
-    for idx, row in df.iterrows():
-        fz_list = []
-        mx_list = []
-        my_list = []
-        t_max = []
-        t_min = []
-
-        for i in range(1, n_comb+1):
-            aux = f'c{i}'
-            sigma_max, sigma_min = calcular_sigma_max(
-                row[f'Fz-{aux}'],
-                row[f'Mx-{aux}'],
-                row[f'My-{aux}'],
-                h_x, h_y
-            )
-            t_max.append(sigma_max)
-            t_min.append(sigma_min)
-
-            if sigma_max >= max(t_max):
-                fz_list.append(row[f'Fz-{aux}'])
-                mx_list.append(row[f'Mx-{aux}'])
-                my_list.append(row[f'My-{aux}'])
-
-        f_z = max(fz_list)
-        m_x = max(mx_list)
-        m_y = max(my_list)
-        t_value = max(abs(min(t_min)), abs(max(t_max)))
-
-        a_p = row['ap (m)']
-        b_p = row['bp (m)']
-        fcd = fck / 1.4
-        sigma_rd = row['sigma_adm (kPa)']
-
-        # Restrições
+        # verificando as restrições
         g_0, g_1, g_2, g_3 = restricao_geometrica_balanco_pilar_sapata(h_x, h_y, h_z, a_p, b_p)
         g_4, g_5 = restricao_geometrica_pilar_sapata(h_x, h_y, a_p, b_p)
         g_6, g_7, g_8, g_9, g_10, g_11, g_12 = restricao_puncao(h_x, h_y, h_z, a_p, b_p, f_z, m_x, m_y, ro, cob, fck, fcd)
@@ -533,15 +456,13 @@ def obj_ic_fundacoes(x, none_variable):
     penalizacao = sum([sum(max(0, g) * 1e6 for g in linha) for linha in lista_restricoes])
     of = vol + penalizacao
 
-    # Criação de DataFrame com restrições
+    # Criação de DataFrame com as restrições
     colunas_g = [f'g_{i}' for i in range(15)]
     df_restricoes = pd.DataFrame(lista_restricoes, columns=colunas_g)
 
     df_resultado = pd.concat([df.reset_index(drop=True), df_restricoes], axis=1)
 
     return of, df_resultado
-
-
 
 def data_comb(df: pd.DataFrame,) -> list:
     """
@@ -586,21 +507,6 @@ def data_comb(df: pd.DataFrame,) -> list:
             lista_resultados.append(resultado_linha)
 
     return lista_resultados
-'''
-#esse if esta sendo usado para testar o codigo mas não traz valores corretos
-if __name__ == 'IC_Filipe':
-    import pandas as pd
-    df = pd.read_excel('input.xlsx')
-    x = [1, 1]
-    none_variable = {'Fz,max (kN)': 750,
-                     'Fz,min (kN)': 720,
-                     'Mx,max (kN.m)': 325,
-                     'Mx,min (kN.m)': -200,
-                     'My,max (kN.m)': 300,
-                     'My,min (kN.m)': -300,
-                     'sigma_adm (kPa)': 333.33}
-    print(obj_ic_fundacoes(x, none_variable))
-'''
 
 if __name__== '__main__':
     df = pd.read_excel("teste_wand.xlsx")
