@@ -8,7 +8,7 @@ import math
 def restricao_tensao1(t_value: float, sigma_rd: float)-> float:
     """
     Verifica a restrição de tensão solicitante máxima na sapata, com majoração de 30%
-    para incertezas na combinação de ações verticais (ex: ação do vento).
+    para incertezas na combinação de ações (ex: ação do vento).
 
     Args:
         t_value (float): Valor absoluto da tensão solicitante mais crítica (kPa)
