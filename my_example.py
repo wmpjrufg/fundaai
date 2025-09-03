@@ -359,8 +359,8 @@ def restricao_geometrica_sobreposicao(df: pd.DataFrame, h_x: float, h_y: float, 
             continue  # Ignorar a própria sapata
 
         xj, yj = row['xg (m)'], row['yg (m)']
-        xj_min, xj_max = xj - h_x / 2, xj + h_x / 2
-        yj_min, yj_max = yj - h_y / 2, yj + h_y / 2
+        xj_min, xj_max = xj - h_x / 2, xj + h_x / 2# Tá sobrando? pq ja foi calcualdo fora do loop
+        yj_min, yj_max = yj - h_y / 2, yj + h_y / 2# Tá sobrando? pq ja foi calcualdo fora do loop
 
         # Calcular sobreposição
         overlap_x = max(0, min(xi_max, xj_max) - max(xi_min, xj_min))
