@@ -71,11 +71,11 @@ st.write(r'''
         ''', unsafe_allow_html=True)
 
 #Botão para baixar tabela exemplo
-with open("planilha_padrao.xlsx", "rb") as file:
+with open("teste_wand.xlsx", "rb") as file:
     st.download_button(
-        label="Download example data_não padronizado",
+        label="Download example",
         data=file,
-        file_name="example_data.xlsx",
+        file_name="teste_wand.xlsx",
         mime="text/csv"
     )
 
