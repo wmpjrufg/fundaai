@@ -410,9 +410,17 @@ def obj_ic_fundacoes(x: list, none_variable: dict)-> float:
     my_list = []
     lista_restricoes = [] 
 
+    h_x = []
+    h_y = []
+    h_z = [0.6] * len(df)
+    for i in range(0, len(x), 2):
+        print(i)
+        h_x.append(x[i])
+        h_y.append(x[i+1])
+
     # Volume total da fundação
-    for _ in range(len(df)):
-        v_aux = volume_fundacao(h_x, h_y, h_z)
+    for i in range(len(df)):
+        v_aux = volume_fundacao(h_x[i], h_y[i], h_z[i])
         vol += v_aux
     
     # determinando a combinação mais desfavorável
