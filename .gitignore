@@ -2,5 +2,5 @@
 /__pycache__/
 /ambiente_fundaIA/
 !requirements.txt
-
+env/
 .DS_Store
