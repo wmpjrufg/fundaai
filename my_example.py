@@ -77,16 +77,14 @@ def volume_fundacao(h_x: float, h_y: float, h_z: float) -> float:
     """
     Calcula o volume de concreto da sapata.
 
-    args:
-        h_x (float): Largura da sapata (m).
-        h_y (float): Comprimento da sapata (m).
-        h_z (float): Altura da sapata (m).
+    :param h_x: Largura da sapata (m).
+    :param h_y: Comprimento da sapata (m).
+    :param h_z: Altura da sapata (m).
 
-    Returns:
-      float: volume da sapata (m3)
+    :returns: saida[0] = volume da sapata (m3)
     """
 
-    h_z= 0.6
+    h_z= 0.6 # valor definido e fixado provisóriamente para efeito de construção da ferramenta
 
     return h_x * h_y * h_z
 
@@ -95,11 +93,9 @@ def cargas_combinacoes(cargas: list) -> list:
     """
     Gera todas as combinações possíveis de cargas com Fz, Mx e My.
 
-    Args: 
-        cargas (list):  Lista com os valores individuais de cargas dos elemntos de fundação.
+    :param Cargas:  Lista com os valores individuais de cargas dos elemntos de fundação.
     
-    Returns:
-        cargas_comb (list): Lista de trios de combinações.
+    :return: saida[0] = Lista de trios de combinações.
     """
     
     cargas_comb = list(combinations(cargas, 3))
@@ -107,19 +103,16 @@ def cargas_combinacoes(cargas: list) -> list:
     return [list(comb) for comb in cargas_comb]
 
 
-
 def restricao_tensao(h_x: float, h_y: float, none_variable: dict, calcular_sigma_max)-> list[float]:
     """
-   Aplica a verificação de tensão atuante máxima sobre a sapata em comparação com a tensão admissível do solo.
+    Aplica a verificação de tensão atuante máxima sobre a sapata em comparação com a tensão admissível do solo.
 
-   args:
-        h_x (float): Largura da sapata (m).
-        h_y (float): Comprimento da sapata (m).
-        none_variable (dict): Dicionário com 'combinações' e 'sigma_adm (kPa)'.
-        calcular_sigma_max (Callable): Função que calcula a tensão max.
+    :param h_x: Largura da sapata (m).
+    :param h_y: Comprimento da sapata (m).
+    :param none_variable: Dicionário com 'combinações' e 'sigma_adm (kPa)'.
+    :param calcular_sigma_max: Função que calcula a tensão max.
 
-   Returns:
-        list[float]: Lista de valores de restrição (g) por combinação.
+    :returns: saida[0] = Lista de valores de restrição (g) por combinação.
     """
 
     comb = none_variable['combinações'] #é preciso fazer o for duplo
@@ -144,14 +137,12 @@ def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float
     """
     Verifica o balanço da sapata segundo os limites geométricos do método CEB-70.
 
-    args:
-        h_x (float): dimensões da sapata em x (m)
-        h_y (float): dimensões da sapata em y (m)  
-        a_p (float): dimensões dos pilares em x (m)
-        b_p (float): dimensões dos pilares em y (m)
+    :param h_x: dimensões da sapata em x (m)
+    :param h_y: dimensões da sapata em y (m)  
+    :param a_p: dimensões dos pilares em x (m)
+    :param b_p: dimensões dos pilares em y (m)
         
-    returns:
-        result (tubple[float, float, float, float]): valor da penalidade para cada restrição (admensional)
+    :returns: saida[0]  = valor da penalidade para cada restrição (admensional)
     """
 
     # Balanço na direção X
@@ -173,14 +164,12 @@ def restricao_geometrica_pilar_sapata(h_x: float, h_y: float, a_p: float, b_p: f
     """
     Verifica se as dimensões do pilar são maiores que as dimensões da sapata
 
-    args:
-        h_x (float): dimensões da sapata em x (m)
-        h_y (float): dimensões da sapata em y (m)  
-        a_p (float): dimensões dos pilares em x (m)
-        b_p (float): dimensões dos pilares em y (m)
+    :param h_x: dimensões da sapata em x (m)
+    :param h_y: dimensões da sapata em y (m)  
+    :param a_p: dimensões dos pilares em x (m)
+    :param b_p: dimensões dos pilares em y (m)
         
-    returns:
-        result (tuple[float, float]): valor da penalidade (admensional)
+    :returns: saida [0] = valor da penalidade (admensional)
     """
     
     #Restrição da dimensão do pilar em relação a dimensão da sapata
@@ -197,11 +186,9 @@ def interpolar_kx(a_p: float, b_p: float) -> float:
     Interpola o valor de Kx com base na proporção do pilar, segundo nbr 6118:2023
     (coeficiente que indica a parcela do momento transmitida ao pilar na punção)
     
-    args:
-        a_p (float): dimensões dos pilares em x (m)
-        b_p (float): dimensões dos pilares em y (m)
-    returns:
-        float: Coeficiente interpolado (adimensional).
+    :param a_p : dimensões dos pilares em x (m)
+    :param b_p : dimensões dos pilares em y (m)
+    :returns: saida[0] = Coeficiente interpolado (adimensional).
     """
     
     b_a = b_p / a_p
@@ -243,12 +230,10 @@ def interpolar_ky(a_p: float, b_p: float):
     Esta função interpola o valor de Ky com base nas proporções do pilar, segundo nbr 6118:2023
     (coeficiente que indica a parcela do momento transmitida ao pilar na punção)
     
-    args:
-        a_p (float): dimensões dos pilares em x (m)
-        b_p (float): dimensões dos pilares em y (m)
+    :param a_p: dimensões dos pilares em x (m)
+    :param b_p: dimensões dos pilares em y (m)
 
-    returns:
-        float: Coeficiente interpolado (adimensional).
+    :returns: saida[0] = Coeficiente interpolado (adimensional).
     """
 
     a_b = a_p / b_p
@@ -285,29 +270,27 @@ def interpolar_ky(a_p: float, b_p: float):
             ky_interpolado = y0 + (y1 - y0) * ((a_b - x0) / (x1 - x0))
             return round(ky_interpolado, 4)
 
+
 def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float, f_z: float, m_x: float, m_y: float, ro: float, cob: float, fck: float, fcd: float) -> tuple[float, float, float, float, float, float, float,]:
     """
-    Calcula a tensão resistente e solicitante que há na borda do pilar e no perímetro crítico C' da sapata
-    em seguida contempla a verificações de restrição de acordo com a NBR6118-2023
+    Calcula a tensão resistente e solicitante que há na borda do pilar e no perímetro crítico C' da sapata em seguida contempla a verificações de restrição de acordo com a NBR6118-2023
 
-    Args:
-        h_x (float): Altura da sapata na direção x (m)
-        h_y (float): Altura da sapata na direção y (m)
-        h_z (float): Altura util da sapata (m)
-        a_p (float): Comprimento do pilar (m)
-        b_p (float): Largura do pilar (m)
-        f_z (float): Esforço axial (KN)
-        m_x (float): Momento fletor na direção x (KN.m)
-        m_y (float): Momento fletor na direção y (KN.m)
-        ro (float): taxa de armadura aderente (adimensional)
-        cob (float): Comprimento (m) 
-        fck (float): Resistência característica (MPa)
-        fcd (float): Resistência de projeto (MPa)
+    :param h_x: Altura da sapata na direção x (m)
+    :paramh_y: Altura da sapata na direção y (m)
+    :param h_z: Altura util da sapata (m)
+    :param a_p: Comprimento do pilar (m)
+    :param b_p: Largura do pilar (m)
+    :param f_z: Esforço axial (KN)
+    :param m_x: Momento fletor na direção x (KN.m)
+    :param m_y: Momento fletor na direção y (KN.m)
+    :param ro: taxa de armadura aderente (adimensional)
+    :param cob: Comprimento (m) 
+    :param fck: Resistência característica (MPa)
+    :param fcd: Resistência de projeto (MPa)
 
-    Returns:
-        tuple[float, float, float, float, float, float, float]: verificação das restrições 
-        da linha critica, da taxa de aço de flexão aderenente, da tensão de protensão e das tensões em C e C'
+    :returns: saida[0] = verificação das restrições da linha critica, da taxa de aço de flexão aderenente, da tensão de protensão e das tensões em C e C'
     """
+
     d = h_z - cob #altura util da sapata
     sigma_cp = 0 # tensão a mais devido a efeitos da protensão do concreto <= 3,5 MPa, depois criar uma def para calcular essa tensão!
     ke = 1 + math.sqrt(20 / (d * 100))  
@@ -332,6 +315,7 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
     g_12 = talsd2 / talrd2 - 1
     
     return  g_6, g_7, g_8, g_9, g_10, g_11, g_12
+
 
 def restricao_geometrica_sobreposicao(df: pd.DataFrame, h_x: float, h_y: float, idx: int)-> float:
     """
@@ -367,6 +351,7 @@ def restricao_geometrica_sobreposicao(df: pd.DataFrame, h_x: float, h_y: float, 
         area_total += area_overlap
 
     return area_total / (h_x * h_y)  # penalização normalizada
+
 
 def obj_ic_fundacoes(x: list, none_variable: dict)-> float:
     """
@@ -485,6 +470,7 @@ def obj_ic_fundacoes(x: list, none_variable: dict)-> float:
 
     return of, df_resultado
 
+
 def data_comb(df: pd.DataFrame,) -> list:
     """
     Gera combinações 3 a 3 das colunas de uma planilha com header duplo,
@@ -528,6 +514,7 @@ def data_comb(df: pd.DataFrame,) -> list:
             lista_resultados.append(resultado_linha)
 
     return lista_resultados
+
 
 if __name__== '__main__':
     df = pd.read_excel("teste_wand.xlsx")
