@@ -1,9 +1,7 @@
-import streamlit as st 
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-import ezdxf
 import tempfile
 
 from io import BytesIO
