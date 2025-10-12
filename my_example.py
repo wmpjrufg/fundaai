@@ -4,6 +4,50 @@ import numpy as np
 import pandas as pd
 import math
 
+
+# def restricao_tensao_solo(t_value: float, sigma_rd: float)-> float:
+#     """
+#     Verifica a restrição de tensão solicitante máxima na sapata, com majoração de 30% para incertezas na combinação de ações (ex: ação do vento).
+
+#     :param t_value: Valor absoluto da tensão solicitante mais crítica (kPa)
+#     :param sigma_rd: Tensão admissível do solo (kPa)
+
+#     :return: Valor da restrição (g), onde g <= 0 é a situação aceitável
+#     """
+
+#     return t_value * 1.30 / sigma_rd - 1
+
+
+# def volume_fundacao(h_x: float, h_y: float, h_z: float) -> float:
+#     """
+#     Calcula o volume de concreto da sapata.
+
+#     :param h_x: Largura da sapata (m).
+#     :param h_y: Comprimento da sapata (m).
+#     :param h_z: Altura da sapata (m).
+
+#     :returns: saida[0] = volume da sapata (m3)
+#     """
+
+#     h_z= 0.6 # valor definido e fixado provisóriamente para efeito de construção da ferramenta
+
+#     return h_x * h_y * h_z
+
+
+# def cargas_combinacoes(cargas: list) -> list:
+#     """
+#     Gera todas as combinações possíveis de cargas com Fz, Mx e My.
+
+#     :param Cargas:  Lista com os valores individuais de cargas dos elemntos de fundação.
+    
+#     :return: saida[0] = Lista de trios de combinações.
+#     """
+    
+#     cargas_comb = list(combinations(cargas, 3))
+
+#     return [list(comb) for comb in cargas_comb]
+
+
 def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     """
     Calcula a tensão admissível do solo com base no tipo de solo e no Nspt.
@@ -18,15 +62,15 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     
     # Calcula a tensão admissível com base no tipo de solo
     condicoes = [
-        solo_column == 'pedregulho',
-        solo_column == 'areia',
-        (solo_column == 'silte') | (solo_column == 'argila'),
-    ]
+                    solo_column == 'pedregulho',
+                    solo_column == 'areia',
+                    (solo_column == 'silte') | (solo_column == 'argila'),
+                ]
     values = [
-        df[('spt')] / 30 * 1E3,  # Acessa a coluna 'spt' corretamente
-        df[('spt')] / 40 * 1E3,
-        df[('spt')] / 50 * 1E3,
-    ]
+                df[('spt')] / 30 * 1E3,  # Acessa a coluna 'spt' corretamente
+                df[('spt')] / 40 * 1E3,
+                df[('spt')] / 50 * 1E3,
+             ]
 
     # Assegure que as condições e os valores sejam arrays 1D
     condicoes = [condicionamento.values for condicionamento in condicoes]
@@ -36,19 +80,6 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     df['sigma_adm (kPa)'] = np.select(condicoes, values, default=np.nan)
 
     return df
-
-
-def restricao_tensao_solo(t_value: float, sigma_rd: float)-> float:
-    """
-    Verifica a restrição de tensão solicitante máxima na sapata, com majoração de 30% para incertezas na combinação de ações (ex: ação do vento).
-
-    :param t_value: Valor absoluto da tensão solicitante mais crítica (kPa)
-    :param sigma_rd: Tensão admissível do solo (kPa)
-
-    :return: Valor da restrição (g), onde g <= 0 é a situação aceitável
-    """
-
-    return t_value * 1.30 / sigma_rd - 1
 
 
 def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
@@ -71,36 +102,6 @@ def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: floa
     aux_my = 6 * (m_y / f_z) / h_y
     
     return (sigma_fz) * (1 + aux_mx + aux_my), (sigma_fz) * (1 - aux_mx - aux_my)
-
-
-def volume_fundacao(h_x: float, h_y: float, h_z: float) -> float:
-    """
-    Calcula o volume de concreto da sapata.
-
-    :param h_x: Largura da sapata (m).
-    :param h_y: Comprimento da sapata (m).
-    :param h_z: Altura da sapata (m).
-
-    :returns: saida[0] = volume da sapata (m3)
-    """
-
-    h_z= 0.6 # valor definido e fixado provisóriamente para efeito de construção da ferramenta
-
-    return h_x * h_y * h_z
-
-
-def cargas_combinacoes(cargas: list) -> list:
-    """
-    Gera todas as combinações possíveis de cargas com Fz, Mx e My.
-
-    :param Cargas:  Lista com os valores individuais de cargas dos elemntos de fundação.
-    
-    :return: saida[0] = Lista de trios de combinações.
-    """
-    
-    cargas_comb = list(combinations(cargas, 3))
-
-    return [list(comb) for comb in cargas_comb]
 
 
 def restricao_tensao(h_x: float, h_y: float, none_variable: dict, calcular_sigma_max)-> list[float]:
@@ -172,7 +173,7 @@ def restricao_geometrica_pilar_sapata(h_x: float, h_y: float, a_p: float, b_p: f
     :returns: saida [0] = valor da penalidade (admensional)
     """
     
-    #Restrição da dimensão do pilar em relação a dimensão da sapata
+    # Restrição da dimensão do pilar em relação a dimensão da sapata
     g_4 = a_p / h_x - 1
     g_5 = b_p / h_y - 1
 
