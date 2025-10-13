@@ -134,7 +134,7 @@ def restricao_tensao(h_x: float, h_y: float, none_variable: dict, calcular_sigma
     return result
 
 
-def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float) -> tuple[float, float, float , float]:
+def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float) -> tuple[float, float, float, float, float , float]:
     """
     Verifica o balanço da sapata segundo os limites geométricos do método CEB-70.
 
@@ -143,7 +143,9 @@ def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float
     :param a_p: dimensões dos pilares em x (m)
     :param b_p: dimensões dos pilares em y (m)
         
-    :returns: saida[0]  = valor da penalidade para cada restrição (admensional)
+    :returns: saida[0]  = valor do balanço em x (m)
+    :returns: saida[1]  = valor do balanço em y (m)
+    :returns: saida [2, 3, 4, 5] = valor da penalidade para cada restrição (admensional)
     """
 
     # Balanço na direção X
@@ -158,7 +160,7 @@ def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float
     g_2 = (h_z / 2) / cap - 1
     g_3 = (h_z / 2) / cbp - 1
     
-    return g_0, g_1, g_2, g_3
+    return cap, cbp, g_0, g_1, g_2, g_3
     
 
 def restricao_geometrica_pilar_sapata(h_x: float, h_y: float, a_p: float, b_p: float) -> tuple[float, float]:
