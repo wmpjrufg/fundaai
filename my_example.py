@@ -149,18 +149,18 @@ def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float
     """
 
     # Balanço na direção X
-    cap = (h_x - a_p) / 2
+    cap_value = (h_x - a_p) / 2
 
     # Balanço na direção Y
-    cbp = (h_y - b_p) / 2
+    cbp_value = (h_y - b_p) / 2
     
     # Restrições laterais do balanço
-    g_0 = cap / (2 * h_z) - 1
-    g_1 = cbp / (2 * h_z) - 1
-    g_2 = (h_z / 2) / cap - 1
-    g_3 = (h_z / 2) / cbp - 1
+    g_0 = cap_value / (2 * h_z) - 1
+    g_1 = cbp_value / (2 * h_z) - 1
+    g_2 = (h_z / 2) / cap_value - 1
+    g_3 = (h_z / 2) / cbp_value - 1
     
-    return cap, cbp, g_0, g_1, g_2, g_3
+    return [cap_value, cbp_value, g_0, g_1, g_2, g_3]
     
 
 def restricao_geometrica_pilar_sapata(h_x: float, h_y: float, a_p: float, b_p: float) -> tuple[float, float]:
@@ -173,6 +173,7 @@ def restricao_geometrica_pilar_sapata(h_x: float, h_y: float, a_p: float, b_p: f
     :param b_p: dimensões dos pilares em y (m)
         
     :returns: saida [0] = valor da penalidade (admensional)
+    :returns: saida [1] = valor da penalidade (admensional)
     """
     
     # Restrição da dimensão do pilar em relação a dimensão da sapata
