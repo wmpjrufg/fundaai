@@ -275,7 +275,7 @@ def interpolar_ky(a_p: float, b_p: float):
             return round(ky_interpolado, 4)
 
 
-def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float, f_z: float, m_x: float, m_y: float, ro: float, cob: float, fck: float, fcd: float) -> tuple[float, float, float, float, float, float, float,]:
+def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float, f_z: float, m_x: float, m_y: float, ro: float, cob: float, fck: float, fcd: float) -> tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float,]:
     """
     Calcula a tensão resistente e solicitante que há na borda do pilar e no perímetro crítico C' da sapata em seguida contempla a verificações de restrição de acordo com a NBR6118-2023
 
@@ -306,7 +306,7 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
     u = 2 * (a_p + b_p + math.pi * d) # perímero do contorno C'
     
     talsd2 = 0.001 * f_z / (2 * a_p + b_p * d) # (MPa)
-    talrd2 = 0.27 * (1 - fck / 250) * fcd # (MPa)
+    talrd2 = 0.27 * (1 - fck / (250 * 1000)) * (fcd/1000) # divide fck e fcd por 1000 para ficar em MPa, resultado em MPa "preciso dividir fcd por 1000?"
     talsd1 = (0.001 * f_z) / (u * d) + kx * m_x * 0.001 / (wpx * d) + ky * m_y * 0.001 / (wpy * d) # (MPa)
     talrd1 = 0.13 * ke * (100 * ro * fck) ** (1 / 3) + 0.1 * sigma_cp # (MPa)
 
@@ -318,7 +318,7 @@ def restricao_puncao(h_x: float, h_y: float, h_z: float, a_p: float, b_p: float,
     g_11 = talsd1 / talrd1 - 1
     g_12 = talsd2 / talrd2 - 1
     
-    return  g_6, g_7, g_8, g_9, g_10, g_11, g_12
+    return  ke, kx, ky, wpx, wpy, u, talsd1, talrd1, talsd2, talrd2, g_6, g_7, g_8, g_9, g_10, g_11, g_12
 
 
 def restricao_geometrica_sobreposicao(df: pd.DataFrame, h_x: float, h_y: float, idx: int)-> float:
