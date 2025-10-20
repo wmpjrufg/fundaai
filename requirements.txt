@@ -9,3 +9,4 @@ ipykernel
 ezdxf
 matplotlib
 streamlit
+pymoo
