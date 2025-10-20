@@ -177,7 +177,7 @@ def restricao_geometrica_pilar_sapata(h_x: float, h_y: float, a_p: float, b_p: f
     """
     
     # Restrição da dimensão do pilar em relação a dimensão da sapata
-    g_4 = a_p / h_x - 1
+    g_4 = a_p / h_x - 1     # Essas verificações não estão corretas aqui, elas devem estar na de balanço, para por algo aqui devo considerar o topo da sapata que é diferente
     g_5 = b_p / h_y - 1
 
     return g_4, g_5
