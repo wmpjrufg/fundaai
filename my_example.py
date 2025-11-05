@@ -67,7 +67,7 @@ def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
                     (solo_column == 'silte') | (solo_column == 'argila'),
                 ]
     values = [
-                df[('spt')] / 30 * 1E3,  # Acessa a coluna 'spt' corretamente
+                df[('spt')] / 30 * 1E3,
                 df[('spt')] / 40 * 1E3,
                 df[('spt')] / 50 * 1E3,
              ]
