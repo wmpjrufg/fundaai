@@ -5,49 +5,6 @@ import pandas as pd
 import math
 
 
-# def restricao_tensao_solo(t_value: float, sigma_rd: float)-> float:
-#     """
-#     Verifica a restrição de tensão solicitante máxima na sapata, com majoração de 30% para incertezas na combinação de ações (ex: ação do vento).
-
-#     :param t_value: Valor absoluto da tensão solicitante mais crítica (kPa)
-#     :param sigma_rd: Tensão admissível do solo (kPa)
-
-#     :return: Valor da restrição (g), onde g <= 0 é a situação aceitável
-#     """
-
-#     return t_value * 1.30 / sigma_rd - 1
-
-
-# def volume_fundacao(h_x: float, h_y: float, h_z: float) -> float:
-#     """
-#     Calcula o volume de concreto da sapata.
-
-#     :param h_x: Largura da sapata (m).
-#     :param h_y: Comprimento da sapata (m).
-#     :param h_z: Altura da sapata (m).
-
-#     :returns: saida[0] = volume da sapata (m3)
-#     """
-
-#     h_z= 0.6 # valor definido e fixado provisóriamente para efeito de construção da ferramenta
-
-#     return h_x * h_y * h_z
-
-
-# def cargas_combinacoes(cargas: list) -> list:
-#     """
-#     Gera todas as combinações possíveis de cargas com Fz, Mx e My.
-
-#     :param Cargas:  Lista com os valores individuais de cargas dos elemntos de fundação.
-    
-#     :return: saida[0] = Lista de trios de combinações.
-#     """
-    
-#     cargas_comb = list(combinations(cargas, 3))
-
-#     return [list(comb) for comb in cargas_comb]
-
-
 def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
     """
     Calcula a tensão admissível do solo com base no tipo de solo e no Nspt.
@@ -149,10 +106,10 @@ def restricao_geometrica_balanco_pilar_sapata(h_x: float, h_y: float, h_z: float
     """
 
     # Balanço na direção X
-    cap_value = (h_x - a_p) / 2
+    cap_value = max(0.1, (h_x - a_p) / 2)
 
     # Balanço na direção Y
-    cbp_value = (h_y - b_p) / 2
+    cbp_value = max(0.1, (h_y - b_p) / 2)
     
     # Restrições laterais do balanço
     g_0 = cap_value / (2 * h_z) - 1
@@ -357,7 +314,7 @@ def restricao_geometrica_sobreposicao(df: pd.DataFrame, h_x: float, h_y: float, 
     return area_total / (h_x * h_y)  # penalização normalizada
 
 
-def obj_ic_fundacoes(x: list, none_variable: dict)-> float:
+# def obj_ic_fundacoes(x: list, none_variable: dict)-> float:
     """
     Função objetivo para a otimização do dimensionamento de fundações rasas do tipo sapata.
 
@@ -520,13 +477,13 @@ def data_comb(df: pd.DataFrame,) -> list:
     return lista_resultados
 
 
-if __name__== '__main__':
-    df = pd.read_excel("teste_wand.xlsx")
-    df = tensao_adm_solo(df)
-    a = 0.6
-    b = 0.6
-    x = [a, b]
-    none_variable = {'dados estrutura': df, 'h_z (m)': 0.6, 'cob (m)': 0.025, 'fck (kPa)': 25000, 'número de combinações estruturais': 3}
-    of = obj_ic_fundacoes(x, none_variable)
+# if __name__== '__main__':
+#     df = pd.read_excel("teste_wand.xlsx")
+#     df = tensao_adm_solo(df)
+#     a = 0.6
+#     b = 0.6
+#     x = [a, b]
+#     none_variable = {'dados estrutura': df, 'h_z (m)': 0.6, 'cob (m)': 0.025, 'fck (kPa)': 25000, 'número de combinações estruturais': 3}
+#     of = obj_ic_fundacoes(x, none_variable)
     
-    print(of)
+#     print(of)
