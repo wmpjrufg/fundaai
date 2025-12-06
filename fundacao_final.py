@@ -228,7 +228,22 @@ def checagem_puncao (df: pd.DataFrame):
 
     return df
 
+#Checagem de tensões 
+    # Checagem tensão mínima
+def checagem_tensao_adm_sd (df: pd.DataFrame):
+    df['g_0'] = np.where(
+                        df['min_tensao (kPa)'] < 0,
+                        np.abs(df['min_tensao (kPa)'] / df['sigma_adm (kPa)']),        # Comportamento se valores negativos
+                        1.15 * df['min_tensao (kPa)'] / df['sigma_adm (kPa)'] - 1       # Comportamento se valores >= 0
+                        )
 
+    # Checagem tensão máxima
+    df['g_1'] = np.where(
+                        df['max_tensao (kPa)'] < 0,
+                        np.abs(df['max_tensao (kPa)'] / df['sigma_adm (kPa)']),        # Comportamento se valores negativos
+                        1.15 * df['max_tensao (kPa)'] / df['sigma_adm (kPa)'] - 1       # Comportamento se valores >= 0
+                        )
+    return
 
 if __name__ == "__main__":
     df = pd.read_excel('teste_reduzido.xlsx')
@@ -244,5 +259,7 @@ if __name__ == "__main__":
     # print("balaço x:", cap)
     # print("balaço y:", cbp)
     # print("g0:", g0_geo_pilar_sapata)
-    print(checagem_puncao(df))
+    df = checagem_tensao_adm_sd(df)
+    print(df)
+
 
