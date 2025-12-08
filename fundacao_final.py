@@ -4,6 +4,7 @@ import shapely as sh
 
 from my_example import *
 
+##Para checagem de tensoes dolicitantes, checagem ok!
 def checagem_tensoes_dataframe(df: pd.DataFrame, n_comb: int):
     """
     Função para checar as tensões admissíveis no DataFrame.
@@ -62,20 +63,20 @@ def checagem_tensoes_dataframe(df: pd.DataFrame, n_comb: int):
         # Armazenando os esforços das combinações críticas
         fz_critico_max.append(row[f'Fz-{comb_max}']); mx_critico_max.append(row[f'Mx-{comb_max}']); my_critico_max.append(row[f'My-{comb_max}'])
         fz_critico_min.append(row[f'Fz-{comb_min}']); mx_critico_min.append(row[f'Mx-{comb_min}']); my_critico_min.append(row[f'My-{comb_min}'])
+        break
 
-        return max_tensoes, min_tensoes, index_critico_max, index_critico_min, fz_critico_max, mx_critico_max, my_critico_max, fz_critico_min, mx_critico_min, my_critico_min
+    return max_tensoes, min_tensoes, index_critico_max, index_critico_min, fz_critico_max, mx_critico_max, my_critico_max, fz_critico_min, mx_critico_min, my_critico_min
     
-## Para restrição geométrica de balanço da sapata
-# lista para armazenar resultados
-g0_geo_pilar_sapata = []
-g1_geo_pilar_sapata = []
-g2_geo_pilar_sapata = []
-g3_geo_pilar_sapata = []
-cap = [] #valor do balanço em x
-cbp = [] #valor do balanço em y ''
+## Para restrição geométrica de balanço da sapata, checagem ok!
 
 def checagem_balanço (df: pd.DataFrame):
-  
+    # lista para armazenar resultados
+    g0_geo_pilar_sapata = []
+    g1_geo_pilar_sapata = []
+    g2_geo_pilar_sapata = []
+    g3_geo_pilar_sapata = []
+    cap = [] #valor do balanço em x
+    cbp = [] #valor do balanço em y
     for idx, row in df.iterrows(): 
         cap_value, cbp_value, g0, g1, g2, g3 = restricao_geometrica_balanco_pilar_sapata(
                                                                                             h_x=row['h_x (m)'],
@@ -91,15 +92,16 @@ def checagem_balanço (df: pd.DataFrame):
         g1_geo_pilar_sapata.append(g1)
         g2_geo_pilar_sapata.append(g2)
         g3_geo_pilar_sapata.append(g3)
+        break
 
 
     return cap, cbp, g0_geo_pilar_sapata, g1_geo_pilar_sapata, g2_geo_pilar_sapata, g3_geo_pilar_sapata
 
- ##Para restrição geometrica Pilar_Sapata
-g0_geo_pilar = []
-g1_geo_pilar = []
-
+ 
+##Para relação pilar sapata, checagem ok!
 def checagem_pilar_sapata (df: pd.DataFrame):
+    g0_geo_pilar = []
+    g1_geo_pilar = []
     for idx, row in df.iterrows(): 
         g0, g1 = restricao_geometrica_pilar_sapata(
                                                     h_x=row['h_x (m)'],
@@ -110,10 +112,11 @@ def checagem_pilar_sapata (df: pd.DataFrame):
         # Armazena cada valor em listas
         g0_geo_pilar.append(g0)
         g1_geo_pilar.append(g1)
+        break
 
     return g0_geo_pilar, g1_geo_pilar
 
-
+#Para checagem de sobreposição, checagem ok!
 def checagem_sobreposição (df: pd.DataFrame):
      
     # Calculando os vertices A, B, C e D da sapata no df    
@@ -154,6 +157,8 @@ def checagem_sobreposição (df: pd.DataFrame):
 
     return contagem_intersecoes
 
+
+##Para checagem de puncao, Checagem não realizada
 def checagem_puncao (df: pd.DataFrame):
     ## para restrição de punção
     # Atribuindo os parâmetros
@@ -228,9 +233,13 @@ def checagem_puncao (df: pd.DataFrame):
 
     return df
 
-#Checagem de tensões 
-    # Checagem tensão mínima
+#Checagem de tensão adm, checagem ok!
+
 def checagem_tensao_adm_sd (df: pd.DataFrame):
+
+    df['sigma_adm (kPa)'] = 200
+    df['min_tensao (kPa)'] = -305.56
+    df['max_tensao (kPa)'] = 3666.667
     df['g_0'] = np.where(
                         df['min_tensao (kPa)'] < 0,
                         np.abs(df['min_tensao (kPa)'] / df['sigma_adm (kPa)']),        # Comportamento se valores negativos
@@ -243,7 +252,8 @@ def checagem_tensao_adm_sd (df: pd.DataFrame):
                         np.abs(df['max_tensao (kPa)'] / df['sigma_adm (kPa)']),        # Comportamento se valores negativos
                         1.15 * df['max_tensao (kPa)'] / df['sigma_adm (kPa)'] - 1       # Comportamento se valores >= 0
                         )
-    return
+                        
+    return df
 
 if __name__ == "__main__":
     df = pd.read_excel('teste_reduzido.xlsx')
@@ -251,15 +261,11 @@ if __name__ == "__main__":
     df['h_y (m)'] = 0.6
     df['h_z (m)'] = 0.6
     n_comb = 3
-    # max_tensoes, min_tensoes, index_critico_max, index_critico_min, fz_critico_max, mx_critico_max, my_critico_max, fz_critico_min, mx_critico_min, my_critico_min = checagem_tensoes_dataframe(df, n_comb)
-    # cap, cbp, g0_geo_pilar_sapata, g1_geo_pilar_sapata, g2_geo_pilar_sapata, g3_geo_pilar_sapata = checagem_balanço(df)
+    max_tensoes, min_tensoes, index_critico_max, index_critico_min, fz_critico_max, mx_critico_max, my_critico_max, fz_critico_min, mx_critico_min, my_critico_min = checagem_tensoes_dataframe(df, n_comb)
+    #cap, cbp, g0_geo_pilar_sapata, g1_geo_pilar_sapata, g2_geo_pilar_sapata, g3_geo_pilar_sapata = checagem_balanço(df)
     # g0_geo_pilar, g1_geo_pilar = checagem_pilar_sapata(df)
-    # print("Máximas Tensões:", max_tensoes)
-    # print("Mínimas Tensões:", min_tensoes)
-    # print("balaço x:", cap)
-    # print("balaço y:", cbp)
-    # print("g0:", g0_geo_pilar_sapata)
+    #g0_geo_pilar, g1_geo_pilar = checagem_pilar_sapata(df)
+    #contagem_intersecoes = checagem_sobreposição(df)
     df = checagem_tensao_adm_sd(df)
-    print(df)
 
 
