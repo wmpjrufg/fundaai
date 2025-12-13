@@ -33,7 +33,7 @@ def calcular_sigma_max_min(f_z: float, m_x: float, m_y: float, h_x: float, h_y: 
     
     m_x = abs(m_x)
     m_y = abs(m_y)
-    sigma_fz = f_z / (h_x * h_y)
+    sigma_fz = (f_z / (h_x * h_y)) * 1.05 
     aux_mx = 6 * (m_x / f_z) / h_x
     aux_my = 6 * (m_y / f_z) / h_y
     
@@ -46,13 +46,27 @@ def checagem_tensao_max_min(sigma: float, sigma_adm: float) -> float:
     :param sigma: Tensão atuante no solo [kPa]
     :param sigma_adm: Tensão máxima admissível do solo [kPa]
 
-    :return: restrição de projeto e g <= 0 para restrição ser satisfeita
+    :return: Restrição de projeto e g <= 0 para restrição ser satisfeita
     """
 
     if sigma >= 0: 
         g = (1.3 * sigma) / sigma_adm - 1
     else:
         g = -sigma / sigma_adm
+
+    return g
+
+
+def checagem_geometria(dim_sapata: float, dim_pilar: float) -> float:
+    """Determina a restrição de projeto da geometria da sapata.
+
+    :param dim_sapata: Dimensão da sapata [m]
+    :param dim_pilar: Dimensão do pilar [m]
+
+    :return: Restrição de projeto e g <= 0 para restrição ser satisfeita
+    """
+
+    g = dim_pilar - dim_sapata - 0.10
 
     return g
 
@@ -92,7 +106,10 @@ def obj_felipe_lucas(x, args):
         df[f'g tensao - {aux}'] = df[[f'g tensao max. - {aux}', f'g tensao min. - {aux}']].max(axis=1)
 
     df['g tensao'] = df[[f'g tensao - {i}' for i in labels_comb]].max(axis=1)
-    df['volume final (m3)'] = df['volume (m3)'] + df['g tensao'].clip(lower=0) * 1E6
+    df['g geometria x'] = df.apply(lambda row: checagem_geometria(row['h_x (m)'], row['dim_pilar_x (m)']), axis=1)
+    df['g geometria y'] = df.apply(lambda row: checagem_geometria(row['h_y (m)'], row['dim_pilar_y (m)']), axis=1)
+    df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
+    df['volume final (m3)'] = df['volume (m3)'] + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
     of = df['volume final (m3)'].sum()
 
     return of
