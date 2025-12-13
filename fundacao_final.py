@@ -262,10 +262,9 @@ if __name__ == "__main__":
     df['h_z (m)'] = 0.6
     n_comb = 3
     max_tensoes, min_tensoes, index_critico_max, index_critico_min, fz_critico_max, mx_critico_max, my_critico_max, fz_critico_min, mx_critico_min, my_critico_min = checagem_tensoes_dataframe(df, n_comb)
-    #cap, cbp, g0_geo_pilar_sapata, g1_geo_pilar_sapata, g2_geo_pilar_sapata, g3_geo_pilar_sapata = checagem_balanço(df)
-    # g0_geo_pilar, g1_geo_pilar = checagem_pilar_sapata(df)
-    #g0_geo_pilar, g1_geo_pilar = checagem_pilar_sapata(df)
-    #contagem_intersecoes = checagem_sobreposição(df)
+    cap, cbp, g0_geo_pilar_sapata, g1_geo_pilar_sapata, g2_geo_pilar_sapata, g3_geo_pilar_sapata = checagem_balanço(df)
+    g0_geo_pilar, g1_geo_pilar = checagem_pilar_sapata(df)
+    contagem_intersecoes = checagem_sobreposição(df)
     df = checagem_tensao_adm_sd(df)
 
 
