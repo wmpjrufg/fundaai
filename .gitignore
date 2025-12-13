@@ -3,4 +3,5 @@
 /ambiente_fundaIA/
 !requirements.txt
 env/
+venv/
 .DS_Store
