@@ -1,7 +1,9 @@
+"""This script creates a Streamlit web application for dimensioning isolated footings based on user-provided Excel data."""
 import streamlit as st
 from pathlib import Path
 import pandas as pd
-# from foundation import run_dimensionamento
+
+from foundation import *
 
 # Title and description
 st.title('Dimensionamento de Sapatas')
@@ -49,7 +51,6 @@ st.write(r"""
 
 # Design sheet download
 template_path = Path("assets/template_5_fundacoes_3_combinacoes.xlsx")
-
 if template_path.exists():
     with open(template_path, "rb") as file:
         st.download_button(
@@ -60,21 +61,18 @@ if template_path.exists():
         )
 else:
     st.warning("Arquivo de template não encontrado no diretório do aplicativo.")
-
 st.divider()
 
 # Upload file
 st.subheader("Upload da planilha de dados")
+uploaded_file = st.file_uploader("Selecione o arquivo Excel", type=["xlsx"])
+df = pd.read_excel(uploaded_file)
+st.subheader("Primeiras linhas da planilha")
+st.dataframe(df.head())
 
-uploaded_file = st.file_uploader(
-    "Selecione o arquivo Excel",
-    type=["xlsx"]
-)
 
-# =============================
-# PARÂMETROS FLOAT
-# =============================
-st.subheader("Parâmetros gerais de cálculo")
+# Optimization variables
+st.subheader("Parâmetros gerais de dimensionamento")
 
 col1, col2 = st.columns(2)
 
@@ -86,32 +84,24 @@ with col1:
 with col2:
     fck = st.number_input("fck do concreto (MPa)", value=25.0)
     coef_seg = st.number_input("Coeficiente de segurança", value=1.4)
+st.divider()
 
 # =============================
 # BOTÃO DE EXECUÇÃO
 # =============================
-st.divider()
-
-if st.button("Run", type="primary"):
+if st.button("Dimensionar", type="primary"):
 
     if uploaded_file is None:
         st.warning("Por favor, faça o upload da planilha antes de executar.")
 
-    try:
-        df = pd.read_excel(uploaded_file)
+    else:
+        try:
 
-        results = run_dimensionamento(
-            df=df,
-            sigma_adm=sigma_adm,
-            gamma_c=gamma_c,
-            cobrimento=cobrimento,
-            fck=fck,
-            coef_seg=coef_seg
-        )
+            st.info("Processando os dados...")
+            # results = run_dimensionamento(df=df, sigma_adm=sigma_adm, gamma_c=gamma_c, cobrimento=cobrimento, fck=fck, coef_seg=coef_seg)
+            # st.success("Processamento concluído com sucesso.")
+            # st.dataframe(results)
 
-        st.success("Processamento concluído com sucesso.")
-        st.dataframe(results)
-
-    except Exception as e:
-        st.error("Erro durante o processamento.")
-        st.exception(e)
+        except Exception as e:
+            st.error("Erro durante o processamento.")
+            st.exception(e)

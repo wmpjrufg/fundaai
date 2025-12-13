@@ -5,61 +5,6 @@ import pandas as pd
 import math
 
 
-def tensao_adm_solo(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Calcula a tensão admissível do solo com base no tipo de solo e no Nspt.
-
-    :param df: dados de entrada, contendo colunas com o 'spt' e o tipo de 'solo'
-    :return: Tensão max admissível do solo em kPa
-    """
-
-    # Converta a coluna 'solo' para minúsculas
-    solo_column = df[('solo')] 
-    solo_column = solo_column.str.lower()
-    
-    # Calcula a tensão admissível com base no tipo de solo
-    condicoes = [
-                    solo_column == 'pedregulho',
-                    solo_column == 'areia',
-                    (solo_column == 'silte') | (solo_column == 'argila'),
-                ]
-    values = [
-                df[('spt')] / 30 * 1E3,
-                df[('spt')] / 40 * 1E3,
-                df[('spt')] / 50 * 1E3,
-             ]
-
-    # Assegure que as condições e os valores sejam arrays 1D
-    condicoes = [condicionamento.values for condicionamento in condicoes]
-    values = [valor.values for valor in values]
-
-    # Cria a nova coluna com np.select
-    df['sigma_adm (kPa)'] = np.select(condicoes, values, default=np.nan)
-
-    return df
-
-
-def calcular_sigma_max(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
-    """
-    Calcula as tensões máxima e mínima atuantes na sapata, considerando excentricidades nos dois eixos.
-
-    :param f_z: Esforço axial (kN)
-    :param m_x: Momento em x (kN·m)
-    :param m_y: Momento em y (kN·m)
-    :param h_x: Dimensão da sapata em x (m)
-    :param h_y: Dimensão da sapata em y (m)
-
-    :return: saida[0] = tensão máxima (kPa), saida[1] = tensão mínima (kPa)
-    """
-    
-    m_x = abs(m_x)
-    m_y = abs(m_y)
-    sigma_fz = f_z / (h_x * h_y)
-    aux_mx = 6 * (m_x / f_z) / h_x
-    aux_my = 6 * (m_y / f_z) / h_y
-    
-    return (sigma_fz) * (1 + aux_mx + aux_my), (sigma_fz) * (1 - aux_mx - aux_my)
-
 
 def restricao_tensao(h_x: float, h_y: float, none_variable: dict, calcular_sigma_max)-> list[float]:
     """
