@@ -1,5 +1,6 @@
 """Esse script contém as funções que verificam uma sapata"""
 import pandas as pd
+import numpy as np
 
 
 def tensao_adm_solo(solo: str, spt: float) -> float:
@@ -19,23 +20,23 @@ def tensao_adm_solo(solo: str, spt: float) -> float:
         return spt / 50 * 1E3
 
 
-def calcular_sigma_max_min(f_z: float, m_x: float, m_y: float, h_x: float, h_y: float) -> tuple[float, float]:
+def calcular_sigma_max_min(f_zk: float, m_xk: float, m_yk: float, h_x: float, h_y: float) -> tuple[float, float]:
     """Calcula as tensões máxima e mínima atuantes na sapata, considerando excentricidades nos dois eixos.
 
-    :param f_z: Esforço axial kN)
-    :param m_x: Momento em x (kN·m)
-    :param m_y: Momento em y (kN·m)
-    :param h_x: Dimensão da sapata em x (m)
-    :param h_y: Dimensão da sapata em y (m)
+    :param f_zk: Carga axial característica [kN]
+    :param m_xk: Momento em x característica [kN·m]
+    :param m_yk: Momento em y característica [kN·m]
+    :param h_x: Dimensão da sapata em x [m]
+    :param h_y: Dimensão da sapata em y [m]
 
     :return: saida[0] = tensão máxima (kPa), saida[1] = tensão mínima (kPa)
     """
     
-    m_x = abs(m_x)
-    m_y = abs(m_y)
-    sigma_fz = (f_z / (h_x * h_y)) * 1.05 
-    aux_mx = 6 * (m_x / f_z) / h_x
-    aux_my = 6 * (m_y / f_z) / h_y
+    m_xk = abs(m_xk)
+    m_yk = abs(m_yk)
+    sigma_fz = (f_zk / (h_x * h_y)) * 1.05 
+    aux_mx = 6 * (m_xk / f_zk) / h_x
+    aux_my = 6 * (m_yk / f_zk) / h_y
     
     return (sigma_fz) * (1 + aux_mx + aux_my), (sigma_fz) * (1 - aux_mx - aux_my)
 
@@ -71,45 +72,168 @@ def checagem_geometria(dim_sapata: float, dim_pilar: float) -> float:
     return g
 
 
+def rho_minimo_fck(f_ck: float) -> float:
+    """Determina a taxa mínima de armadura (rho) para sapatas em função do f_ck do concreto.
+
+    :param f_ck: Resistência característica à compressão do concreto [kPa]
+
+    :return: Taxa mínima de armadura (rho) [%]
+    """
+
+    # Tabela (f_ck -> rho)
+    f_ck = f_ck / 1000
+    FCK = np.array([20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90], dtype=float)
+    RHO = np.array([0.150, 0.150, 0.150, 0.164, 0.179, 0.194, 0.208, 0.211, 0.219, 0.226, 0.233, 0.239, 0.245, 0.251, np.nan], dtype=float)
+
+    if f_ck < FCK[0] or f_ck > FCK[-1]:
+        raise ValueError(f"f_ck fora da faixa suportada: {FCK[0]} a {FCK[-1]} MPa.")
+
+    # Caso exato
+    idx_exact = np.where(FCK == f_ck)[0]
+    if idx_exact.size > 0:
+        rho = RHO[idx_exact[0]]
+        if np.isnan(rho):
+            raise ValueError(f"rho não disponível na tabela para f_ck={f_ck} MPa.")
+        return float(rho)
+
+    # Interpolação: pegar intervalo [i, i+1]
+    i = np.searchsorted(FCK, f_ck) - 1
+    x0, x1 = FCK[i], FCK[i + 1]
+    y0, y1 = RHO[i], RHO[i + 1]
+
+    if np.isnan(y0) or np.isnan(y1):
+        raise ValueError(f"Não é possível interpolar: há valor ausente no intervalo {x0}-{x1} MPa.")
+
+    # Interpolação linear
+    rho = y0 + (y1 - y0) * (f_ck - x0) / (x1 - x0)
+
+    return float(rho)
+
+
+def tabela_19_2(c1_c2: float) -> float:
+    """Determina o valor de k por interpolação linear a partir da Tabela 19.2 da NBR 6118:2014.
+    
+    :param c1_c2: Razão c1/c2
+
+    :return: Valor de k correspondente
+    """
+    
+    # Tabela normativa
+    C_RATIO = np.array([0.5, 1.0, 2.0, 3.0], dtype=float)
+    K_VALUES = np.array([0.45, 0.60, 0.70, 0.80], dtype=float)
+
+    if c1_c2 < C_RATIO[0]:
+        raise ValueError("C1/C2 abaixo do limite mínimo normativo (0,5).")
+
+    # Limitação superior explícita
+    c1_c2 = min(c1_c2, 3.0)
+
+    # Caso exato
+    if c1_c2 in C_RATIO:
+        return float(K_VALUES[np.where(C_RATIO == c1_c2)][0])
+
+    # Interpolação linear
+    k = np.interp(c1_c2, C_RATIO, K_VALUES)
+    
+    return float(k)
+
+
+def verificacao_puncao_sapata(h_z: float, f_ck: float, a_p: float, b_p: float, f_zk: float, m_xk: float, m_yk: float, sigma_cp: float = 0.00, cob: float = 0.025) -> tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float]:
+    """Determina a tensão resistente e verifica segundo a NBR 6118.   
+    
+    :param h_z: Altura da sapata [m]
+    :param f_ck: Resistência característica à compressão do concreto [kPa]
+    :param a_p: Dimensão do pilar na direção x [m]
+    :param b_p: Dimensão do pilar na direção y [m]
+    :param f_zk: Carga axial característica [kN]
+    :param m_xk: Momento em x característica [kN·m]
+    :param m_yk: Momento em y característica [kN·m]
+    :param sigma_cp: Tensão axial extra [kPa]. Padrão é 0.00 kPa
+    :param cob: Cobrimento do concreto [m]. Padrão é 0.025 m   
+
+    :return: [0] = tensão atuante face pilar [kPa], [1] = tensão resistente face pilar [kPa], [2] = perímetro crítico na face do pilar [m], [3] = verificação à punção na face do pilar, [4] = escala de punção ke, [5] = verificação escala punção. g <= 0 para restrição ser satisfeita, [6] = tensão resistente seção crítica c' [kPa], [7] = perímetro crítico na seção crítica c' [m], [8] = fator k da direção x tabela 19.2, [9] = fator k da direção y tabela 19.2, [10] = módulo de resistência plástica na direção x, [11] = módulo de resistência plástica na direção y, [12] = tensão atuante seção crítica c' [kPa], [13] = verificação à punção na seção crítica c'. g <= 0 para restrição ser satisfeita
+    """
+
+    # Verificação à punção na seção crítica C
+    d = h_z - cob
+    alpha_v2 = (1 - (f_ck/1000) / 250)
+    f_cd = f_ck / 1.4
+    tau_rd2 = 0.27 * alpha_v2 * f_cd
+    u_rd2 = 2 * (a_p + b_p)
+    tau_sd2 = (1.4 * f_zk) / (u_rd2 * d)
+    g_rd2 = tau_sd2 / tau_rd2 - 1
+
+    # Verificação à punção na seção crítica C'
+    secao_critica = h_z / 2
+    rho_x = rho_minimo_fck(f_ck)
+    rho_y = rho_minimo_fck(f_ck)
+    rho = np.sqrt(rho_x * rho_y)
+    rho = rho / 100
+    k_e = 1 + np.sqrt(20 / (d * 100)) 
+    g_ed =  k_e / 2 - 1 
+    tau_rd1 = 0.13 * k_e * (100 * rho * (f_ck / 1000)) ** (1 / 3) + 0.1 * sigma_cp
+    u_rd1 = 2 * (a_p + b_p) + 2 * np.pi * secao_critica
+    c_1 = a_p
+    c_2 = b_p
+    dd = secao_critica
+    kx = tabela_19_2(c_1 / c_2)
+    ky = tabela_19_2(c_2 / c_1)
+    w_px = c_1**2 / 2 + c_1 * c_2 + 4 * c_2 * dd + 16 * dd**2 + 2 * np.pi * c_1 * dd
+    w_py = c_2**2 / 2 + c_2 * c_1 + 4 * c_1 * dd + 16 * dd**2 + 2 * np.pi * c_2 * dd
+    tau_sd1 = (1.4 * f_zk) / (u_rd1 * d) + kx * (1.4 * m_xk) / (w_px * d) + ky * (1.4 * m_yk) / (w_py * d)
+    g_rd1 = tau_sd1 / tau_rd1 - 1
+
+    return tau_sd2, tau_rd2, u_rd2, g_rd2, k_e, g_ed, tau_rd1, u_rd1, kx, ky, w_px, w_py, tau_sd1, g_rd1
+
+
 def obj_felipe_lucas(x, args):
 
-    # Arguments
+    # Argumentos
     df = args[0].copy()
     n_comb = args[1]
+    f_ck = args[2]
     n_fun = df.shape[0]
 
-    # Design variables
+    # Variáveis de projeto
     h_x, h_y = x  ###
     h_z = 0.60
     df['h_x (m)'] = h_x
     df['h_y (m)'] = h_y
     df['h_z (m)'] = h_z
 
-    # Volumn
+    # Volume
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
 
-    # Admissible stress of the soil
+    # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
 
-    # Combination label
+    # Rótulo das combinações
     labels_comb = [f'c{i}' for i in range(1, n_comb + 1)]
 
+    # Checagem punção
+    for i in labels_comb:
+        aux = f'{i}'
+        df[[f'tau_sd2 - {aux}', f'tau_rd2 - {aux}', f'u_rd2 - {aux}', f'g_rd2 - {aux}', f'k_e - {aux}', f'g_ed - {aux}', f'tau_rd1 - {aux}', f'u_rd1 - {aux}', f'kx - {aux}', f'ky - {aux}', f'w_px - {aux}', f'w_py - {aux}', f'tau_sd1 - {aux}', f'g_rd1 - {aux}']] = df.apply(lambda row: verificacao_puncao_sapata(row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'], row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}']), axis=1, result_type='expand')
+    df['g punção secao C'] = df[[f'g_rd2 - {i}' for i in labels_comb]].max(axis=1)
+    df['g escala punção'] = df[[f'g_ed - {i}' for i in labels_comb]].max(axis=1)
+    df['g punção secao Clinha'] = df[[f'g_rd1 - {i}' for i in labels_comb]].max(axis=1)
 
-    # Computing max and min for all load combinations
-    t_max_aux = []
-    t_min_aux = []
-    for i  in labels_comb:
+    # Checagem tensao max e min
+    for i in labels_comb:
         aux = f'{i}'
         df[[f'tensao max. (kPa) - {aux}', f'tensao min. (kPa) - {aux}']] = df.apply(lambda row: calcular_sigma_max_min(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], row['h_x (m)'], row['h_y (m)']), axis=1, result_type='expand')
         df[f'g tensao max. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao max. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
         df[f'g tensao min. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao min. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
         df[f'g tensao - {aux}'] = df[[f'g tensao max. - {aux}', f'g tensao min. - {aux}']].max(axis=1)
-
     df['g tensao'] = df[[f'g tensao - {i}' for i in labels_comb]].max(axis=1)
-    df['g geometria x'] = df.apply(lambda row: checagem_geometria(row['h_x (m)'], row['dim_pilar_x (m)']), axis=1)
-    df['g geometria y'] = df.apply(lambda row: checagem_geometria(row['h_y (m)'], row['dim_pilar_y (m)']), axis=1)
+    
+    # Checagem geometria
+    df['g geometria x'] = df.apply(lambda row: checagem_geometria(row['h_x (m)'], row['ap (m)']), axis=1)
+    df['g geometria y'] = df.apply(lambda row: checagem_geometria(row['h_y (m)'], row['bp (m)']), axis=1)
     df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
-    df['volume final (m3)'] = df['volume (m3)'] + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
+    
+    # Volume final
+    df['volume final (m3)'] = df['volume (m3)'] + df['g punção secao C'].clip(lower=0) * 1E6 + df['g escala punção'].clip(lower=0) * 1E6 + df['g punção secao Clinha'].clip(lower=0) * 1E6 + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
     of = df['volume final (m3)'].sum()
 
     return of
@@ -117,38 +241,51 @@ def obj_felipe_lucas(x, args):
 
 def obj_teste(x, args):
 
-    # Arguments
+    # Argumentos
     df = args[0].copy()
     n_comb = args[1]
-    # Design variables
-    h_x, h_y = x
+    f_ck = args[2]
+    n_fun = df.shape[0]
+
+    # Variáveis de projeto
+    h_x, h_y = x  ###
     h_z = 0.60
     df['h_x (m)'] = h_x
     df['h_y (m)'] = h_y
     df['h_z (m)'] = h_z
 
-    # Volumn
+    # Volume
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
 
-    # Admissible stress of the soil
+    # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
 
-    # Combination label
+    # Rótulo das combinações
     labels_comb = [f'c{i}' for i in range(1, n_comb + 1)]
 
+    # Checagem punção
+    for i in labels_comb:
+        aux = f'{i}'
+        df[[f'tau_sd2 - {aux}', f'tau_rd2 - {aux}', f'u_rd2 - {aux}', f'g_rd2 - {aux}', f'k_e - {aux}', f'g_ed - {aux}', f'tau_rd1 - {aux}', f'u_rd1 - {aux}']] = df.apply(lambda row: verificacao_puncao_sapata(row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'], row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}']), axis=1, result_type='expand')
+    df['g punção'] = df[[f'g_rd2 - {i}' for i in labels_comb]].max(axis=1)
+    df['g escala punção'] = df[[f'g_ed - {i}' for i in labels_comb]].max(axis=1)
 
-    # Computing max and min for all load combinations
-    t_max_aux = []
-    t_min_aux = []
-    for i  in labels_comb:
+    # Checagem tensao max e min
+    for i in labels_comb:
         aux = f'{i}'
         df[[f'tensao max. (kPa) - {aux}', f'tensao min. (kPa) - {aux}']] = df.apply(lambda row: calcular_sigma_max_min(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], row['h_x (m)'], row['h_y (m)']), axis=1, result_type='expand')
         df[f'g tensao max. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao max. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
         df[f'g tensao min. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao min. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
         df[f'g tensao - {aux}'] = df[[f'g tensao max. - {aux}', f'g tensao min. - {aux}']].max(axis=1)
-
     df['g tensao'] = df[[f'g tensao - {i}' for i in labels_comb]].max(axis=1)
-    df['volume final (m3)'] = df['volume (m3)'] + df['g tensao'].clip(lower=0) * 1E6
+    
+    # Checagem geometria
+    df['g geometria x'] = df.apply(lambda row: checagem_geometria(row['h_x (m)'], row['ap (m)']), axis=1)
+    df['g geometria y'] = df.apply(lambda row: checagem_geometria(row['h_y (m)'], row['bp (m)']), axis=1)
+    df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
+    
+    # Volume final
+    df['volume final (m3)'] = df['volume (m3)'] + df['g punção'].clip(lower=0) * 1E6 + df['g escala punção'].clip(lower=0) * 1E6 + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
     of = df['volume final (m3)'].sum()
 
     return of, df
