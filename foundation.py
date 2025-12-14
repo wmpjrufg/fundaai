@@ -234,15 +234,14 @@ def obj_felipe_lucas(x, args):
     df = args[0].copy()
     n_comb = args[1]
     f_ck = args[2]
+    h_z = args[3]
     n_fun = df.shape[0]
 
     # Variáveis de projeto
-    x = np.asarray(x).reshape(n_fun, 2)
- ###
-    
+    x = np.asarray(x).reshape(n_fun, 2)   
     df['h_x (m)'] = x[:, 0]
     df['h_y (m)'] = x[:, 1]
-    df['h_z (m)'] = 0.60
+    df['h_z (m)'] = h_z
 
     # Volume
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
@@ -315,13 +314,13 @@ def obj_teste(x, args):
     df = args[0].copy()
     n_comb = args[1]
     f_ck = args[2]
+    h_z = args[3]
     n_fun = df.shape[0]
 
     # Variáveis de projeto
-    h_x, h_y = x  ###
-    h_z = 0.60
-    df['h_x (m)'] = h_x
-    df['h_y (m)'] = h_y
+    x = np.asarray(x).reshape(n_fun, 2)   
+    df['h_x (m)'] = x[:, 0]
+    df['h_y (m)'] = x[:, 1]
     df['h_z (m)'] = h_z
 
     # Volume
