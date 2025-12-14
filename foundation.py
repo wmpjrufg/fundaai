@@ -302,7 +302,7 @@ def obj_felipe_lucas(x, args):
     df['g geometria y'] = df.apply(lambda row: checagem_geometria(row['h_y (m)'], row['bp (m)']), axis=1)
     df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
     
-    # Volume final
+    # Volume final com penalizações
     df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E6 + df['g punção secao C'].clip(lower=0) * 1E6 + df['g escala punção'].clip(lower=0) * 1E6 + df['g punção secao Clinha'].clip(lower=0) * 1E6 + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
     of = df['volume final (m3)'].sum()
 
@@ -382,7 +382,7 @@ def obj_teste(x, args):
     df['g geometria y'] = df.apply(lambda row: checagem_geometria(row['h_y (m)'], row['bp (m)']), axis=1)
     df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
     
-    # Volume final
+    # Volume final com penalizações
     df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E6 + df['g punção secao C'].clip(lower=0) * 1E6 + df['g escala punção'].clip(lower=0) * 1E6 + df['g punção secao Clinha'].clip(lower=0) * 1E6 + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
     of = df['volume final (m3)'].sum()
 
