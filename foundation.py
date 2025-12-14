@@ -186,6 +186,49 @@ def verificacao_puncao_sapata(h_z: float, f_ck: float, a_p: float, b_p: float, f
     return tau_sd2, tau_rd2, u_rd2, g_rd2, k_e, g_ed, tau_rd1, u_rd1, kx, ky, w_px, w_py, tau_sd1, g_rd1
 
 
+def sobreposicao_sapatas(x1_i: float, y1_i: float, x2_i: float, y2_i: float, x3_i: float, y3_i: float, x4_i: float, y4_i: float, x1_j: float, y1_j: float, x2_j: float, y2_j: float, x3_j: float, y3_j: float, x4_j: float, y4_j: float) -> float:
+    """Determina a sobreposição entre dois retângulos definidos por suas coordenadas completas.
+    
+    :param x1_i: Coordenada x do vértice 1 do retângulo i [m]
+    :param y1_i: Coordenada y do vértice 1 do retângulo i [m]
+    :param x2_i: Coordenada x do vértice 2 do retângulo i [m]
+    :param y2_i: Coordenada y do vértice 2 do retângulo i [m]
+    :param x3_i: Coordenada x do vértice 3 do retângulo i [m]
+    :param y3_i: Coordenada y do vértice 3 do retângulo i [m]
+    :param x4_i: Coordenada x do vértice 4 do retângulo i [m]
+    :param y4_i: Coordenada y do vértice 4 do retângulo i [m]
+    :param x1_j: Coordenada x do vértice 1 do retângulo j [m]
+    :param y1_j: Coordenada y do vértice 1 do retângulo j [m]
+    :param x2_j: Coordenada x do vértice 2 do retângulo j [m]
+    :param y2_j: Coordenada y do vértice 2 do retângulo j [m]
+    :param x3_j: Coordenada x do vértice 3 do retângulo j [m]
+    :param y3_j: Coordenada y do vértice 3 do retângulo j [m]
+    :param x4_j: Coordenada x do vértice 4 do retângulo j [m]
+    :param y4_j: Coordenada y do vértice 4 do retângulo j [m]
+
+    :return: Área de sobreposição entre os dois retângulos [m²]
+    """
+    
+    # Determinando min e max de todas as coordenadas x e y do retângulo i
+    xi_min = min(x1_i, x2_i, x3_i, x4_i)
+    xi_max = max(x1_i, x2_i, x3_i, x4_i)
+    yi_min = min(y1_i, y2_i, y3_i, y4_i)
+    yi_max = max(y1_i, y2_i, y3_i, y4_i)
+    
+    # Determinando min e max de todas as coordenadas x e y do retângulo j
+    xj_min = min(x1_j, x2_j, x3_j, x4_j)
+    xj_max = max(x1_j, x2_j, x3_j, x4_j)
+    yj_min = min(y1_j, y2_j, y3_j, y4_j)
+    yj_max = max(y1_j, y2_j, y3_j, y4_j)
+    
+    # Calcular sobreposição
+    overlap_x = max(0, min(xi_max, xj_max) - max(xi_min, xj_min))
+    overlap_y = max(0, min(yi_max, yj_max) - max(yi_min, yj_min))
+    area = overlap_x * overlap_y
+    
+    return area
+
+
 def obj_felipe_lucas(x, args):
 
     # Argumentos
@@ -203,6 +246,33 @@ def obj_felipe_lucas(x, args):
 
     # Volume
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
+
+    # Cálculo das coordenadas completas dos vértices das sapatas
+    df['x1'] = df['xg (m)'] - df['h_x (m)'] / 2
+    df['y1'] = df['yg (m)'] - df['h_y (m)'] / 2
+    df['x2'] = df['xg (m)'] + df['h_x (m)'] / 2
+    df['y2'] = df['yg (m)'] - df['h_y (m)'] / 2
+    df['x3'] = df['xg (m)'] + df['h_x (m)'] / 2
+    df['y3'] = df['yg (m)'] + df['h_y (m)'] / 2
+    df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2
+    df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2
+
+    # Deteriminar sobreposição
+    for idx, row in df.iterrows():
+        aux = 0
+        x1_i, y1_i = row['x1'], row['y1']
+        x2_i, y2_i = row['x2'], row['y2']
+        x3_i, y3_i = row['x3'], row['y3']
+        x4_i, y4_i = row['x4'], row['y4']
+        for jdx, row_j in df.iterrows():
+            if jdx != idx:
+                x1_j, y1_j = row_j['x1'], row_j['y1']
+                x2_j, y2_j = row_j['x2'], row_j['y2']
+                x3_j, y3_j = row_j['x3'], row_j['y3']
+                x4_j, y4_j = row_j['x4'], row_j['y4']
+                area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
+                aux += area_overlap
+        df.loc[idx, 'g sobreposicao'] = aux / df.loc[idx, 'h_x (m)'] / df.loc[idx, 'h_y (m)']
 
     # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
@@ -233,7 +303,7 @@ def obj_felipe_lucas(x, args):
     df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
     
     # Volume final
-    df['volume final (m3)'] = df['volume (m3)'] + df['g punção secao C'].clip(lower=0) * 1E6 + df['g escala punção'].clip(lower=0) * 1E6 + df['g punção secao Clinha'].clip(lower=0) * 1E6 + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
+    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E6 + df['g punção secao C'].clip(lower=0) * 1E6 + df['g escala punção'].clip(lower=0) * 1E6 + df['g punção secao Clinha'].clip(lower=0) * 1E6 + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
     of = df['volume final (m3)'].sum()
 
     return of
@@ -257,6 +327,33 @@ def obj_teste(x, args):
     # Volume
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
 
+    # Cálculo das coordenadas completas dos vértices das sapatas
+    df['x1'] = df['xg (m)'] - df['h_x (m)'] / 2
+    df['y1'] = df['yg (m)'] - df['h_y (m)'] / 2
+    df['x2'] = df['xg (m)'] + df['h_x (m)'] / 2
+    df['y2'] = df['yg (m)'] - df['h_y (m)'] / 2
+    df['x3'] = df['xg (m)'] + df['h_x (m)'] / 2
+    df['y3'] = df['yg (m)'] + df['h_y (m)'] / 2
+    df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2
+    df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2
+
+    # Deteriminar sobreposição
+    for idx, row in df.iterrows():
+        aux = 0
+        x1_i, y1_i = row['x1'], row['y1']
+        x2_i, y2_i = row['x2'], row['y2']
+        x3_i, y3_i = row['x3'], row['y3']
+        x4_i, y4_i = row['x4'], row['y4']
+        for jdx, row_j in df.iterrows():
+            if jdx != idx:
+                x1_j, y1_j = row_j['x1'], row_j['y1']
+                x2_j, y2_j = row_j['x2'], row_j['y2']
+                x3_j, y3_j = row_j['x3'], row_j['y3']
+                x4_j, y4_j = row_j['x4'], row_j['y4']
+                area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
+                aux += area_overlap
+        df.loc[idx, 'g sobreposicao'] = aux / df.loc[idx, 'h_x (m)'] / df.loc[idx, 'h_y (m)']
+
     # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
 
@@ -266,9 +363,10 @@ def obj_teste(x, args):
     # Checagem punção
     for i in labels_comb:
         aux = f'{i}'
-        df[[f'tau_sd2 - {aux}', f'tau_rd2 - {aux}', f'u_rd2 - {aux}', f'g_rd2 - {aux}', f'k_e - {aux}', f'g_ed - {aux}', f'tau_rd1 - {aux}', f'u_rd1 - {aux}']] = df.apply(lambda row: verificacao_puncao_sapata(row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'], row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}']), axis=1, result_type='expand')
-    df['g punção'] = df[[f'g_rd2 - {i}' for i in labels_comb]].max(axis=1)
+        df[[f'tau_sd2 - {aux}', f'tau_rd2 - {aux}', f'u_rd2 - {aux}', f'g_rd2 - {aux}', f'k_e - {aux}', f'g_ed - {aux}', f'tau_rd1 - {aux}', f'u_rd1 - {aux}', f'kx - {aux}', f'ky - {aux}', f'w_px - {aux}', f'w_py - {aux}', f'tau_sd1 - {aux}', f'g_rd1 - {aux}']] = df.apply(lambda row: verificacao_puncao_sapata(row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'], row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}']), axis=1, result_type='expand')
+    df['g punção secao C'] = df[[f'g_rd2 - {i}' for i in labels_comb]].max(axis=1)
     df['g escala punção'] = df[[f'g_ed - {i}' for i in labels_comb]].max(axis=1)
+    df['g punção secao Clinha'] = df[[f'g_rd1 - {i}' for i in labels_comb]].max(axis=1)
 
     # Checagem tensao max e min
     for i in labels_comb:
@@ -285,7 +383,7 @@ def obj_teste(x, args):
     df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
     
     # Volume final
-    df['volume final (m3)'] = df['volume (m3)'] + df['g punção'].clip(lower=0) * 1E6 + df['g escala punção'].clip(lower=0) * 1E6 + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
+    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E6 + df['g punção secao C'].clip(lower=0) * 1E6 + df['g escala punção'].clip(lower=0) * 1E6 + df['g punção secao Clinha'].clip(lower=0) * 1E6 + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
     of = df['volume final (m3)'].sum()
 
     return of, df
