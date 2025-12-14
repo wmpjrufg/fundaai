@@ -68,11 +68,19 @@ st.divider()
 
 # Upload file
 st.subheader("Upload da planilha de dados")
-uploaded_file = st.file_uploader("Selecione o arquivo Excel", type=["xlsx"])
-df = pd.read_excel(uploaded_file)
-n_fun = df.shape[0]
-st.subheader("Primeiras linhas da planilha")
-st.dataframe(df.head())
+uploaded_file = st.file_uploader("Selecione o arquivo Excel", type=["xlsx","xls"])
+if uploaded_file is not None:
+    df = pd.read_excel(uploaded_file)
+    st.success("Arquivo carregado com sucesso!")
+    st.dataframe(df)
+
+    n_fun = df.shape[0]
+    st.subheader("Primeiras linhas da planilha")
+    st.dataframe(df.head())
+
+else:
+    st.warning("Por favor, selecione um arquivo Excel para continuar.")
+#df = pd.read_excel(uploaded_file)
 
 
 # Optimization variables
@@ -82,11 +90,11 @@ col1, col2 = st.columns(2)
 
 with col1:
     n_comb = st.number_input("Número de combinações informadas na planilha", value=3)
-    max
-    min
+    h_xmax = st.number_input("Dimensão máxima da sapata (m)", value=5.0)
+    h_xmin = st.number_input("Dimensão mínima da sapata (m)", value=1.0)
 
 with col2:
-    fck = st.number_input("fck do concreto (MPa)", value=25.0)
+    fck = st.number_input("fck do concreto (kPa)", value=25000.0)
 st.divider()
 
 # =============================
@@ -100,21 +108,36 @@ if st.button("Dimensionar", type="primary"):
         try:
             st.info("Processando os dados...")
             x_ini = [
-                        [0.65, 0.65, 0.65, 0.65, 0.65, 0.65, 0.65, 0.65, 0.65, 0.65],
-                        [0.6, 0.8],
-                        [0.8, 0.6],
-                        [0.8, 0.8],
-                        [1.0, 1.0],
-                        [2.5, 2.5]
+                        [0.65] * (2 * n_fun),
+                        [0.6, 0.8] * n_fun,
+                        [0.8, 0.6] * n_fun,
+                        [0.8, 0.8] * n_fun,
+                        [1.0, 1.0] * n_fun,
+                        [2.5, 2.5] * n_fun,
                     ]
+
             paras_opt = {'optimizer algorithm': GA.BaseGA(epoch=40, pop_size=50)}
             paras_kernel = {'kernel': 1 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e2))}
             n_gen = 100
-            x_new, best_of, df = ego_01_architecture(obj_felipe_lucas, n_gen, x_ini, [h_xmax]*2*n_fun, [h_ymin]*2*n_fun, paras_opt, paras_kernel, args=(df, n_comb))
+            x_new, best_of, df = ego_01_architecture(obj_felipe_lucas, n_gen, x_ini, [h_xmin]*2*n_fun, [h_xmax]*2*n_fun, paras_opt, paras_kernel, args=(df, n_comb, fck))
             print(f"Best solution: {x_new} -> OF: {best_of}")
             # results = run_dimensionamento(df=df, sigma_adm=sigma_adm, gamma_c=gamma_c, cobrimento=cobrimento, fck=fck, coef_seg=coef_seg)
             # st.success("Processamento concluído com sucesso.")
             # st.dataframe(results)
+            st.success("Dimensionamento concluído com sucesso!")
+
+
+            st.subheader("🔎 Resultado da Otimização")
+            st.write(x_new)
+            st.metric(
+                label="Função Objetivo (OF)",
+                value=f"{best_of:.4f}"
+            )
+
+            st.subheader("📊 Resultados Detalhados")
+            st.dataframe(df)
+
+
 
         except Exception as e:
             st.error("Erro durante o processamento.")

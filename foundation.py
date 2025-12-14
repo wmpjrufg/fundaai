@@ -121,8 +121,8 @@ def tabela_19_2(c1_c2: float) -> float:
     C_RATIO = np.array([0.5, 1.0, 2.0, 3.0], dtype=float)
     K_VALUES = np.array([0.45, 0.60, 0.70, 0.80], dtype=float)
 
-    if c1_c2 < C_RATIO[0]:
-        raise ValueError("C1/C2 abaixo do limite mínimo normativo (0,5).")
+    #Limitação superior explícita
+    c1_c2 = max(c1_c2, 0.50)
 
     # Limitação superior explícita
     c1_c2 = min(c1_c2, 3.0)
@@ -237,11 +237,12 @@ def obj_felipe_lucas(x, args):
     n_fun = df.shape[0]
 
     # Variáveis de projeto
-    h_x, h_y = x  ###
-    h_z = 0.60
-    df['h_x (m)'] = h_x
-    df['h_y (m)'] = h_y
-    df['h_z (m)'] = h_z
+    x = np.asarray(x).reshape(n_fun, 2)
+ ###
+    
+    df['h_x (m)'] = x[:, 0]
+    df['h_y (m)'] = x[:, 1]
+    df['h_z (m)'] = 0.60
 
     # Volume
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
