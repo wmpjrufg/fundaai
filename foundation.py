@@ -1,5 +1,4 @@
 """Esse script contém as funções que verificam uma sapata"""
-import pandas as pd
 import numpy as np
 
 
