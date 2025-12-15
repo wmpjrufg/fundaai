@@ -110,7 +110,7 @@ if st.button("Dimensionar", type="primary"):
             x_u = [h_xmax] * 2 * n_fun
             x_ini = initial_population_01(n_pop, 2 * n_fun, x_l, x_u, use_lhs=True)
             paras_opt = {'optimizer algorithm': GA.BaseGA(epoch=40, pop_size=100)}
-            paras_kernel = {'kernel': 1 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e2))}
+            paras_kernel = {'kernel': RBF()}
             x_new, best_of, df = ego_01_architecture(obj_felipe_lucas, n_gen, x_ini, x_l, x_u, paras_opt, paras_kernel, args=(df, n_comb, f_ck, h_z))
             st.success("Dimensionamento concluído com sucesso!")
             st.subheader("📊 Resultados Detalhados")
