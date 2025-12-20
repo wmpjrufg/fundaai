@@ -121,11 +121,8 @@ def tabela_19_2(c1_c2: float) -> float:
     C_RATIO = np.array([0.5, 1.0, 2.0, 3.0], dtype=float)
     K_VALUES = np.array([0.45, 0.60, 0.70, 0.80], dtype=float)
 
-    #Limitação superior explícita
-    c1_c2 = max(c1_c2, 0.50)
-
-    # Limitação superior explícita
-    c1_c2 = min(c1_c2, 3.0)
+    # Saturação nos limites (pega o valor mais próximo)
+    c1_c2 =np.clip(c1_c2, C_RATIO.min(), C_RATIO.max())
 
     # Caso exato
     if c1_c2 in C_RATIO:
