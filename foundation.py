@@ -168,9 +168,9 @@ def verificacao_puncao_sapata(h_z: float, f_ck: float, a_p: float, b_p: float, f
     rho_y = rho_minimo_fck(f_ck)
     rho = np.sqrt(rho_x * rho_y)
     rho = rho / 100
-    k_e = 1 + np.sqrt(20 / (d * 100)) 
+    k_e = min(1 + np.sqrt(20 / (d * 100)), 2)
     g_ed =  k_e / 2 - 1 
-    tau_rd1 = 0.13 * k_e * (100 * rho * (f_ck / 1000)) ** (1 / 3) + 0.1 * sigma_cp
+    tau_rd1 = 1000 * (0.13 * k_e * (100 * rho * (f_ck / 1000)) ** (1 / 3) + 0.1 * sigma_cp)
     u_rd1 = 2 * (a_p + b_p) + 2 * np.pi * secao_critica
     c_1 = a_p
     c_2 = b_p
