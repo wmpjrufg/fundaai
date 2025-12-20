@@ -121,18 +121,15 @@ def tabela_19_2(c1_c2: float) -> float:
     C_RATIO = np.array([0.5, 1.0, 2.0, 3.0], dtype=float)
     K_VALUES = np.array([0.45, 0.60, 0.70, 0.80], dtype=float)
 
-    #Limitação superior explícita
-    c1_c2 = max(c1_c2, 0.50)
-
-    # Limitação superior explícita
-    c1_c2 = min(c1_c2, 3.0)
+    # Saturação nos limites (pega o valor mais próximo)
+    c1_c2 =np.clip(c1_c2, C_RATIO.min(), C_RATIO.max())
 
     # Caso exato
     if c1_c2 in C_RATIO:
         return float(K_VALUES[np.where(C_RATIO == c1_c2)][0])
 
     # Interpolação linear
-    k = np.interp(c1_c2, C_RATIO, K_VALUES)
+    k = float(np.interp(c1_c2, C_RATIO, K_VALUES))
     
     return float(k)
 
@@ -175,8 +172,8 @@ def verificacao_puncao_sapata(h_z: float, f_ck: float, a_p: float, b_p: float, f
     c_1 = a_p
     c_2 = b_p
     dd = secao_critica
-    kx = tabela_19_2(c_1 / c_2)
-    ky = tabela_19_2(c_2 / c_1)
+    kx = tabela_19_2(float(c_1 / c_2))
+    ky = tabela_19_2(float(c_2 / c_1))
     w_px = c_1**2 / 2 + c_1 * c_2 + 4 * c_2 * dd + 16 * dd**2 + 2 * np.pi * c_1 * dd
     w_py = c_2**2 / 2 + c_2 * c_1 + 4 * c_1 * dd + 16 * dd**2 + 2 * np.pi * c_2 * dd
     tau_sd1 = (1.4 * f_zk) / (u_rd1 * d) + kx * (1.4 * m_xk) / (w_px * d) + ky * (1.4 * m_yk) / (w_py * d)
