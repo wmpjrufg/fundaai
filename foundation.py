@@ -386,3 +386,21 @@ def obj_teste(x, args):
     of = df['volume final (m3)'].sum()
 
     return of, df
+
+def obj_teste_puncao(x, args):
+
+    # Argumentos
+    h_z = args[0]
+    f_ck = args[1]
+    a_p = args[2]
+    b_p = args[3]
+    f_zk = args[4]
+    m_xk = args[5]
+    m_yk = args[6]
+    cob = args[7]
+    sigma_cp = args[8]
+
+    # Cálculo punção
+    tau_sd2, tau_rd2, u_rd2, g_rd2, k_e, g_ed, tau_rd1, u_rd1, kx, ky, w_px, w_py, tau_sd1, g_rd1 = verificacao_puncao_sapata(h_z, f_ck, a_p, b_p, f_zk, m_xk, m_yk, sigma_cp, cob)
+
+    return tau_sd2, tau_rd2, u_rd2, g_rd2, k_e, g_ed, tau_rd1, u_rd1, kx, ky, w_px, w_py, tau_sd1, g_rd1
