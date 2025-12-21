@@ -121,11 +121,9 @@ def tabela_19_2(c1_c2: float) -> float:
     C_RATIO = np.array([0.5, 1.0, 2.0, 3.0], dtype=float)
     K_VALUES = np.array([0.45, 0.60, 0.70, 0.80], dtype=float)
 
-    #Limitação superior explícita
-    c1_c2 = max(c1_c2, 0.50)
+    # Saturação nos limites normativos da Tabela 19.2
+    c1_c2 = min(max(c1_c2, 0.50), 3.0)
 
-    # Limitação superior explícita
-    c1_c2 = min(c1_c2, 3.0)
 
     # Caso exato
     if c1_c2 in C_RATIO:
@@ -168,9 +166,9 @@ def verificacao_puncao_sapata(h_z: float, f_ck: float, a_p: float, b_p: float, f
     rho_y = rho_minimo_fck(f_ck)
     rho = np.sqrt(rho_x * rho_y)
     rho = rho / 100
-    k_e = 1 + np.sqrt(20 / (d * 100)) 
+    k_e = min(1 + np.sqrt(20 / (d * 100)), 2.0)
     g_ed =  k_e / 2 - 1 
-    tau_rd1 = 0.13 * k_e * (100 * rho * (f_ck / 1000)) ** (1 / 3) + 0.1 * sigma_cp
+    tau_rd1 = 1000 * (0.13 * k_e * (100 * rho * (f_ck / 1000)) ** (1 / 3) + 0.1 * sigma_cp)
     u_rd1 = 2 * (a_p + b_p) + 2 * np.pi * secao_critica
     c_1 = a_p
     c_2 = b_p
