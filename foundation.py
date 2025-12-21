@@ -122,8 +122,7 @@ def tabela_19_2(c1_c2: float) -> float:
     K_VALUES = np.array([0.45, 0.60, 0.70, 0.80], dtype=float)
 
     # Saturação nos limites normativos da Tabela 19.2
-    c1_c2 = min(max(c1_c2, 0.50), 3.0)
-
+    c1_c2 =np.clip(c1_c2, C_RATIO.min(), C_RATIO.max())
 
     # Caso exato
     if c1_c2 in C_RATIO:
