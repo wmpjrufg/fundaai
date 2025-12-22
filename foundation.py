@@ -253,22 +253,25 @@ def obj_felipe_lucas(x, args):
     df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2
     df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2
 
-    # Deteriminar sobreposição
-    for idx, row in df.iterrows():
-        aux = 0
-        x1_i, y1_i = row['x1'], row['y1']
-        x2_i, y2_i = row['x2'], row['y2']
-        x3_i, y3_i = row['x3'], row['y3']
-        x4_i, y4_i = row['x4'], row['y4']
-        for jdx, row_j in df.iterrows():
-            if jdx != idx:
-                x1_j, y1_j = row_j['x1'], row_j['y1']
-                x2_j, y2_j = row_j['x2'], row_j['y2']
-                x3_j, y3_j = row_j['x3'], row_j['y3']
-                x4_j, y4_j = row_j['x4'], row_j['y4']
-                area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
-                aux += area_overlap
-        df.loc[idx, 'g sobreposicao'] = aux / df.loc[idx, 'h_x (m)'] / df.loc[idx, 'h_y (m)']
+    if n_fun == 1:
+        df['g sobreposicao'] = 0.0
+    else:
+        # Deteriminar sobreposição
+        for idx, row in df.iterrows():
+            aux = 0
+            x1_i, y1_i = row['x1'], row['y1']
+            x2_i, y2_i = row['x2'], row['y2']
+            x3_i, y3_i = row['x3'], row['y3']
+            x4_i, y4_i = row['x4'], row['y4']
+            for jdx, row_j in df.iterrows():
+                if jdx != idx:
+                    x1_j, y1_j = row_j['x1'], row_j['y1']
+                    x2_j, y2_j = row_j['x2'], row_j['y2']
+                    x3_j, y3_j = row_j['x3'], row_j['y3']
+                    x4_j, y4_j = row_j['x4'], row_j['y4']
+                    area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
+                    aux += area_overlap
+            df.loc[idx, 'g sobreposicao'] = aux / df.loc[idx, 'h_x (m)'] / df.loc[idx, 'h_y (m)']
 
     # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
