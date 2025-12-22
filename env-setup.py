@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import platform
 import subprocess
@@ -19,9 +20,9 @@ def main():
         run_command("python -m venv venv")
         run_command(".\\venv\\Scripts\\pip.exe install -r requirements.txt")
         
-    elif os_name == "Linux" or os_name == "Darwin":  # Adicionado Darwin para macOS
-        # Primeiro verifica se o Python está disponível
-        python_cmd = "python3" if sys.version_info.major == 3 else "python"
+    elif os_name in ["Linux", "Darwin"]:
+        # Usa o mesmo Python que está executando este script
+        python_cmd = sys.executable
         
         # Cria o ambiente virtual
         run_command(f"{python_cmd} -m venv venv")
