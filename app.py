@@ -54,7 +54,7 @@ st.write(r"""
 """, unsafe_allow_html=True)
 
 # Planilha padrão
-template_path = Path("assets/template_5_fundacoes_3_combinacoes.xlsx")
+template_path = Path("assets/template_5_fundacoes_3_combinacoes_espalhadas.xlsx")
 if template_path.exists():
     with open(template_path, "rb") as file:
         st.download_button(
