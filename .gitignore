@@ -4,4 +4,7 @@
 !requirements.txt
 env/
 venv/
+.venv/
+.vscode/
+.idea/
 .DS_Store
