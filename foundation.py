@@ -156,6 +156,7 @@ def verificacao_puncao_sapata(h_z: float, f_ck: float, a_p: float, b_p: float, f
     f_cd = f_ck / 1.4
     tau_rd2 = 0.27 * alpha_v2 * f_cd
     u_rd2 = 2 * (a_p + b_p)
+    print(f"tau_rd2: {tau_rd2}, u_rd2: {u_rd2}", d, f_zk, type(f_zk))
     tau_sd2 = (1.4 * f_zk) / (u_rd2 * d)
     g_rd2 = tau_sd2 / tau_rd2 - 1
 
