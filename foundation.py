@@ -271,7 +271,7 @@ def obj_felipe_lucas(x, args):
                     x4_j, y4_j = row_j['x4'], row_j['y4']
                     area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
                     aux += area_overlap
-            df.loc[idx, 'g sobreposicao'] = aux / df.loc[idx, 'h_x (m)'] / df.loc[idx, 'h_y (m)']
+            df.loc[idx, 'g sobreposicao'] = aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
 
     # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
@@ -386,6 +386,7 @@ def obj_teste(x, args):
     of = df['volume final (m3)'].sum()
 
     return of, df
+
 
 def obj_teste_puncao(x, args):
 
