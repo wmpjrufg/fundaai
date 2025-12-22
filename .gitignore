@@ -1,4 +1,5 @@
 *.txt
+*.pyc
 /__pycache__/
 /ambiente_fundaIA/
 !requirements.txt
