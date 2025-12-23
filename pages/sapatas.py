@@ -173,7 +173,7 @@ if st.button("Dimensionar", type="primary"):
                 st.success("Dimensionamento concluído com sucesso!")
                 
                 # Processamento dos resultados
-                x_new_reshaped = np.asarray(x_new).reshape(n_fun, 2)   
+                x_new_reshaped = np.asarray(x_new).reshape(n_fun, 2, order='F')   # order='F' para interpretar corretamente
                 dados_final = pd.DataFrame(x_new_reshaped, columns=['h_x (m)', 'h_y (m)'])
                 dados_final['h_z (m)'] = h_z_m
                 _, df_novo = obj_teste(x_new, args=(df, n_comb, f_ck_kpa, h_z_m))
