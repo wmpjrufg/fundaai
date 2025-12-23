@@ -103,6 +103,17 @@ st.subheader("Upload da planilha de dados")
 uploaded_file = st.file_uploader("Selecione o arquivo Excel", type=["xlsx","xls"])
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
+
+    # --- SANITIZAÇÃO DAS COLUNAS DE AÇÕES (OBRIGATÓRIO) ---
+    for col in df.columns:
+        if col.startswith(("Fz-", "Mx-", "My-")):
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.replace(",", ".", regex=False)
+                .astype(float)
+            )
+
     st.success("Arquivo carregado com sucesso!")
     n_fun = df.shape[0]
     st.subheader("Primeiras linhas da planilha de dados")
