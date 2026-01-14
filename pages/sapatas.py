@@ -54,7 +54,7 @@ h_min = st.number_input("Dimensão mínima da sapata (cm)", min_value=60., step=
 h_max = st.number_input("Dimensão máxima da sapata (cm)", min_value=60., step=0.5, value=150., key="h_xmax_input")
 # Parâmetros de otimização
 n_gen = st.number_input("Número de gerações da otimização", min_value=5, max_value=200, step=5, value=10, key="n_gen_input")
-n_pop = st.number_input("Tamanho da população", min_value=5, max_value=200, step=5, value=20, key="n_pop_input")
+n_pop = st.number_input("Tamanho da população", min_value=5, max_value=2000, step=5, value=20, key="n_pop_input")
 # Conversões
 h_min_m = h_min / 100
 h_max_m = h_max / 100
