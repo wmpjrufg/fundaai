@@ -1,5 +1,6 @@
 """Esse script contém as funções que verificam uma sapata e que são usadas na interface do projeto."""
 import numpy as np
+import pandas as pd
 from pathlib import Path
 import streamlit as st
 
@@ -253,14 +254,13 @@ def obj_felipe_lucas(x, args):
     df = args[0].copy()
     n_comb = args[1]
     f_ck = args[2]
-    h_z = args[3]
+    cob_m = args[3]
     n_fun = df.shape[0]
 
     # Variáveis de projeto
-    x = np.asarray(x).reshape(n_fun, 2, order='F')
-    df['h_x (m)'] = x[:, 0]
-    df['h_y (m)'] = x[:, 1]
-    df['h_z (m)'] = h_z
+    x_arr = np.asarray(x).reshape(n_fun, 3)
+    df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
+    df[['h_x (m)', 'h_y (m)', 'h_z (m)']] = df_aux_aux[['h_x (m)', 'h_y (m)', 'h_z (m)']]
 
     # Volume
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
@@ -278,22 +278,23 @@ def obj_felipe_lucas(x, args):
     if n_fun == 1:
         df['g sobreposicao'] = 0.0
     else:
-        # Deteriminar sobreposição
-        for idx, row in df.iterrows():
-            aux = 0
-            x1_i, y1_i = row['x1'], row['y1']
-            x2_i, y2_i = row['x2'], row['y2']
-            x3_i, y3_i = row['x3'], row['y3']
-            x4_i, y4_i = row['x4'], row['y4']
-            for jdx, row_j in df.iterrows():
-                if jdx != idx:
-                    x1_j, y1_j = row_j['x1'], row_j['y1']
-                    x2_j, y2_j = row_j['x2'], row_j['y2']
-                    x3_j, y3_j = row_j['x3'], row_j['y3']
-                    x4_j, y4_j = row_j['x4'], row_j['y4']
-                    area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
-                    aux += area_overlap
-            df.loc[idx, 'g sobreposicao'] = aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
+        # # Deteriminar sobreposição
+        # for idx, row in df.iterrows():
+        #     aux = 0
+        #     x1_i, y1_i = row['x1'], row['y1']
+        #     x2_i, y2_i = row['x2'], row['y2']
+        #     x3_i, y3_i = row['x3'], row['y3']
+        #     x4_i, y4_i = row['x4'], row['y4']
+        #     for jdx, row_j in df.iterrows():
+        #         if jdx != idx:
+        #             x1_j, y1_j = row_j['x1'], row_j['y1']
+        #             x2_j, y2_j = row_j['x2'], row_j['y2']
+        #             x3_j, y3_j = row_j['x3'], row_j['y3']
+        #             x4_j, y4_j = row_j['x4'], row_j['y4']
+        #             area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
+        #             aux += area_overlap
+        #     df.loc[idx, 'g sobreposicao'] = aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
+        df['g sobreposicao'] = 0.0
 
     # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
@@ -304,7 +305,7 @@ def obj_felipe_lucas(x, args):
     # Checagem punção
     for i in labels_comb:
         aux = f'{i}'
-        df[[f'tau_sd2 - {aux}', f'tau_rd2 - {aux}', f'u_rd2 - {aux}', f'g_rd2 - {aux}', f'k_e - {aux}', f'g_ed - {aux}', f'tau_rd1 - {aux}', f'u_rd1 - {aux}', f'kx - {aux}', f'ky - {aux}', f'w_px - {aux}', f'w_py - {aux}', f'tau_sd1 - {aux}', f'g_rd1 - {aux}']] = df.apply(lambda row: verificacao_puncao_sapata(row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'], row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}']), axis=1, result_type='expand')
+        df[[f'tau_sd2 - {aux}', f'tau_rd2 - {aux}', f'u_rd2 - {aux}', f'g_rd2 - {aux}', f'k_e - {aux}', f'g_ed - {aux}', f'tau_rd1 - {aux}', f'u_rd1 - {aux}', f'kx - {aux}', f'ky - {aux}', f'w_px - {aux}', f'w_py - {aux}', f'tau_sd1 - {aux}', f'g_rd1 - {aux}']] = df.apply(lambda row: verificacao_puncao_sapata(row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'], row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], cob=cob_m), axis=1, result_type='expand')
     df['g punção secao C'] = df[[f'g_rd2 - {i}' for i in labels_comb]].max(axis=1)
     df['g escala punção'] = df[[f'g_ed - {i}' for i in labels_comb]].max(axis=1)
     df['g punção secao Clinha'] = df[[f'g_rd1 - {i}' for i in labels_comb]].max(axis=1)
@@ -336,16 +337,13 @@ def obj_teste(x, args):
     df = args[0].copy()
     n_comb = args[1]
     f_ck = args[2]
-    h_z = args[3]
+    cob_m = args[3]
     n_fun = df.shape[0]
 
     # Variáveis de projeto
-    print("antes de reshape:", x)
-    x = np.asarray(x).reshape(n_fun, 2, order='F')
-    print("depois de reshape:", x)
-    df['h_x (m)'] = x[:, 0]
-    df['h_y (m)'] = x[:, 1]
-    df['h_z (m)'] = h_z
+    x_arr = np.asarray(x).reshape(n_fun, 3)
+    df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
+    df[['h_x (m)', 'h_y (m)', 'h_z (m)']] = df_aux_aux[['h_x (m)', 'h_y (m)', 'h_z (m)']]
 
     # Volume
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
@@ -363,22 +361,23 @@ def obj_teste(x, args):
     if n_fun == 1:
         df['g sobreposicao'] = 0.0
     else:
-        # Deteriminar sobreposição
-        for idx, row in df.iterrows():
-            aux = 0
-            x1_i, y1_i = row['x1'], row['y1']
-            x2_i, y2_i = row['x2'], row['y2']
-            x3_i, y3_i = row['x3'], row['y3']
-            x4_i, y4_i = row['x4'], row['y4']
-            for jdx, row_j in df.iterrows():
-                if jdx != idx:
-                    x1_j, y1_j = row_j['x1'], row_j['y1']
-                    x2_j, y2_j = row_j['x2'], row_j['y2']
-                    x3_j, y3_j = row_j['x3'], row_j['y3']
-                    x4_j, y4_j = row_j['x4'], row_j['y4']
-                    area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
-                    aux += area_overlap
-            df.loc[idx, 'g sobreposicao'] = aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
+        # # Deteriminar sobreposição
+        # for idx, row in df.iterrows():
+        #     aux = 0
+        #     x1_i, y1_i = row['x1'], row['y1']
+        #     x2_i, y2_i = row['x2'], row['y2']
+        #     x3_i, y3_i = row['x3'], row['y3']
+        #     x4_i, y4_i = row['x4'], row['y4']
+        #     for jdx, row_j in df.iterrows():
+        #         if jdx != idx:
+        #             x1_j, y1_j = row_j['x1'], row_j['y1']
+        #             x2_j, y2_j = row_j['x2'], row_j['y2']
+        #             x3_j, y3_j = row_j['x3'], row_j['y3']
+        #             x4_j, y4_j = row_j['x4'], row_j['y4']
+        #             area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
+        #             aux += area_overlap
+        #     df.loc[idx, 'g sobreposicao'] = aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
+        df['g sobreposicao'] = 0.0
 
     # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
@@ -389,7 +388,7 @@ def obj_teste(x, args):
     # Checagem punção
     for i in labels_comb:
         aux = f'{i}'
-        df[[f'tau_sd2 - {aux}', f'tau_rd2 - {aux}', f'u_rd2 - {aux}', f'g_rd2 - {aux}', f'k_e - {aux}', f'g_ed - {aux}', f'tau_rd1 - {aux}', f'u_rd1 - {aux}', f'kx - {aux}', f'ky - {aux}', f'w_px - {aux}', f'w_py - {aux}', f'tau_sd1 - {aux}', f'g_rd1 - {aux}']] = df.apply(lambda row: verificacao_puncao_sapata(row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'], row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}']), axis=1, result_type='expand')
+        df[[f'tau_sd2 - {aux}', f'tau_rd2 - {aux}', f'u_rd2 - {aux}', f'g_rd2 - {aux}', f'k_e - {aux}', f'g_ed - {aux}', f'tau_rd1 - {aux}', f'u_rd1 - {aux}', f'kx - {aux}', f'ky - {aux}', f'w_px - {aux}', f'w_py - {aux}', f'tau_sd1 - {aux}', f'g_rd1 - {aux}']] = df.apply(lambda row: verificacao_puncao_sapata(row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'], row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], cob=cob_m), axis=1, result_type='expand')
     df['g punção secao C'] = df[[f'g_rd2 - {i}' for i in labels_comb]].max(axis=1)
     df['g escala punção'] = df[[f'g_ed - {i}' for i in labels_comb]].max(axis=1)
     df['g punção secao Clinha'] = df[[f'g_rd1 - {i}' for i in labels_comb]].max(axis=1)
