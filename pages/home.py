@@ -25,8 +25,8 @@ st.write(r"""
                 <li>xg (m): Coordenada x do pilar (m)</li>
                 <li>yg (m): Coordenada y do pilar (m)</li>
                 <li>Fz-ci (kN): Força vertical aplicada no pilar da combinação i (kN)</li>
-                <li>Mx-ci (kNm): Momento fletor em torno do eixo x (kNm) da combinação i</li>
-                <li>My-ci (kNm): Momento fletor em torno do eixo y (kNm) da combinação i</li>
+                <li>Mx-ci (kN.m): Momento fletor em torno do eixo x (k.m) da combinação i</li>
+                <li>My-ci (kN.m): Momento fletor em torno do eixo y (k.m) da combinação i</li>
                 </ul>
             </li>
 
@@ -41,15 +41,11 @@ st.write(r"""
                 e assim sucessivamente.
             </li>
 
-            <li>A aplicação atualmente é capaz de analisar, para uma dada dimensão de sapata, se passa nas verificações de tensão no solo, de tensão de punção, sobreposição e geometria mínima considerando a referência do pilar.</li>
+            <li>A aplicação atualmente é capaz de analisar, para cada uma das sapatas as seguintes restrições: tensão no solo, tensão de punção e geometria mínima considerando a referência do pilar.</li>
             </ul>
 
             <p>Você pode baixar um arquivo de exemplo clicando no botão abaixo.</p>
 """, unsafe_allow_html=True)
 
 # Planilha padrão
-download_template(
-    path="assets/modelo_entrada_sapatas.xlsx",
-    label="📥 Baixar planilha modelo (Excel)",
-    filename="modelo_entrada_sapatas.xlsx"
-)
+download_template(path="assets/sapata_16.xlsx", label="📥 Baixar planilha modelo (Excel)", filename="modelo_entrada_sapatas.xlsx")
