@@ -75,7 +75,9 @@ if st.button("Dimensionar", type="primary"):
                 x_u = [h_max_m] * 3 * n_fun
                 st.info("Criação dos agentes...")
                 x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
-                paras_opt = {'optimizer algorithm': GA.BaseGA(epoch=60, pop_size=100)}
+                # paras_opt = {'optimizer algorithm': GA.BaseGA(epoch=60, pop_size=100)}
+                # paras_opt = {'optimizer algorithm': PSO.AIW_PSO(epoch=60, pop_size=100, c1=2.05, c2=2.05, alpha=0.4)}
+                paras_opt = {'optimizer algorithm': 'scipy_slsqp'}
                 paras_kernel = {'kernel': 1 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e2))}  
                 st.info("Iniciando otimização...")
                 x_new, best_of, df_resultado_ego = ego_01_architecture(
