@@ -1,5 +1,27 @@
-"""Esse script contém as funções que verificam uma sapata"""
+"""Esse script contém as funções que verificam uma sapata e que são usadas na interface do projeto."""
 import numpy as np
+from pathlib import Path
+import streamlit as st
+
+def download_template(path: str | Path, label: str, filename: str):
+    """Disponibiliza um arquivo para download no Streamlit.
+
+    :param path: Caminho do arquivo local.
+    :param label: Texto do botão.
+    :param filename: Nome do arquivo no download.
+    """
+    path = Path(path)
+
+    if path.exists():
+        with open(path, "rb") as file:
+            st.download_button(
+                label=label,
+                data=file,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+    else:
+        st.error(f"Arquivo não encontrado: {path}")
 
 
 def tensao_adm_solo(solo: str, spt: float) -> float:
