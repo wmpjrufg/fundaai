@@ -29,7 +29,7 @@ titulos_menu = {
 
 # Definição das páginas usando os títulos dinâmicos
 home_page = st.Page("pages/home.py", title=titulos_menu[lang]["home"], icon="🏠", default=True)
-sapatas_page = st.Page("pages/sapatas.py", title=titulos_menu[lang]["sapatas"], icon="🏗️")
+sapatas_page = st.Page("pages/sapatas.py", title=titulos_menu[lang]["sapatas"], icon="🧱")
 
 # Executa a navegação
 pg = st.navigation([home_page, sapatas_page])
