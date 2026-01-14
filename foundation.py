@@ -235,7 +235,7 @@ def obj_felipe_lucas(x, args):
     n_fun = df.shape[0]
 
     # Variáveis de projeto
-    x = np.asarray(x).reshape(n_fun, 2)   
+    x = np.asarray(x).reshape(n_fun, 2, order='F')
     df['h_x (m)'] = x[:, 0]
     df['h_y (m)'] = x[:, 1]
     df['h_z (m)'] = h_z
@@ -318,7 +318,9 @@ def obj_teste(x, args):
     n_fun = df.shape[0]
 
     # Variáveis de projeto
-    x = np.asarray(x).reshape(n_fun, 2)   
+    print("antes de reshape:", x)
+    x = np.asarray(x).reshape(n_fun, 2, order='F')
+    print("depois de reshape:", x)
     df['h_x (m)'] = x[:, 0]
     df['h_y (m)'] = x[:, 1]
     df['h_z (m)'] = h_z
