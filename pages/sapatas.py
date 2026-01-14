@@ -73,7 +73,7 @@ if st.button("Dimensionar", type="primary"):
                 # Otimização
                 x_l = [h_min_m] * 3 * n_fun
                 x_u = [h_max_m] * 3 * n_fun
-                x_ini = initial_population_01(n_pop+1000, 3 * n_fun, x_l, x_u, use_lhs=True)
+                x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
                 paras_opt = {'optimizer algorithm': GA.BaseGA(epoch=60, pop_size=100)}
                 paras_kernel = {'kernel': 1 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e2))}  
                 x_new, best_of, df_resultado_ego = ego_01_architecture(
