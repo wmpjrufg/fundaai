@@ -103,6 +103,17 @@ st.subheader("Upload da planilha de dados")
 uploaded_file = st.file_uploader("Selecione o arquivo Excel", type=["xlsx","xls"])
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
+
+    # --- SANITIZAÇÃO DAS COLUNAS DE AÇÕES (OBRIGATÓRIO) ---
+    for col in df.columns:
+        if col.startswith(("Fz-", "Mx-", "My-")):
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.replace(",", ".", regex=False)
+                .astype(float)
+            )
+
     st.success("Arquivo carregado com sucesso!")
     n_fun = df.shape[0]
     st.subheader("Primeiras linhas da planilha de dados")
@@ -162,7 +173,7 @@ if st.button("Dimensionar", type="primary"):
                 st.success("Dimensionamento concluído com sucesso!")
                 
                 # Processamento dos resultados
-                x_new_reshaped = np.asarray(x_new).reshape(n_fun, 2)   
+                x_new_reshaped = np.asarray(x_new).reshape(n_fun, 2, order='F')   # order='F' para interpretar corretamente
                 dados_final = pd.DataFrame(x_new_reshaped, columns=['h_x (m)', 'h_y (m)'])
                 dados_final['h_z (m)'] = h_z_m
                 _, df_novo = obj_teste(x_new, args=(df, n_comb, f_ck_kpa, h_z_m))
