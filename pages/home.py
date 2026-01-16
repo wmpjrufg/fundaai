@@ -1,7 +1,6 @@
 """Aplicativo Streamlit para dimensionamento de sapatas isoladas."""
 import streamlit as st
 from pathlib import Path
-from foundation import *
 
 # Título do aplicativo
 st.title('Dimensionamento de Sapatas')

@@ -62,7 +62,7 @@ if st.button("Dimensionar", type="primary"):
     from sklearn.gaussian_process.kernels import RBF
     # from mealpy import GA
     from metapy_toolbox import ego_01_architecture, initial_population_01
-    from foundation import obj_felipe_lucas, obj_teste
+    from fundacao import obj_felipe_lucas, obj_teste
     if uploaded_file is None:
         st.warning("Por favor, faça o upload da planilha antes de executar.")
         st.session_state['calculo_realizado'] = False
