@@ -60,8 +60,18 @@ def calcular_sigma_max_min(f_zk: float, m_xk: float, m_yk: float, h_x: float, h_
     sigma_fz = (f_zk / (h_x * h_y)) * 1.05 
     aux_mx = 6 * m_xk / (f_zk * h_x)
     aux_my = 6 * m_yk / (f_zk * h_y)
+    sigma_max = (sigma_fz) * (1 + aux_mx + aux_my)
+    if sigma_max <= 0:
+        sigma_max *= 1.0
+    else:
+        sigma_max *= 1.30
+    sigma_min = (sigma_fz) * (1 - aux_mx - aux_my)
+    if sigma_min <= 0:
+        sigma_min *= 1.0
+    else:
+        sigma_min *= 1.30
     
-    return (sigma_fz) * (1 + aux_mx + aux_my), (sigma_fz) * (1 - aux_mx - aux_my)
+    return sigma_max, sigma_min
 
 
 def checagem_tensao_max_min(sigma: float, sigma_adm: float) -> float:
@@ -74,7 +84,7 @@ def checagem_tensao_max_min(sigma: float, sigma_adm: float) -> float:
     """
 
     if sigma >= 0: 
-        g = (1.3 * sigma) / sigma_adm - 1
+        g = sigma / sigma_adm - 1
     else:
         g = -sigma / sigma_adm
 
@@ -258,6 +268,9 @@ def obj_felipe_lucas(x, args):
     cob_m = args[3]
     n_fun = df.shape[0]
 
+    # Correção formato
+    df['spt'] = df['spt'].astype(float)
+
     # Variáveis de projeto
     x_arr = np.asarray(x).reshape(n_fun, 3)
     df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
@@ -432,7 +445,7 @@ def obj_teste(x, args):
 #     return tau_sd2, tau_rd2, u_rd2, g_rd2, k_e, g_ed, tau_rd1, u_rd1, kx, ky, w_px, w_py, tau_sd1, g_rd1
 
 if __name__ == "__main__":
-    df = pd.read_excel(r"/home/wmpjrufg/Documents/fundaIA/assets/sapata_16.xlsx") # Prof. Wanderlei
+    df = pd.read_excel(r"/home/wmpjrufg/Documents/fundaIA/assets/toy_problem.xlsx") # Prof. Wanderlei
     n_comb = 3
     f_ck = 25000
     cob_m = 0.025
@@ -444,7 +457,7 @@ if __name__ == "__main__":
     # print(x, '\n', x_arr)
     # df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
     # print(df_aux_aux)
-    x = [3, 3.1, 1.0]
+    x = [3, 3.1, 1.0, 4.0, 3.5, 1.0, 2.7, 1.30, 1.0]
     args = [df, n_comb, f_ck, cob_m]
     of, df_res = obj_teste(x, args)
     print("OF:", of)
