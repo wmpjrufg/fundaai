@@ -91,81 +91,85 @@ def checagem_tensao_max_min(sigma: float, sigma_adm: float) -> float:
     return g
 
 
-def checagem_geometria(dim_sapata: float, dim_pilar: float) -> float:
+def checagem_geometria(dim_sapata: float, dim_pilar: float, balanco_min: float = 0.10) -> float:
     """Determina a restrição de projeto da geometria da sapata.
 
     :param dim_sapata: Dimensão da sapata [m]
     :param dim_pilar: Dimensão do pilar [m]
+    :param balanco_min: Balanco mínimo permitido [m]. Padrão é 0.10 m
 
     :return: Restrição de projeto e g <= 0 para restrição ser satisfeita
     """
+    # ap + 2delta-hx <=0 (o pilar tem que ser no mínimo menor igual a a sapata menos 2 vezes o balanço mínimo)
 
-    g = dim_pilar - dim_sapata - 0.10
+    delta_ap = 2*balanco_min/dim_pilar
+    delta_hx = dim_sapata/dim_pilar
+    g = 1 + delta_ap - delta_hx
 
     return g
 
 
-def rho_minimo_fck(f_ck: float) -> float:
-    """Determina a taxa mínima de armadura (rho) para sapatas em função do f_ck do concreto.
+# def rho_minimo_fck(f_ck: float) -> float:
+#     """Determina a taxa mínima de armadura (rho) para sapatas em função do f_ck do concreto.
 
-    :param f_ck: Resistência característica à compressão do concreto [kPa]
+#     :param f_ck: Resistência característica à compressão do concreto [kPa]
 
-    :return: Taxa mínima de armadura (rho) [%]
-    """
+#     :return: Taxa mínima de armadura (rho) [%]
+#     """
 
-    # Tabela (f_ck -> rho)
-    f_ck = f_ck / 1000
-    FCK = np.array([20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90], dtype=float)
-    RHO = np.array([0.150, 0.150, 0.150, 0.164, 0.179, 0.194, 0.208, 0.211, 0.219, 0.226, 0.233, 0.239, 0.245, 0.251, np.nan], dtype=float)
+#     # Tabela (f_ck -> rho)
+#     f_ck = f_ck / 1000
+#     FCK = np.array([20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90], dtype=float)
+#     RHO = np.array([0.150, 0.150, 0.150, 0.164, 0.179, 0.194, 0.208, 0.211, 0.219, 0.226, 0.233, 0.239, 0.245, 0.251, np.nan], dtype=float)
 
-    if f_ck < FCK[0] or f_ck > FCK[-1]:
-        raise ValueError(f"f_ck fora da faixa suportada: {FCK[0]} a {FCK[-1]} MPa.")
+#     if f_ck < FCK[0] or f_ck > FCK[-1]:
+#         raise ValueError(f"f_ck fora da faixa suportada: {FCK[0]} a {FCK[-1]} MPa.")
 
-    # Caso exato
-    idx_exact = np.where(FCK == f_ck)[0]
-    if idx_exact.size > 0:
-        rho = RHO[idx_exact[0]]
-        if np.isnan(rho):
-            raise ValueError(f"rho não disponível na tabela para f_ck={f_ck} MPa.")
-        return float(rho)
+#     # Caso exato
+#     idx_exact = np.where(FCK == f_ck)[0]
+#     if idx_exact.size > 0:
+#         rho = RHO[idx_exact[0]]
+#         if np.isnan(rho):
+#             raise ValueError(f"rho não disponível na tabela para f_ck={f_ck} MPa.")
+#         return float(rho)
 
-    # Interpolação: pegar intervalo [i, i+1]
-    i = np.searchsorted(FCK, f_ck) - 1
-    x0, x1 = FCK[i], FCK[i + 1]
-    y0, y1 = RHO[i], RHO[i + 1]
+#     # Interpolação: pegar intervalo [i, i+1]
+#     i = np.searchsorted(FCK, f_ck) - 1
+#     x0, x1 = FCK[i], FCK[i + 1]
+#     y0, y1 = RHO[i], RHO[i + 1]
 
-    if np.isnan(y0) or np.isnan(y1):
-        raise ValueError(f"Não é possível interpolar: há valor ausente no intervalo {x0}-{x1} MPa.")
+#     if np.isnan(y0) or np.isnan(y1):
+#         raise ValueError(f"Não é possível interpolar: há valor ausente no intervalo {x0}-{x1} MPa.")
 
-    # Interpolação linear
-    rho = y0 + (y1 - y0) * (f_ck - x0) / (x1 - x0)
+#     # Interpolação linear
+#     rho = y0 + (y1 - y0) * (f_ck - x0) / (x1 - x0)
 
-    return float(rho)
+#     return float(rho)
 
 
-def tabela_19_2(c1_c2: float) -> float:
-    """Determina o valor de k por interpolação linear a partir da Tabela 19.2 da NBR 6118:2014.
+# def tabela_19_2(c1_c2: float) -> float:
+#     """Determina o valor de k por interpolação linear a partir da Tabela 19.2 da NBR 6118:2014.
     
-    :param c1_c2: Razão c1/c2
+#     :param c1_c2: Razão c1/c2
 
-    :return: Valor de k correspondente
-    """
+#     :return: Valor de k correspondente
+#     """
     
-    # Tabela normativa
-    C_RATIO = np.array([0.5, 1.0, 2.0, 3.0], dtype=float)
-    K_VALUES = np.array([0.45, 0.60, 0.70, 0.80], dtype=float)
+#     # Tabela normativa
+#     C_RATIO = np.array([0.5, 1.0, 2.0, 3.0], dtype=float)
+#     K_VALUES = np.array([0.45, 0.60, 0.70, 0.80], dtype=float)
 
-    # Saturação nos limites normativos da Tabela 19.2
-    c1_c2 =np.clip(c1_c2, C_RATIO.min(), C_RATIO.max())
+#     # Saturação nos limites normativos da Tabela 19.2
+#     c1_c2 =np.clip(c1_c2, C_RATIO.min(), C_RATIO.max())
 
-    # Caso exato
-    if c1_c2 in C_RATIO:
-        return float(K_VALUES[np.where(C_RATIO == c1_c2)][0])
+#     # Caso exato
+#     if c1_c2 in C_RATIO:
+#         return float(K_VALUES[np.where(C_RATIO == c1_c2)][0])
 
-    # Interpolação linear
-    k = np.interp(c1_c2, C_RATIO, K_VALUES)
+#     # Interpolação linear
+#     k = np.interp(c1_c2, C_RATIO, K_VALUES)
     
-    return float(k)
+#     return float(k)
 
 
 def verificacao_puncao_sapata(h_z: float, f_ck: float, a_p: float, b_p: float, f_zk: float, cob: float = 0.025) -> tuple[float, float, float, float]:
@@ -353,6 +357,9 @@ def obj_teste(x, args):
     cob_m = args[3]
     n_fun = df.shape[0]
 
+    # Correção formato
+    df['spt'] = df['spt'].astype(float)
+
     # Variáveis de projeto
     x_arr = np.asarray(x).reshape(n_fun, 3)
     df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
@@ -445,7 +452,7 @@ def obj_teste(x, args):
 #     return tau_sd2, tau_rd2, u_rd2, g_rd2, k_e, g_ed, tau_rd1, u_rd1, kx, ky, w_px, w_py, tau_sd1, g_rd1
 
 if __name__ == "__main__":
-    df = pd.read_excel(r"/home/wmpjrufg/Documents/fundaIA/assets/toy_problem.xlsx") # Prof. Wanderlei
+    df = pd.read_excel(r"/home/wmpjrufg/Documents/fundaIA/assets/toy_problem_copy.xlsx") # Prof. Wanderlei
     n_comb = 3
     f_ck = 25000
     cob_m = 0.025
@@ -458,6 +465,7 @@ if __name__ == "__main__":
     # df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
     # print(df_aux_aux)
     x = [3, 3.1, 1.0, 4.0, 3.5, 1.0, 2.7, 1.30, 1.0]
+    x = [3., 3., 1., 2., 2., 1., 3., 3., 1.]
     args = [df, n_comb, f_ck, cob_m]
     of, df_res = obj_teste(x, args)
     print("OF:", of)
