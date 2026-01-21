@@ -1,7 +1,7 @@
 """Esse script contém as funções que verificam uma sapata e que são usadas na interface do projeto."""
 import numpy as np
 import joblib
-from joblib import Parallel, delayed
+import multiprocessing as mp
 import re
 import pandas as pd
 from pathlib import Path
@@ -11,6 +11,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.gaussian_process.kernels import RBF, Matern, RationalQuadratic, DotProduct, ExpSineSquared, ConstantKernel as C, WhiteKernel
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+from typing import Any
 
 
 def download_template(path: str | Path, label: str, filename: str):
@@ -350,7 +351,7 @@ def obj_felipe_lucas(x, args):
     df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
     
     # Volume final com penalizações
-    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E6 + df['g punção secao C'].clip(lower=0) * 1E6 + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
+    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E1 + df['g punção secao C'].clip(lower=0) * 1E1 + df['g tensao'].clip(lower=0) * 1E1 + df['g geometria'].clip(lower=0) * 1E1
     of = df['volume final (m3)'].sum()
 
     return of
@@ -435,7 +436,7 @@ def obj_teste(x, args):
     df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
     
     # Volume final com penalizações
-    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E6 + df['g punção secao C'].clip(lower=0) * 1E6 + df['g tensao'].clip(lower=0) * 1E6 + df['g geometria'].clip(lower=0) * 1E6
+    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E1 + df['g punção secao C'].clip(lower=0) * 1E1 + df['g tensao'].clip(lower=0) * 1E1 + df['g geometria'].clip(lower=0) * 1E1
     of = df['volume final (m3)'].sum()
 
     return of, df
@@ -460,7 +461,14 @@ def obj_teste(x, args):
 #     return tau_sd2, tau_rd2, u_rd2, g_rd2, k_e, g_ed, tau_rd1, u_rd1, kx, ky, w_px, w_py, tau_sd1, g_rd1
 
 
-def constroi_kernel(ls0=1.0):
+def constroi_kernel(ls0: float = 1.0) -> list:
+    """Constroi uma lista de kernels para GPR (Gaussian Process Regressor).
+    
+    :param ls0: comprimento de escala inicial para os kernels
+
+    :return: kernels
+    """
+
     # Observação: bounds assumem X padronizado (StandardScaler)
     A = C(1.0, (1e-3, 1e3))  # amplitude
 
@@ -515,117 +523,140 @@ def constroi_kernel(ls0=1.0):
     return k
 
 
-def gpr_pipelines(ls0=1.0, alpha=1e-10, n_restarts=10, random_state=42):
+def gpr_pipelines(
+                    ls0: float = 1.0,
+                    alpha: float = 1e-10,
+                    n_restarts: int = 10,
+                    random_state: int = 42
+                ) -> tuple[list, list]:
+    """Monta os modelos de GPR (Gaussian Process Regressor).
+    
+    :param ls0: comprimento de escala inicial para os kernels
+    :param alpha: jitter numérico (determinístico)
+    :param n_restarts: número de reinicializações do otimizador
+    :param random_state: semente para reprodutibilidade
+
+    :return: [0] modelos instanciados e [1] seus nomes
+    """
+
     kernels = constroi_kernel(ls0=ls0)
     modelos = []
     nomes = []
 
-    for idx, ker in enumerate(kernels, start=1):
-        pipe = Pipeline([
-            ("scaler", StandardScaler()),
-            ("gp", GaussianProcessRegressor(
-                kernel=ker,
-                normalize_y=True,
-                alpha=alpha,                 # jitter numérico (determinístico)
-                n_restarts_optimizer=n_restarts,
-                random_state=random_state
-            ))
-        ])
+    for idx, ker in enumerate(kernels):
+        sca = ("scaler", StandardScaler())
+        gp = ("gp", GaussianProcessRegressor(kernel=ker, normalize_y=True, alpha=alpha, n_restarts_optimizer=n_restarts, random_state=random_state))
+        pipe = Pipeline([sca, gp])                  
         modelos.append(pipe)
-        nomes.append(f"gpr_k{idx:02d}")
+        nomes.append(f"gpr_com_kernel_k{idx:02d}")
 
     return modelos, nomes
 
 
-# def aprendizado_maquina(x_treino: pd.DataFrame, y_treino: pd.DataFrame, x_teste: pd.DataFrame, y_teste: pd.DataFrame):
+def treino_teste_para_processo_paralelo(
+                                            nome: str,
+                                            modelo: Any, 
+                                            x_treino: pd.DataFrame,
+                                            y_treino: pd.DataFrame,
+                                            x_teste: pd.DataFrame,
+                                            y_teste: pd.DataFrame,
+                                            dir_modelos: Path = Path("modelos")
+                                        ) -> dict:
+    """Treina e testa um modelo de aprendizado de máquina.
 
-#     modelos, nomes = gpr_pipelines()
-#     res = np.zeros((len(modelos), 4))
-#     for i, modelo in enumerate(modelos):
-#         modelo.fit(x_treino, y_treino)
-#         nome_limpo = re.sub(r"[^a-zA-Z0-9_-]", "_", nomes[i])
-#         dir_modelos = Path("modelos")
-#         dir_modelos.mkdir(parents=True, exist_ok=True)
-#         nome_modelo = dir_modelos / f"{nome_limpo}_pop_{len(x_treino)}.pkl"
-#         joblib.dump(modelo, nome_modelo)
-#         r2_treino = r2_score(y_treino, modelo.predict(x_treino))
-#         r2_teste = r2_score(y_teste, modelo.predict(x_teste))
-#         mae = mean_absolute_error(y_teste, modelo.predict(x_teste))
-#         rmse = np.sqrt(mean_squared_error(y_teste, modelo.predict(x_teste)))
-#         res[i, :] = [r2_treino, r2_teste, mae, rmse]
-#     df_res = pd.DataFrame(res, columns=["R2 Treino", "R2 Teste", "MAE", "RMSE"])
-#     df_res["modelo"] = nomes
+    :param nome: nome do modelo
+    :param modelo: modelo de aprendizado de máquina
+    :param x_treino: dados de treino (features)
+    :param y_treino: dados de treino (target)
+    :param x_teste: dados de teste (features)
+    :param y_teste: dados de teste (target)
+    :param dir_modelos: diretório para salvar os modelos treinados
 
-#     return df_res
+    :return: dicionário com métricas e informações do modelo
+    """
 
+    # Treino e salva modelo
+    modelo.fit(x_treino, y_treino)
+    nome_limpo = re.sub(r"[^a-zA-Z0-9_-]", "_", nome)
+    nome_modelo = dir_modelos / f"{nome_limpo}_pop_{len(x_treino)}.pkl"
+    joblib.dump(modelo, nome_modelo)
 
-def aprendizado_maquina(
-                            x_treino: pd.DataFrame,
-                            y_treino: pd.DataFrame,
-                            x_teste: pd.DataFrame,
-                            y_teste: pd.DataFrame,
-                            n_jobs: int = -1,
-                            verbose: int = 10
-                        ) -> pd.DataFrame:
+    # Testando para r2
+    y_pred_treino = modelo.predict(x_treino)
+    y_pred_teste  = modelo.predict(x_teste)
+    y_pred_teste = pd.DataFrame(y_pred_teste, columns=["volume (m3)"])
 
-    modelos, nomes = gpr_pipelines()
+    # Métricas
+    r2_treino = r2_score(y_treino, y_pred_treino)
+    r2_teste  = r2_score(y_teste,  y_pred_teste)
+    mae       = mean_absolute_error(y_teste, y_pred_teste)
+    rmse      = np.sqrt(mean_squared_error(y_teste, y_pred_teste))
 
-    # pasta 1x (evita overhead e condição de corrida)
-    dir_modelos = Path("modelos")
-    dir_modelos.mkdir(parents=True, exist_ok=True)
-
-    def _fit_eval_save(modelo, nome):
-        # Treino
-        modelo.fit(x_treino, y_treino)
-
-        # Salva
-        nome_limpo = re.sub(r"[^a-zA-Z0-9_-]", "_", nome)
-        nome_modelo = dir_modelos / f"{nome_limpo}_pop_{len(x_treino)}.pkl"
-        joblib.dump(modelo, nome_modelo)
-
-        # Predições (compute once)
-        y_pred_treino = modelo.predict(x_treino)
-        y_pred_teste  = modelo.predict(x_teste)
-
-        # Métricas
-        r2_treino = r2_score(y_treino, y_pred_treino)
-        r2_teste  = r2_score(y_teste,  y_pred_teste)
-        mae       = mean_absolute_error(y_teste, y_pred_teste)
-        rmse      = np.sqrt(mean_squared_error(y_teste, y_pred_teste))
-
-        return nome, r2_treino, r2_teste, mae, rmse, str(nome_modelo)
-
-    resultados = Parallel(n_jobs=n_jobs, verbose=verbose, prefer="processes")(
-        delayed(_fit_eval_save)(modelos[i], nomes[i]) for i in range(len(modelos))
-    )
-
-    df_res = pd.DataFrame(
-        resultados,
-        columns=["modelo", "R2 Treino", "R2 Teste", "MAE", "RMSE", "arquivo"]
-    )
-
-    # (opcional) ordenar por performance
-    df_res = df_res.sort_values(["R2 Teste", "RMSE"], ascending=[False, True]).reset_index(drop=True)
-
-    return df_res
+    return {
+                "modelo": nome,
+                "arquivo": str(nome_modelo),
+                "R2_Treino": r2_treino,
+                "R2_Teste": r2_teste,
+                "MAE": mae,
+                "RMSE": rmse,
+                "y_obse": y_teste,
+                "y_pred": y_pred_teste
+            }
 
 
-if __name__ == "__main__":
-    df = pd.read_excel(r"/home/wmpjrufg/Documents/fundaIA/assets/toy_problem_copy.xlsx") # Prof. Wanderlei
-    n_comb = 3
-    f_ck = 25000
-    cob_m = 0.025
-    print(df)
-    # x = {'h_x (m)': 3.0, 'h_y (m)': 3.1, 'h_z (m)': 1.0}
-    # x = pd.DataFrame([x])
-    # x = [3, 3.1, 1.0, 4, 4.1, 1.2, 5, 5.1, 1.3]
-    # x_arr = np.asarray(x).reshape(3, 3)
-    # print(x, '\n', x_arr)
-    # df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
-    # print(df_aux_aux)
-    x = [3, 3.1, 1.0, 4.0, 3.5, 1.0, 2.7, 1.30, 1.0]
-    x = [3., 3., 1., 2., 2., 1., 3., 3., 1.]
-    args = [df, n_comb, f_ck, cob_m]
-    of, df_res = obj_teste(x, args)
-    print("OF:", of)
-    print(df_res)
+def aprendizado_maquina_paralelo(
+                                    x_treino: pd.DataFrame,
+                                    y_treino: pd.DataFrame,
+                                    x_teste: pd.DataFrame,
+                                    y_teste: pd.DataFrame,
+                                    n_jobs: int = mp.cpu_count(),
+                                    ls0: float = 1.0,
+                                    alpha: float = 1e-10,
+                                    n_restarts: int = 10,
+                                    random_state: int = 42,
+                                    out_dir: str = "modelos"
+                                ) -> list:
+    """Treina e testa modelos de aprendizado de máquina em paralelo.
+
+    :param x_treino: dados de treino (features)
+    :param y_treino: dados de treino (target)
+    :param x_teste: dados de teste (features)
+    :param y_teste: dados de teste (target)
+    :param n_jobs: número de processos paralelos
+    :param ls0: comprimento de escala inicial para os kernels
+    :param alpha: jitter numérico (determinístico)
+    :param n_restarts: número de reinicializações do otimizador
+    :param random_state: semente para reprodutibilidade
+    :param out_dir: diretório para salvar os modelos treinados
+
+    :return: lista de dicionários com métricas e informações dos modelos treinados em paralelo
+    """
+
+    modelos, nomes = gpr_pipelines(ls0=ls0, alpha=alpha, n_restarts=n_restarts, random_state=random_state)
+    args = [(nomes[i], modelos[i], x_treino, 
+                y_treino, x_teste, y_teste, Path(out_dir)) for i in range(len(nomes))]
+    with mp.Pool(processes=n_jobs) as pool:
+        results = pool.starmap(treino_teste_para_processo_paralelo, args)
+
+    return results
+
+
+# if __name__ == "__main__":
+#     df = pd.read_excel(r"/home/wmpjrufg/Documents/fundaIA/assets/toy_problem_copy.xlsx") # Prof. Wanderlei
+#     n_comb = 3
+#     f_ck = 25000
+#     cob_m = 0.025
+#     print(df)
+#     # x = {'h_x (m)': 3.0, 'h_y (m)': 3.1, 'h_z (m)': 1.0}
+#     # x = pd.DataFrame([x])
+#     # x = [3, 3.1, 1.0, 4, 4.1, 1.2, 5, 5.1, 1.3]
+#     # x_arr = np.asarray(x).reshape(3, 3)
+#     # print(x, '\n', x_arr)
+#     # df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
+#     # print(df_aux_aux)
+#     x = [3, 3.1, 1.0, 4.0, 3.5, 1.0, 2.7, 1.30, 1.0]
+#     x = [3., 3., 1., 2., 2., 1., 3., 3., 1.]
+#     args = [df, n_comb, f_ck, cob_m]
+#     of, df_res = obj_teste(x, args)
+#     print("OF:", of)
+#     print(df_res)
