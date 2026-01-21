@@ -1,8 +1,16 @@
 """Esse script contém as funções que verificam uma sapata e que são usadas na interface do projeto."""
 import numpy as np
+import joblib
+from joblib import Parallel, delayed
+import re
 import pandas as pd
 from pathlib import Path
 import streamlit as st
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.gaussian_process.kernels import RBF, Matern, RationalQuadratic, DotProduct, ExpSineSquared, ConstantKernel as C, WhiteKernel
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 
 
 def download_template(path: str | Path, label: str, filename: str):
@@ -450,6 +458,157 @@ def obj_teste(x, args):
 #     tau_sd2, tau_rd2, u_rd2, g_rd2, k_e, g_ed, tau_rd1, u_rd1, kx, ky, w_px, w_py, tau_sd1, g_rd1 = verificacao_puncao_sapata(h_z, f_ck, a_p, b_p, f_zk, m_xk, m_yk, sigma_cp, cob)
 
 #     return tau_sd2, tau_rd2, u_rd2, g_rd2, k_e, g_ed, tau_rd1, u_rd1, kx, ky, w_px, w_py, tau_sd1, g_rd1
+
+
+def constroi_kernel(ls0=1.0):
+    # Observação: bounds assumem X padronizado (StandardScaler)
+    A = C(1.0, (1e-3, 1e3))  # amplitude
+
+    k = []
+
+    # 1–3: RBF variants
+    k += [
+            A * RBF(length_scale=ls0, length_scale_bounds=(1e-2, 1e2)),
+            A * (RBF(ls0, (1e-2, 1e2)) + RBF(ls0*0.3, (1e-2, 1e2))),           # soma multi-escala
+            A * (RBF(ls0, (1e-2, 1e2)) * RBF(ls0*0.5, (1e-2, 1e2))),           # produto (mais “sharp”)
+        ]
+
+    # # 4–7: Matern (diferentes suavidades)
+    # k += [
+    #         A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=0.5),   # Exponential (menos suave)
+    #         A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=1.5),
+    #         A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=2.5),
+    #         A * (Matern(ls0, (1e-2, 1e2), nu=1.5) + Matern(ls0*0.3, (1e-2, 1e2), nu=2.5)),  # multi-escala
+    #     ]
+
+    # # 8–10: RationalQuadratic (mix contínuo de escalas)
+    # k += [
+    #         A * RationalQuadratic(length_scale=ls0, alpha=1.0),
+    #         A * RationalQuadratic(length_scale=ls0, alpha=0.1),
+    #         A * RationalQuadratic(length_scale=ls0, alpha=10.0),
+    #     ]
+
+    # # 11–14: Tendência linear + variação suave
+    # k += [
+    #         A * (DotProduct(sigma_0=1.0) + RBF(ls0, (1e-2, 1e2))),              # linear + smooth
+    #         A * (DotProduct(sigma_0=1.0) + Matern(ls0, (1e-2, 1e2), nu=1.5)),
+    #         A * (DotProduct(sigma_0=0.1) + RBF(ls0, (1e-2, 1e2))),
+    #         A * DotProduct(sigma_0=1.0),                                        # puramente linear
+    #     ]
+
+    # # 15–17: Periodicidade (se fizer sentido no seu fenômeno)
+    # k += [
+    #         A * ExpSineSquared(length_scale=ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2)),
+    #         A * (RBF(ls0, (1e-2, 1e2)) * ExpSineSquared(ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2))), # quase-periódico
+    #         A * (Matern(ls0, (1e-2, 1e2), nu=1.5) * ExpSineSquared(ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2))),
+    #     ]
+
+    # # 18–20: “quase-determinístico” com jitter mínimo embutido (opcional)
+    # # Se você quiser blindar contra problemas numéricos SEM assumir ruído físico:
+    # tiny = WhiteKernel(noise_level=1e-12, noise_level_bounds=(1e-15, 1e-9))
+    # k += [
+    #         A * RBF(ls0, (1e-2, 1e2)) + tiny,
+    #         A * Matern(ls0, (1e-2, 1e2), nu=2.5) + tiny,
+    #         A * RationalQuadratic(ls0, alpha=1.0) + tiny,
+    #     ]
+
+    return k
+
+
+def gpr_pipelines(ls0=1.0, alpha=1e-10, n_restarts=10, random_state=42):
+    kernels = constroi_kernel(ls0=ls0)
+    modelos = []
+    nomes = []
+
+    for idx, ker in enumerate(kernels, start=1):
+        pipe = Pipeline([
+            ("scaler", StandardScaler()),
+            ("gp", GaussianProcessRegressor(
+                kernel=ker,
+                normalize_y=True,
+                alpha=alpha,                 # jitter numérico (determinístico)
+                n_restarts_optimizer=n_restarts,
+                random_state=random_state
+            ))
+        ])
+        modelos.append(pipe)
+        nomes.append(f"gpr_k{idx:02d}")
+
+    return modelos, nomes
+
+
+# def aprendizado_maquina(x_treino: pd.DataFrame, y_treino: pd.DataFrame, x_teste: pd.DataFrame, y_teste: pd.DataFrame):
+
+#     modelos, nomes = gpr_pipelines()
+#     res = np.zeros((len(modelos), 4))
+#     for i, modelo in enumerate(modelos):
+#         modelo.fit(x_treino, y_treino)
+#         nome_limpo = re.sub(r"[^a-zA-Z0-9_-]", "_", nomes[i])
+#         dir_modelos = Path("modelos")
+#         dir_modelos.mkdir(parents=True, exist_ok=True)
+#         nome_modelo = dir_modelos / f"{nome_limpo}_pop_{len(x_treino)}.pkl"
+#         joblib.dump(modelo, nome_modelo)
+#         r2_treino = r2_score(y_treino, modelo.predict(x_treino))
+#         r2_teste = r2_score(y_teste, modelo.predict(x_teste))
+#         mae = mean_absolute_error(y_teste, modelo.predict(x_teste))
+#         rmse = np.sqrt(mean_squared_error(y_teste, modelo.predict(x_teste)))
+#         res[i, :] = [r2_treino, r2_teste, mae, rmse]
+#     df_res = pd.DataFrame(res, columns=["R2 Treino", "R2 Teste", "MAE", "RMSE"])
+#     df_res["modelo"] = nomes
+
+#     return df_res
+
+
+def aprendizado_maquina(
+                            x_treino: pd.DataFrame,
+                            y_treino: pd.DataFrame,
+                            x_teste: pd.DataFrame,
+                            y_teste: pd.DataFrame,
+                            n_jobs: int = -1,
+                            verbose: int = 10
+                        ) -> pd.DataFrame:
+
+    modelos, nomes = gpr_pipelines()
+
+    # pasta 1x (evita overhead e condição de corrida)
+    dir_modelos = Path("modelos")
+    dir_modelos.mkdir(parents=True, exist_ok=True)
+
+    def _fit_eval_save(modelo, nome):
+        # Treino
+        modelo.fit(x_treino, y_treino)
+
+        # Salva
+        nome_limpo = re.sub(r"[^a-zA-Z0-9_-]", "_", nome)
+        nome_modelo = dir_modelos / f"{nome_limpo}_pop_{len(x_treino)}.pkl"
+        joblib.dump(modelo, nome_modelo)
+
+        # Predições (compute once)
+        y_pred_treino = modelo.predict(x_treino)
+        y_pred_teste  = modelo.predict(x_teste)
+
+        # Métricas
+        r2_treino = r2_score(y_treino, y_pred_treino)
+        r2_teste  = r2_score(y_teste,  y_pred_teste)
+        mae       = mean_absolute_error(y_teste, y_pred_teste)
+        rmse      = np.sqrt(mean_squared_error(y_teste, y_pred_teste))
+
+        return nome, r2_treino, r2_teste, mae, rmse, str(nome_modelo)
+
+    resultados = Parallel(n_jobs=n_jobs, verbose=verbose, prefer="processes")(
+        delayed(_fit_eval_save)(modelos[i], nomes[i]) for i in range(len(modelos))
+    )
+
+    df_res = pd.DataFrame(
+        resultados,
+        columns=["modelo", "R2 Treino", "R2 Teste", "MAE", "RMSE", "arquivo"]
+    )
+
+    # (opcional) ordenar por performance
+    df_res = df_res.sort_values(["R2 Teste", "RMSE"], ascending=[False, True]).reset_index(drop=True)
+
+    return df_res
+
 
 if __name__ == "__main__":
     df = pd.read_excel(r"/home/wmpjrufg/Documents/fundaIA/assets/toy_problem_copy.xlsx") # Prof. Wanderlei
