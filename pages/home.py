@@ -47,4 +47,4 @@ st.write(r"""
 """, unsafe_allow_html=True)
 
 # Planilha padrão
-download_template(path="assets/sapata_16.xlsx", label="📥 Baixar planilha modelo (Excel)", filename="modelo_entrada_sapatas.xlsx")
+download_template(path="assets/toy_problem.xlsx", label="📥 Baixar planilha modelo (Excel)", filename="modelo_entrada_sapatas.xlsx")
