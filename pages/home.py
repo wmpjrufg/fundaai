@@ -19,13 +19,13 @@ st.write(r"""
                 <li>Elemento: Nome do elemento</li>
                 <li>ap (m): dimensão x do pilar (m)</li>
                 <li>bp (m): dimensão y do pilar (m)</li>
-                <li>spt: spt</li>
+                <li>spt: Numero obtido pelo ensaio spt (Standart Penetration Teste)</li>
                 <li>solo: Tipo de solo</li>
                 <li>xg (m): Coordenada x do pilar (m)</li>
                 <li>yg (m): Coordenada y do pilar (m)</li>
                 <li>Fz-ci (kN): Força vertical aplicada no pilar da combinação i (kN)</li>
-                <li>Mx-ci (kN.m): Momento fletor em torno do eixo x (k.m) da combinação i</li>
-                <li>My-ci (kN.m): Momento fletor em torno do eixo y (k.m) da combinação i</li>
+                <li>Mx-ci (kN.m): Momento fletor em torno do eixo x da combinação i</li>
+                <li>My-ci (kN.m): Momento fletor em torno do eixo y da combinação i</li>
                 </ul>
             </li>
 
@@ -47,4 +47,21 @@ st.write(r"""
 """, unsafe_allow_html=True)
 
 # Planilha padrão
-download_template(path="assets/toy_problem.xlsx", label="📥 Baixar planilha modelo (Excel)", filename="modelo_entrada_sapatas.xlsx")
+#download_template(path="assets/problema_brinquedo.xlsx", label="📥 Baixar planilha modelo (Excel)", filename="modelo_entrada_sapatas.xlsx")
+
+path = Path("assets/planilha_padrao.xlsx")
+label = "📥 Baixar planilha modelo (Excel)"
+filename = "planilha_padrao.xlsx"
+
+if path.exists() and path.is_file():
+    with open(path, "rb") as file:
+        st.download_button(
+            label=label,
+            data=file,
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+else:
+    # st.error(f"Arquivo não encontrado: {path}")
+    st.write(f"Arquivo indisponível 📄🚫")
+
