@@ -276,6 +276,8 @@ if st.button(t["btn_dimensionar"], type="primary"):
             
             paras_opt = {'optimizer algorithm': 'scipy_slsqp'}
             ls0 = 1.0
+            A = C(1.0, (1e-3, 1e3))  # amplitude
+            paras_kernel = {'kernel': C(1.0, (1e-3, 1e3)) * (RBF(ls0, (1e-2, 1e2)) * RBF(ls0*0.5, (1e-2, 1e2)))} 
             paras_kernel = {'kernel': C(1.0, (1e-3, 1e3)) * (RBF(ls0, (1e-2, 1e2)) * RBF(ls0*0.5, (1e-2, 1e2)))} 
             
             x_new, best_of, _ = ego_01_architecture(
