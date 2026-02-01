@@ -154,6 +154,7 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 from pathlib import Path
+from fundacao import *
 
 # --- 1. FUNÇÃO DE TRADUÇÃO ---
 def obter_textos():
@@ -267,6 +268,8 @@ if st.button(t["btn_dimensionar"], type="primary"):
     from metapy_toolbox import ego_01_architecture, initial_population_01
     from fundacao import obj_felipe_lucas, obj_teste
     
+    k = []
+
     try:
         with st.spinner(t["info_otim"]):
             # Lógica de Otimização
@@ -275,10 +278,11 @@ if st.button(t["btn_dimensionar"], type="primary"):
             x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
             
             paras_opt = {'optimizer algorithm': 'scipy_slsqp'}
-            ls0 = 1.0
-            A = C(1.0, (1e-3, 1e3))  # amplitude
-            paras_kernel = {'kernel': C(1.0, (1e-3, 1e3)) * (RBF(ls0, (1e-2, 1e2)) * RBF(ls0*0.5, (1e-2, 1e2)))} 
-            paras_kernel = {'kernel': C(1.0, (1e-3, 1e3)) * (RBF(ls0, (1e-2, 1e2)) * RBF(ls0*0.5, (1e-2, 1e2)))} 
+            
+            k = constroi_kernel()
+            
+            paras_kernel = {'kernel': k[0]} 
+                       
             
             x_new, best_of, _ = ego_01_architecture(
                                                         obj_felipe_lucas, n_gen, x_ini, x_l, x_u, 
