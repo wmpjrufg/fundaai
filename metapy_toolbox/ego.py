@@ -114,29 +114,21 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
         aux_df = funcs.evaluation(obj, n, x_t0[n], 0, args=args) if args is not None else funcs.evaluation(obj, n, x_t0[n], 0)
         all_results.append(aux_df)
     df = pd.concat(all_results, ignore_index=True)
-    print(df)
     x_cols = [col for col in df.columns if col.startswith("X_")]
-    print(x_cols)
     
     # Iterations
     for t in range(1, n_gen + 1):
         # Training the surrogate model
-        for i in range(n_pop):
-            y_train = df['OF'].to_list()
-            x_train = []
-            for j in range(d):
-                x_train.append(df[f'X_{j}'].to_list())
-            x_train = np.array(x_train).T
-            y_train = np.array(y_train)
+        x_train= df[x_cols]
+        y_train= df[['OF']]
         model = pipe.fit(x_train, y_train)
 
         # Traditional optimization
         argss = (model, df['OF'].min())
         def obj_ego(x, coef):
             model, fmin = coef
-            x_new_array = np.array(x).reshape(1, -1)
-            x_new_scaled = sc_x.transform(x_new_array)
-            mu, sig = model.predict(x_new_scaled, return_std=True)
+            x_df = pd.DataFrame([x], columns=model.feature_names_in_)
+            mu, sig = model.predict(x_df, return_std=True)
             if sig[0] < 1e-10:
                 sigma = 1e-10
             else:
