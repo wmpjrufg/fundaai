@@ -276,22 +276,26 @@ if st.button(t["btn_dimensionar"], type="primary"):
             paras_opt = {'optimizer algorithm': 'scipy_slsqp'}
             k = constroi_kernel()
             paras_kernel = {'kernel': k[1]} 
-            x_new_aux = 
-
-            for 
+            x_new_aux = []
+            best_of_aux = np.inf
+            
+            for rep in range(n_rep):
                 x_new, best_of, _ = ego_01_architecture(
                                                             obj_felipe_lucas, n_gen, x_ini, x_l, x_u, 
                                                             paras_opt, paras_kernel, args=(df, n_comb, f_ck_kpa, cob_m)
                                                         )
+                if best_of < best_of_aux:
+                    best_of_aux = best_of
+                    x_new_aux = x_new
             
             # Processamento de Resultados
-            x_arr = np.asarray(x_new).reshape(n_fun, 3)
+            x_arr = np.asarray(x_new_aux).reshape(n_fun, 3)
             dados_final = pd.DataFrame(x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)'])
-            _, df_novo = obj_teste(x_new, args=(df, n_comb, f_ck_kpa, cob_m))
+            _, df_novo = obj_teste(x_new_aux, args=(df, n_comb, f_ck_kpa, cob_m))
 
             # Guardar no Session State
             st.session_state['dados_final_df'] = dados_final
-            st.session_state['best_of_valor'] = best_of
+            st.session_state['best_of_valor'] = best_of_aux
             st.session_state['calculo_realizado'] = True
             
             # Gerar bytes do Excel (Omitido aqui por brevidade, mas deve seguir sua lógica original)
