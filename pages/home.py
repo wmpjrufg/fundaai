@@ -1,67 +1,75 @@
-"""Aplicativo Streamlit para dimensionamento de sapatas isoladas."""
 import streamlit as st
 from pathlib import Path
 
-# Título do aplicativo
-st.title('Dimensionamento de Sapatas')
-st.write(r"""
-            <p style="text-align: justify;">
-            Este aplicativo tem como objetivo auxiliar no dimensionamento de sapatas isoladas,
-            considerando a resistência do solo e as cargas aplicadas pelos pilares. Para isso, é necessário
-            que o usuário forneça um arquivo Excel com os dados de entrada, conforme o exemplo
-            disponível para download.
-            </p>
+# 1. Função para gerenciar a troca de idioma
+def mudar_idioma():
+    st.session_state["lang"] = "pt" if st.session_state.lang_selector == "Português" else "en"
 
-            <h2>Observações:</h2>
-            <ul>
-            <li>O arquivo de entrada deve conter as seguintes colunas:
-                <ul>
-                <li>Elemento: Nome do elemento</li>
-                <li>ap (m): dimensão x do pilar (m)</li>
-                <li>bp (m): dimensão y do pilar (m)</li>
-                <li>spt: Numero obtido pelo ensaio spt (Standart Penetration Teste)</li>
-                <li>solo: Tipo de solo</li>
-                <li>xg (m): Coordenada x do pilar (m)</li>
-                <li>yg (m): Coordenada y do pilar (m)</li>
-                <li>Fz-ci (kN): Força vertical aplicada no pilar da combinação i (kN)</li>
-                <li>Mx-ci (kN.m): Momento fletor em torno do eixo x da combinação i</li>
-                <li>My-ci (kN.m): Momento fletor em torno do eixo y da combinação i</li>
-                </ul>
-            </li>
+# 2. Seletor de Idioma no topo
+st.selectbox(
+                "Language / Idioma",
+                ["Português", "English"],
+                index=0 if st.session_state.get("lang") == "pt" else 1,
+                key="lang_selector",
+                on_change=mudar_idioma
+            )
 
-            <li>Não modifique o cabeçalho da planilha, pois o aplicativo faz referência a ele.</li>
-            <li>Qualquer número de combinações pode ser informado na planilha, seguindo o padrão de nomenclatura.</li>
+# 3. Conteúdo em blocos únicos de Markdown
+conteudo = {
+                "pt": {
+                        "titulo": "🏗️ FundaIA - Dimensionamento de Sapatas",
+                        "texto_completo": """
+                                                Este aplicativo tem como objetivo auxiliar no dimensionamento de sapatas isoladas, considerando a resistência do solo e as cargas aplicadas pelos pilares. Para isso, é necessário que o usuário forneça um arquivo Excel com os dados de entrada, conforme o exemplo disponível para download. A aplicação analisa: **tensão no solo**, **punção**, **geometria mínima** e **interação entre elas (intersecção)**.
 
-            <li>
-                Os índices finais <strong>ci</strong>, <strong>ci</strong> e <strong>ci</strong> associados às ações
-                (<em>Fz</em>, <em>Mx</em> e <em>My</em>) indicam a <strong>combinação de carregamento</strong> à qual cada
-                valor pertence. Dessa forma, por exemplo, <em>Fz-c1</em>, <em>Mx-c1</em> e <em>My-c1</em> correspondem
-                às ações da combinação 1, enquanto <em>Fz-c2</em>, <em>Mx-c2</em> e <em>My-c2</em> referem-se à combinação 2,
-                e assim sucessivamente.
-            </li>
+                                                ### Observações:
+                                                * O arquivo de entrada deve conter as seguintes colunas:
+                                                    * **Elemento:** Nome do elemento
+                                                    * **ap (m) / bp (m):** Dimensões do pilar
+                                                    * **spt:** Índice de resistência do solo
+                                                    * **solo:** Tipo de solo
+                                                    * **xg (m) / yg (m):** Coordenadas do pilar
+                                                    * **Fz-ci / Mx-ci / My-ci:** Cargas e momentos da combinação 'i'
+                                                * Não modifique o cabeçalho da planilha modelo. Se for necessário adicionar/retirar combinações faça mantendo o padrão
+                                                * A planilha padrão tem 3 combinações
 
-            <li>A aplicação atualmente é capaz de analisar, para cada uma das sapatas as seguintes restrições: tensão no solo, tensão de punção e geometria mínima considerando a referência do pilar.</li>
-            </ul>
+                                                Você pode baixar um arquivo de exemplo clicando no botão abaixo.
+                                          """,
+                        "btn": "📥 Baixar planilha modelo (Excel)"
+                },
+                "en": {
+                        "titulo": "🏗️ FundaIA - Footing Design",
+                        "texto_completo": """
+                                                This application aims to assist in the design of isolated footings, considering soil resistance and the loads applied by columns. To do this, the user must provide an Excel file with input data, as per the example available for download. The application analyzes: **soil stress**, **punching shear**, **minimum geometry** and **interaction between them (intersection)**.
 
-            <p>Você pode baixar um arquivo de exemplo clicando no botão abaixo.</p>
-""", unsafe_allow_html=True)
+                                                ### Notes:
+                                                * The input file must contain the following columns:
+                                                    * **Element:** Element name
+                                                    * **ap (m) / bp (m):** Column dimensions
+                                                    * **spt:** Soil resistance index
+                                                    * **soil:** Soil type
+                                                    * **xg (m) / yg (m):** Column coordinates
+                                                    * **Fz-ci / Mx-ci / My-ci:** Loads and moments for combination 'i'
+                                                * Do not modify the template spreadsheet header. If you need to add/remove combinations, do so while maintaining the pattern
+                                                * The standard spreadsheet has 3 combinations
 
-# Planilha padrão
-#download_template(path="assets/problema_brinquedo.xlsx", label="📥 Baixar planilha modelo (Excel)", filename="modelo_entrada_sapatas.xlsx")
+                                                You can download a sample file by clicking the button below.
+                                            """,
+                        "btn": "📥 Download Template (Excel)"
+                    }
+            }
 
-path = Path("assets/planilha_padrao.xlsx")
-label = "📥 Baixar planilha modelo (Excel)"
-filename = "planilha_padrao.xlsx"
+# Define idioma
+L = conteudo[st.session_state.get("lang", "pt")]
 
-if path.exists() and path.is_file():
+# 4. Exibição
+st.title(L["titulo"])
+st.divider()
+st.markdown(L["texto_completo"])
+
+# 5. Download
+path = Path("assets/toy_problem.xlsx")
+if path.exists():
     with open(path, "rb") as file:
-        st.download_button(
-            label=label,
-            data=file,
-            file_name=filename,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        st.download_button(label=L['btn'], data=file, file_name="modelo_fundaIA.xlsx")
 else:
-    # st.error(f"Arquivo não encontrado: {path}")
-    st.write(f"Arquivo indisponível 📄🚫")
-
+    st.error("Arquivo não encontrado / File not found")
