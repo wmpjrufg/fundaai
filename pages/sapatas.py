@@ -154,7 +154,6 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 from pathlib import Path
-from fundacao import *
 
 # --- 1. FUNÇÃO DE TRADUÇÃO ---
 def obter_textos():
@@ -264,30 +263,26 @@ f_ck_kpa, cob_m = f_ck * 1000, cob / 100
 
 # --- 5. EXECUÇÃO DO CÁLCULO ---
 if st.button(t["btn_dimensionar"], type="primary"):
-    from sklearn.gaussian_process.kernels import RBF, Matern, RationalQuadratic, DotProduct, ExpSineSquared, ConstantKernel as C, WhiteKernel
     from metapy_toolbox import ego_01_architecture, initial_population_01
-    from fundacao import obj_felipe_lucas, obj_teste
+    from fundacao import obj_felipe_lucas, obj_teste, constroi_kernel
     
-    k = []
-
     try:
         with st.spinner(t["info_otim"]):
             # Lógica de Otimização
+            n_rep = 5
             x_l = [h_min_m] * 3 * n_fun
             x_u = [h_max_m] * 3 * n_fun
             x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
-            
             paras_opt = {'optimizer algorithm': 'scipy_slsqp'}
-            
             k = constroi_kernel()
-            
-            paras_kernel = {'kernel': k[0]} 
-                       
-            
-            x_new, best_of, _ = ego_01_architecture(
-                                                        obj_felipe_lucas, n_gen, x_ini, x_l, x_u, 
-                                                        paras_opt, paras_kernel, args=(df, n_comb, f_ck_kpa, cob_m)
-                                                    )
+            paras_kernel = {'kernel': k[1]} 
+            x_new_aux = 
+
+            for 
+                x_new, best_of, _ = ego_01_architecture(
+                                                            obj_felipe_lucas, n_gen, x_ini, x_l, x_u, 
+                                                            paras_opt, paras_kernel, args=(df, n_comb, f_ck_kpa, cob_m)
+                                                        )
             
             # Processamento de Resultados
             x_arr = np.asarray(x_new).reshape(n_fun, 3)
