@@ -5,6 +5,9 @@ from functools import partial
 import numpy as np
 import pandas as pd
 import sklearn as sk
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.gaussian_process import GaussianProcessRegressor
 import scipy as sc
 import mealpy as mp
 
@@ -101,11 +104,19 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
     n_pop = len(x_t0)
     all_results = []
 
+    # GPR organzation and optimization loop
+    sca = ("scaler", StandardScaler())
+    gp = ("gp", GaussianProcessRegressor(kernel=params_kernel['kernel'], normalize_y=True, alpha=1E-10, n_restarts_optimizer=10, random_state=42)) if params_kernel is not None else ("gp", GaussianProcessRegressor(kernel=sk.gaussian_process.kernels.RBF(), normalize_y=True, alpha=1E-10, n_restarts_optimizer=10, random_state=42))
+    pipe = Pipeline([sca, gp])   
+
     # Initial population evaluation (Don't remove this part)
     for n in range(n_pop):
         aux_df = funcs.evaluation(obj, n, x_t0[n], 0, args=args) if args is not None else funcs.evaluation(obj, n, x_t0[n], 0)
         all_results.append(aux_df)
     df = pd.concat(all_results, ignore_index=True)
+    print(df)
+    x_cols = [col for col in df.columns if col.startswith("X_")]
+    print(x_cols)
     
     # Iterations
     for t in range(1, n_gen + 1):
@@ -117,18 +128,12 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
                 x_train.append(df[f'X_{j}'].to_list())
             x_train = np.array(x_train).T
             y_train = np.array(y_train)
-        scaler_x = sk.preprocessing.StandardScaler()
-        x_train_scaled = scaler_x.fit_transform(x_train)
+        model = pipe.fit(x_train, y_train)
 
-        if params_kernel is None:
-            model = sk.gaussian_process.GaussianProcessRegressor(kernel=sk.gaussian_process.kernels.RBF(), n_restarts_optimizer=5, normalize_y = True, alpha=1e-8).fit(x_train_scaled, y_train)
-        else:
-            model = sk.gaussian_process.GaussianProcessRegressor(kernel=params_kernel['kernel'], n_restarts_optimizer=5, normalize_y = True, alpha=1e-8).fit(x_train_scaled, y_train)
-        
         # Traditional optimization
-        argss = (model, df['OF'].min(), scaler_x)
+        argss = (model, df['OF'].min())
         def obj_ego(x, coef):
-            model, fmin, sc_x = coef
+            model, fmin = coef
             x_new_array = np.array(x).reshape(1, -1)
             x_new_scaled = sc_x.transform(x_new_array)
             mu, sig = model.predict(x_new_scaled, return_std=True)
