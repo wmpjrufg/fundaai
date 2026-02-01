@@ -149,7 +149,7 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
                 method = "trust-constr"
             bounds = list(zip(x_lower, x_upper))
             x0 = np.random.uniform(x_lower, x_upper)
-            res = sc.optimize.minimize(wrapped_obj, x0, method=method, bounds=bounds, options={"maxiter": 300, "ftol": 1e-9})     
+            res = sc.optimize.minimize(wrapped_obj, x0, method=method, bounds=bounds, options={"maxiter": 300, "ftol": 1e-5})     
             x_best = res.x
             x_new = x_best.tolist()
         else:
