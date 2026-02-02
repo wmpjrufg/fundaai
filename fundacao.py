@@ -402,44 +402,44 @@ def constroi_kernel(ls0: float = 1.0) -> list:
             A * (RBF(ls0, (1e-2, 1e2)) * RBF(ls0*0.5, (1e-2, 1e2))),           # produto (mais “sharp”)
         ]
 
-    # # 4–7: Matern (diferentes suavidades)
-    # k += [
-    #         A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=0.5),   # Exponential (menos suave)
-    #         A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=1.5),
-    #         A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=2.5),
-    #         A * (Matern(ls0, (1e-2, 1e2), nu=1.5) + Matern(ls0*0.3, (1e-2, 1e2), nu=2.5)),  # multi-escala
-    #     ]
+    # 4–7: Matern (diferentes suavidades)
+    k += [
+            A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=0.5),   # Exponential (menos suave)
+            A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=1.5),
+            A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=2.5),
+            A * (Matern(ls0, (1e-2, 1e2), nu=1.5) + Matern(ls0*0.3, (1e-2, 1e2), nu=2.5)),  # multi-escala
+        ]
 
-    # # 8–10: RationalQuadratic (mix contínuo de escalas)
-    # k += [
-    #         A * RationalQuadratic(length_scale=ls0, alpha=1.0),
-    #         A * RationalQuadratic(length_scale=ls0, alpha=0.1),
-    #         A * RationalQuadratic(length_scale=ls0, alpha=10.0),
-    #     ]
+    # 8–10: RationalQuadratic (mix contínuo de escalas)
+    k += [
+            A * RationalQuadratic(length_scale=ls0, alpha=1.0),
+            A * RationalQuadratic(length_scale=ls0, alpha=0.1),
+            A * RationalQuadratic(length_scale=ls0, alpha=10.0),
+        ]
 
-    # # 11–14: Tendência linear + variação suave
-    # k += [
-    #         A * (DotProduct(sigma_0=1.0) + RBF(ls0, (1e-2, 1e2))),              # linear + smooth
-    #         A * (DotProduct(sigma_0=1.0) + Matern(ls0, (1e-2, 1e2), nu=1.5)),
-    #         A * (DotProduct(sigma_0=0.1) + RBF(ls0, (1e-2, 1e2))),
-    #         A * DotProduct(sigma_0=1.0),                                        # puramente linear
-    #     ]
+    # 11–14: Tendência linear + variação suave
+    k += [
+            A * (DotProduct(sigma_0=1.0) + RBF(ls0, (1e-2, 1e2))),              # linear + smooth
+            A * (DotProduct(sigma_0=1.0) + Matern(ls0, (1e-2, 1e2), nu=1.5)),
+            A * (DotProduct(sigma_0=0.1) + RBF(ls0, (1e-2, 1e2))),
+            A * DotProduct(sigma_0=1.0),                                        # puramente linear
+        ]
 
-    # # 15–17: Periodicidade (se fizer sentido no seu fenômeno)
-    # k += [
-    #         A * ExpSineSquared(length_scale=ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2)),
-    #         A * (RBF(ls0, (1e-2, 1e2)) * ExpSineSquared(ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2))), # quase-periódico
-    #         A * (Matern(ls0, (1e-2, 1e2), nu=1.5) * ExpSineSquared(ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2))),
-    #     ]
+    # 15–17: Periodicidade (se fizer sentido no seu fenômeno)
+    k += [
+            A * ExpSineSquared(length_scale=ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2)),
+            A * (RBF(ls0, (1e-2, 1e2)) * ExpSineSquared(ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2))), # quase-periódico
+            A * (Matern(ls0, (1e-2, 1e2), nu=1.5) * ExpSineSquared(ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2))),
+        ]
 
-    # # 18–20: “quase-determinístico” com jitter mínimo embutido (opcional)
-    # # Se você quiser blindar contra problemas numéricos SEM assumir ruído físico:
-    # tiny = WhiteKernel(noise_level=1e-12, noise_level_bounds=(1e-15, 1e-9))
-    # k += [
-    #         A * RBF(ls0, (1e-2, 1e2)) + tiny,
-    #         A * Matern(ls0, (1e-2, 1e2), nu=2.5) + tiny,
-    #         A * RationalQuadratic(ls0, alpha=1.0) + tiny,
-    #     ]
+    # 18–20: “quase-determinístico” com jitter mínimo embutido (opcional)
+    # Se você quiser blindar contra problemas numéricos SEM assumir ruído físico:
+    tiny = WhiteKernel(noise_level=1e-12, noise_level_bounds=(1e-15, 1e-9))
+    k += [
+            A * RBF(ls0, (1e-2, 1e2)) + tiny,
+            A * Matern(ls0, (1e-2, 1e2), nu=2.5) + tiny,
+            A * RationalQuadratic(ls0, alpha=1.0) + tiny,
+        ]
 
     return k
 
