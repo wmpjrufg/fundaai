@@ -474,6 +474,43 @@ def gpr_pipelines(
     return modelos, nomes
 
 
+def aprendizado_maquina_paralelo(
+                                    x_treino: pd.DataFrame,
+                                    y_treino: pd.DataFrame,
+                                    x_teste: pd.DataFrame,
+                                    y_teste: pd.DataFrame,
+                                    n_jobs: int = mp.cpu_count(),
+                                    ls0: float = 1.0,
+                                    alpha: float = 1e-10,
+                                    n_restarts: int = 10,
+                                    random_state: int = 42,
+                                    out_dir: str = "modelos"
+                                ) -> list:
+    """Treina e testa modelos de aprendizado de máquina em paralelo.
+
+    :param x_treino: dados de treino (features)
+    :param y_treino: dados de treino (target)
+    :param x_teste: dados de teste (features)
+    :param y_teste: dados de teste (target)
+    :param n_jobs: número de processos paralelos
+    :param ls0: comprimento de escala inicial para os kernels
+    :param alpha: jitter numérico (determinístico)
+    :param n_restarts: número de reinicializações do otimizador
+    :param random_state: semente para reprodutibilidade
+    :param out_dir: diretório para salvar os modelos treinados
+
+    :return: lista de dicionários com métricas e informações dos modelos treinados em paralelo
+    """
+    
+    modelos, nomes = gpr_pipelines(ls0=ls0, alpha=alpha, n_restarts=n_restarts, random_state=random_state)
+    args = [(nomes[i], modelos[i], x_treino, 
+                y_treino, x_teste, y_teste, Path(out_dir)) for i in range(len(nomes))]
+    with mp.Pool(processes=n_jobs) as pool:
+        results = pool.starmap(treino_teste_para_processo_paralelo, args)
+
+    return results
+
+
 def treino_teste_para_processo_paralelo(
                                             nome: str,
                                             modelo: Any, 
@@ -495,6 +532,7 @@ def treino_teste_para_processo_paralelo(
 
     :return: dicionário com métricas e informações do modelo
     """
+    dir_modelos.mkdir(parents=True, exist_ok=True)
 
     # Treino e salva modelo
     modelo.fit(x_treino, y_treino)
@@ -524,39 +562,3 @@ def treino_teste_para_processo_paralelo(
                 "y_pred": y_pred_teste
             }
 
-
-def aprendizado_maquina_paralelo(
-                                    x_treino: pd.DataFrame,
-                                    y_treino: pd.DataFrame,
-                                    x_teste: pd.DataFrame,
-                                    y_teste: pd.DataFrame,
-                                    n_jobs: int = mp.cpu_count(),
-                                    ls0: float = 1.0,
-                                    alpha: float = 1e-10,
-                                    n_restarts: int = 10,
-                                    random_state: int = 42,
-                                    out_dir: str = "modelos"
-                                ) -> list:
-    """Treina e testa modelos de aprendizado de máquina em paralelo.
-
-    :param x_treino: dados de treino (features)
-    :param y_treino: dados de treino (target)
-    :param x_teste: dados de teste (features)
-    :param y_teste: dados de teste (target)
-    :param n_jobs: número de processos paralelos
-    :param ls0: comprimento de escala inicial para os kernels
-    :param alpha: jitter numérico (determinístico)
-    :param n_restarts: número de reinicializações do otimizador
-    :param random_state: semente para reprodutibilidade
-    :param out_dir: diretório para salvar os modelos treinados
-
-    :return: lista de dicionários com métricas e informações dos modelos treinados em paralelo
-    """
-
-    modelos, nomes = gpr_pipelines(ls0=ls0, alpha=alpha, n_restarts=n_restarts, random_state=random_state)
-    args = [(nomes[i], modelos[i], x_treino, 
-                y_treino, x_teste, y_teste, Path(out_dir)) for i in range(len(nomes))]
-    with mp.Pool(processes=n_jobs) as pool:
-        results = pool.starmap(treino_teste_para_processo_paralelo, args)
-
-    return results
