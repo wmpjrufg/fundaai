@@ -265,6 +265,7 @@ f_ck_kpa, cob_m = f_ck * 1000, cob / 100
 if st.button(t["btn_dimensionar"], type="primary"):
     from metapy_toolbox import ego_01_architecture, initial_population_01
     from fundacao import obj_felipe_lucas, obj_teste, constroi_kernel
+    from mealpy import GA
     
     try:
         with st.spinner(t["info_otim"]):
@@ -274,8 +275,9 @@ if st.button(t["btn_dimensionar"], type="primary"):
             x_u = [h_max_m] * 3 * n_fun
             x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
             paras_opt = {'optimizer algorithm': 'scipy_slsqp'}
+            paras_opt = {'optimizer algorithm': GA.BaseGA(epoch=50, pop_size=100)}
             k = constroi_kernel()
-            paras_kernel = {'kernel': k[1]} 
+            paras_kernel = {'kernel': k[2]} 
             x_new_aux = []
             best_of_aux = np.inf
             
@@ -287,7 +289,8 @@ if st.button(t["btn_dimensionar"], type="primary"):
                 if best_of < best_of_aux:
                     best_of_aux = best_of
                     x_new_aux = x_new
-            
+            print("Melhor OF encontrado:", best_of_aux)
+            print("Melhor solução encontrada:", x_new_aux)
             # Processamento de Resultados
             x_arr = np.asarray(x_new_aux).reshape(n_fun, 3)
             dados_final = pd.DataFrame(x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)'])
