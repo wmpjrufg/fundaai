@@ -281,6 +281,7 @@ def obj_felipe_lucas(x, args):
     cob_m = args[3]
     n_fun = df.shape[0]
 
+
     # Correção formato
     df['spt'] = df['spt'].astype(float)
 
@@ -366,6 +367,9 @@ def obj_teste(x, args):
     cob_m = args[3]
     n_fun = df.shape[0]
 
+    # Fator de penalização
+    pen = float(args[4]) if len(args) > 4 else 1E1
+
     # Correção formato
     df['spt'] = df['spt'].astype(float)
 
@@ -436,7 +440,8 @@ def obj_teste(x, args):
     df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
     
     # Volume final com penalizações
-    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E1 + df['g punção secao C'].clip(lower=0) * 1E1 + df['g tensao'].clip(lower=0) * 1E1 + df['g geometria'].clip(lower=0) * 1E1
+    
+    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * pen + df['g punção secao C'].clip(lower=0) * pen + df['g tensao'].clip(lower=0) * pen + df['g geometria'].clip(lower=0) * pen
     of = df['volume final (m3)'].sum()
 
     return of, df
@@ -481,44 +486,44 @@ def constroi_kernel(ls0: float = 1.0) -> list:
             A * (RBF(ls0, (1e-2, 1e2)) * RBF(ls0*0.5, (1e-2, 1e2))),           # produto (mais “sharp”)
         ]
 
-    # # 4–7: Matern (diferentes suavidades)
-    # k += [
-    #         A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=0.5),   # Exponential (menos suave)
-    #         A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=1.5),
-    #         A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=2.5),
-    #         A * (Matern(ls0, (1e-2, 1e2), nu=1.5) + Matern(ls0*0.3, (1e-2, 1e2), nu=2.5)),  # multi-escala
-    #     ]
+    # 4–7: Matern (diferentes suavidades)
+    k += [
+            A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=0.5),   # Exponential (menos suave)
+            A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=1.5),
+            A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e2), nu=2.5),
+            A * (Matern(ls0, (1e-2, 1e2), nu=1.5) + Matern(ls0*0.3, (1e-2, 1e2), nu=2.5)),  # multi-escala
+        ]
 
-    # # 8–10: RationalQuadratic (mix contínuo de escalas)
-    # k += [
-    #         A * RationalQuadratic(length_scale=ls0, alpha=1.0),
-    #         A * RationalQuadratic(length_scale=ls0, alpha=0.1),
-    #         A * RationalQuadratic(length_scale=ls0, alpha=10.0),
-    #     ]
+    # 8–10: RationalQuadratic (mix contínuo de escalas)
+    k += [
+            A * RationalQuadratic(length_scale=ls0, alpha=1.0),
+            A * RationalQuadratic(length_scale=ls0, alpha=0.1),
+            A * RationalQuadratic(length_scale=ls0, alpha=10.0),
+        ]
 
-    # # 11–14: Tendência linear + variação suave
-    # k += [
-    #         A * (DotProduct(sigma_0=1.0) + RBF(ls0, (1e-2, 1e2))),              # linear + smooth
-    #         A * (DotProduct(sigma_0=1.0) + Matern(ls0, (1e-2, 1e2), nu=1.5)),
-    #         A * (DotProduct(sigma_0=0.1) + RBF(ls0, (1e-2, 1e2))),
-    #         A * DotProduct(sigma_0=1.0),                                        # puramente linear
-    #     ]
+    # 11–14: Tendência linear + variação suave
+    k += [
+            A * (DotProduct(sigma_0=1.0) + RBF(ls0, (1e-2, 1e2))),              # linear + smooth
+            A * (DotProduct(sigma_0=1.0) + Matern(ls0, (1e-2, 1e2), nu=1.5)),
+            A * (DotProduct(sigma_0=0.1) + RBF(ls0, (1e-2, 1e2))),
+            A * DotProduct(sigma_0=1.0),                                        # puramente linear
+        ]
 
-    # # 15–17: Periodicidade (se fizer sentido no seu fenômeno)
-    # k += [
-    #         A * ExpSineSquared(length_scale=ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2)),
-    #         A * (RBF(ls0, (1e-2, 1e2)) * ExpSineSquared(ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2))), # quase-periódico
-    #         A * (Matern(ls0, (1e-2, 1e2), nu=1.5) * ExpSineSquared(ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2))),
-    #     ]
+    # 15–17: Periodicidade (se fizer sentido no seu fenômeno)
+    k += [
+            A * ExpSineSquared(length_scale=ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2)),
+            A * (RBF(ls0, (1e-2, 1e2)) * ExpSineSquared(ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2))), # quase-periódico
+            A * (Matern(ls0, (1e-2, 1e2), nu=1.5) * ExpSineSquared(ls0, periodicity=1.0, periodicity_bounds=(1e-2, 1e2))),
+        ]
 
-    # # 18–20: “quase-determinístico” com jitter mínimo embutido (opcional)
-    # # Se você quiser blindar contra problemas numéricos SEM assumir ruído físico:
-    # tiny = WhiteKernel(noise_level=1e-12, noise_level_bounds=(1e-15, 1e-9))
-    # k += [
-    #         A * RBF(ls0, (1e-2, 1e2)) + tiny,
-    #         A * Matern(ls0, (1e-2, 1e2), nu=2.5) + tiny,
-    #         A * RationalQuadratic(ls0, alpha=1.0) + tiny,
-    #     ]
+    # 18–20: “quase-determinístico” com jitter mínimo embutido (opcional)
+    # Se você quiser blindar contra problemas numéricos SEM assumir ruído físico:
+    tiny = WhiteKernel(noise_level=1e-12, noise_level_bounds=(1e-15, 1e-9))
+    k += [
+            A * RBF(ls0, (1e-2, 1e2)) + tiny,
+            A * Matern(ls0, (1e-2, 1e2), nu=2.5) + tiny,
+            A * RationalQuadratic(ls0, alpha=1.0) + tiny,
+        ]
 
     return k
 
@@ -577,6 +582,11 @@ def treino_teste_para_processo_paralelo(
 
     # Treino e salva modelo
     modelo.fit(x_treino, y_treino)
+
+    # Garante que o diretório de saída exista (necessário em multiprocessing)
+    dir_modelos = Path(dir_modelos)
+    dir_modelos.mkdir(parents=True, exist_ok=True)
+
     nome_limpo = re.sub(r"[^a-zA-Z0-9_-]", "_", nome)
     nome_modelo = dir_modelos / f"{nome_limpo}_pop_{len(x_treino)}.pkl"
     joblib.dump(modelo, nome_modelo)
@@ -633,8 +643,10 @@ def aprendizado_maquina_paralelo(
     """
 
     modelos, nomes = gpr_pipelines(ls0=ls0, alpha=alpha, n_restarts=n_restarts, random_state=random_state)
-    args = [(nomes[i], modelos[i], x_treino, 
-                y_treino, x_teste, y_teste, Path(out_dir)) for i in range(len(nomes))]
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    args = [(nomes[i], modelos[i], x_treino,
+                y_treino, x_teste, y_teste, out_path) for i in range(len(nomes))]
     with mp.Pool(processes=n_jobs) as pool:
         results = pool.starmap(treino_teste_para_processo_paralelo, args)
 
