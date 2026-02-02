@@ -126,7 +126,7 @@ if st.button(t["btn_dimensionar"], type="primary"):
             x_u = [h_max_m] * 3 * n_fun
             x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
             # paras_opt = {'optimizer algorithm': 'scipy_slsqp'}
-            paras_opt = {'optimizer algorithm': GA.BaseGA(epoch=50, pop_size=100)}
+            paras_opt = {'optimizer algorithm': GA.BaseGA(epoch=50, pop_size=150)}
             k = constroi_kernel()
             paras_kernel = {'kernel': k[-1]}
             x_new_aux = []
@@ -142,16 +142,24 @@ if st.button(t["btn_dimensionar"], type="primary"):
                 if best_of < best_of_aux:
                     best_of_aux = best_of
                     x_new_aux = x_new
+
             # print("Melhor OF encontrado:", best_of_aux)
             # print("Melhor solução encontrada:", x_new_aux)
             # Processamento de Resultados
             x_arr = np.asarray(x_new_aux).reshape(n_fun, 3)
             dados_final = pd.DataFrame(x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)'])
             _, df_novo = obj_teste(x_new_aux, args=(df, n_comb, f_ck_kpa, cob_m))
-
+            # --- Preparação do Arquivo Excel em Memória ---
+            buffer = BytesIO()
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                dados_final.to_excel(writer, index=False, sheet_name='Dimensoes_Finais')
+                if df_novo is not None:
+                    df_novo.to_excel(writer, index=False, sheet_name='Verificacoes_Detalhadas')
+            
             # Guardar no Session State
             st.session_state['dados_final_df'] = dados_final
             st.session_state['best_of_valor'] = best_of_aux
+            st.session_state['excel_buffer'] = buffer.getvalue()
             st.session_state['calculo_realizado'] = True
             
             # Gerar bytes do Excel (Omitido aqui por brevidade, mas deve seguir sua lógica original)
@@ -164,7 +172,21 @@ if st.button(t["btn_dimensionar"], type="primary"):
 
 # --- 6. EXIBIÇÃO ---
 if st.session_state.get('calculo_realizado'):
+    st.divider()
     st.subheader(t["resultado_header"])
-    st.dataframe(st.session_state['dados_final_df'])
-    st.metric("OF", f"{st.session_state['best_of_valor']:.4f}")
-    # Botões de download aqui...
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.dataframe(st.session_state['dados_final_df'], use_container_width=True)
+    
+    with col2:
+        st.metric("Volume Total", f"{st.session_state['best_of_valor']:.4f} m³")
+        
+        # Botão de Download usando os bytes salvos no state
+        st.download_button(
+            label="📥 Baixar Resultados (Excel)",
+            data=st.session_state['excel_buffer'],
+            file_name="otimizacao_fundacao.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
