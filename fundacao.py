@@ -391,7 +391,7 @@ def constroi_kernel(ls0: float = 1.0) -> list:
     """
 
     # Observação: bounds assumem X padronizado (StandardScaler)
-    A = C(1.0, (1e-3, 1e3))  # amplitude
+    A = C(1.0, (1E-5, 1E10))  # amplitude
 
     k = []
 
@@ -439,6 +439,7 @@ def constroi_kernel(ls0: float = 1.0) -> list:
             A * RBF(ls0, (1e-2, 1e2)) + tiny,
             A * Matern(ls0, (1e-2, 1e2), nu=2.5) + tiny,
             A * RationalQuadratic(ls0, alpha=1.0) + tiny,
+            A * Matern(length_scale=ls0, length_scale_bounds=(1e-2, 1e3), nu=2.5)
         ]
 
     return k
@@ -446,8 +447,8 @@ def constroi_kernel(ls0: float = 1.0) -> list:
 
 def gpr_pipelines(
                     ls0: float = 1.0,
-                    alpha: float = 1e-10,
-                    n_restarts: int = 10,
+                    alpha: float = 1e-4,
+                    n_restarts: int = 5,
                     random_state: int = 42
                 ) -> tuple[list, list]:
     """Monta os modelos de GPR (Gaussian Process Regressor).
@@ -481,8 +482,8 @@ def aprendizado_maquina_paralelo(
                                     y_teste: pd.DataFrame,
                                     n_jobs: int = mp.cpu_count(),
                                     ls0: float = 1.0,
-                                    alpha: float = 1e-10,
-                                    n_restarts: int = 10,
+                                    alpha: float = 0.1,
+                                    n_restarts: int = 5,
                                     random_state: int = 42,
                                     out_dir: str = "modelos"
                                 ) -> list:

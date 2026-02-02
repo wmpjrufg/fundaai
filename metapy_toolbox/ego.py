@@ -106,7 +106,7 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
 
     # GPR organzation and optimization loop
     sca = ("scaler", StandardScaler())
-    gp = ("gp", GaussianProcessRegressor(kernel=params_kernel['kernel'], normalize_y=True, alpha=1E-10, n_restarts_optimizer=10, random_state=42)) if params_kernel is not None else ("gp", GaussianProcessRegressor(kernel=sk.gaussian_process.kernels.RBF(), normalize_y=True, alpha=1E-10, n_restarts_optimizer=10, random_state=42))
+    gp = ("gp", GaussianProcessRegressor(kernel=params_kernel['kernel'], normalize_y=True, alpha=0.1, n_restarts_optimizer=5, random_state=42)) if params_kernel is not None else ("gp", GaussianProcessRegressor(kernel=sk.gaussian_process.kernels.RBF(), normalize_y=True, alpha=0.1, n_restarts_optimizer=5, random_state=42))
     pipe = Pipeline([sca, gp])   
 
     # Initial population evaluation (Don't remove this part)
