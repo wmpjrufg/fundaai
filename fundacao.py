@@ -142,7 +142,8 @@ def verificacao_puncao_sapata(h_z: float, f_ck: float, a_p: float, b_p: float, f
     alpha_v2 = (1 - (f_ck/1000) / 250)
     f_cd = f_ck / 1.4
     tau_rd2 = 0.27 * alpha_v2 * f_cd
-    u_rd2 = 2 * (d/2 + d/2)
+    # u_rd2 = 2 * (d/2 + d/2)
+    u_rd2 = 2 * (a_p + b_p+ 2*d) 
     tau_sd2 = (1.4 * f_zk) / (u_rd2 * d)
     g_rd2 = tau_sd2 / tau_rd2 - 1
 
@@ -212,11 +213,20 @@ def sobreposicao_sapatas(x1_i: float, y1_i: float, x2_i: float, y2_i: float, x3_
     return area
 
 
-def checagem_maior_dimensao(maior_h, menor_h):
+def checagem_maior_dimensao(maior_h: float, menor_h: float) -> float:
     return (maior_h / (menor_h * 3)) - 1
 
-def validador_tensao():
-    return
+def validador_tensao(sigma_limite_min: float, sigma_limite_max: float, sigma_adm: float) -> float:
+    """
+    Limita a tensão admissível do solo ao intervalo [sigma_limite_min, sigma_limite_max] kPa.
+
+    :param sigma_limite_min: tensão admissível mínima [kPa]
+    :param sigma_limite_max: tensão admissível máxima [kPa]
+    :param sigma_adm: tensão admissível calculada [kPa]
+    :return: tensão admissível validada [kPa]
+
+    """
+    return max(sigma_limite_min, min(sigma_adm, sigma_limite_max))
 
 def obj_felipe_lucas(x, args):
 
@@ -226,6 +236,8 @@ def obj_felipe_lucas(x, args):
     f_ck = args[2]
     cob_m = args[3]
     n_fun = df.shape[0]
+    sigma_limite_min = args[4]
+    sigma_limite_max = args[5]
 
     # Correção formato
     df['spt'] = df['spt'].astype(float)
@@ -234,8 +246,6 @@ def obj_felipe_lucas(x, args):
     x_arr = np.asarray(x).reshape(n_fun, 3)
     df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
     df[['h_x (m)', 'h_y (m)', 'h_z (m)']] = df_aux_aux[['h_x (m)', 'h_y (m)', 'h_z (m)']]
-
-    # Restrição tamanho maior em relação menor
     
 
     # Volume
@@ -254,7 +264,8 @@ def obj_felipe_lucas(x, args):
     # Restrição de maior valor
     df['maior dimensão'] = df[['h_x (m)', 'h_y (m)']].max(axis=1)
     df['menor dimensão'] = df[['h_x (m)', 'h_y (m)']].min(axis=1)
-    df['g maior dimensão'] = df.apply(lambda row: checagem_geometria(row['maior dimensão'], row['ap (m)']), axis=1)
+    df['g sapata isolada'] = df.apply(lambda row: checagem_maior_dimensao(row['maior dimensão'], row['menor dimensão']), axis=1)
+
     # Restrição de sobreposição
     if n_fun == 1:
         df['g sobreposicao'] = 0.0
@@ -280,7 +291,7 @@ def obj_felipe_lucas(x, args):
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
 
     # Validador de tensão
-    ## 
+    df['tensao adm (kPa)'] = df.apply(lambda row: validador_tensao(sigma_limite_min, sigma_limite_max, row['tensao adm (kPa)']), axis=1)
 
     # Rótulo das combinações
     labels_comb = [f'c{i}' for i in range(1, n_comb + 1)]
@@ -308,7 +319,7 @@ def obj_felipe_lucas(x, args):
     df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
     
     # Volume final com penalizações
-    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E1 + df['g punção secao C'].clip(lower=0) * 1E1 + df['g tensao'].clip(lower=0) * 1E1 + df['g geometria'].clip(lower=0) * 1E1
+    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E1 + df['g sapata isolada'].clip(lower=0) * 1E1 + df['g punção secao C'].clip(lower=0) * 1E1 + df['g tensao'].clip(lower=0) * 1E1 + df['g geometria'].clip(lower=0) * 1E1
     of = df['volume final (m3)'].sum()
 
     return of
