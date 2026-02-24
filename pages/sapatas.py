@@ -78,6 +78,8 @@ with col1:
     n_comb = st.number_input(t["n_comb"], step=1, value=3, key="n_comb_input")
     f_ck = st.number_input(t["fck"], min_value=15., max_value=90., step=5.0, value=25.0)
     cob = st.number_input(t["cob"], step=0.5, value=4.0, format="%.1f")
+    max_sigma = st.number_input("max_sigma", step=0.5, value=4.0, format="%.1f")
+    min_sigma = st.number_input("min_sigma", step=0.5, value=4.0, format="%.1f")
 
 with col2:
     h_min = st.number_input(t["h_min"], min_value=60., step=0.5, value=60.)

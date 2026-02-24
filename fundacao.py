@@ -142,7 +142,7 @@ def verificacao_puncao_sapata(h_z: float, f_ck: float, a_p: float, b_p: float, f
     alpha_v2 = (1 - (f_ck/1000) / 250)
     f_cd = f_ck / 1.4
     tau_rd2 = 0.27 * alpha_v2 * f_cd
-    u_rd2 = 2 * (a_p + b_p)
+    u_rd2 = 2 * (d/2 + d/2)
     tau_sd2 = (1.4 * f_zk) / (u_rd2 * d)
     g_rd2 = tau_sd2 / tau_rd2 - 1
 
@@ -212,6 +212,12 @@ def sobreposicao_sapatas(x1_i: float, y1_i: float, x2_i: float, y2_i: float, x3_
     return area
 
 
+def checagem_maior_dimensao(maior_h, menor_h):
+    return (maior_h / (menor_h * 3)) - 1
+
+def validador_tensao():
+    return
+
 def obj_felipe_lucas(x, args):
 
     # Argumentos
@@ -229,6 +235,9 @@ def obj_felipe_lucas(x, args):
     df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
     df[['h_x (m)', 'h_y (m)', 'h_z (m)']] = df_aux_aux[['h_x (m)', 'h_y (m)', 'h_z (m)']]
 
+    # Restrição tamanho maior em relação menor
+    
+
     # Volume
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
 
@@ -242,6 +251,11 @@ def obj_felipe_lucas(x, args):
     df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2
     df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2
 
+    # Restrição de maior valor
+    df['maior dimensão'] = df[['h_x (m)', 'h_y (m)']].max(axis=1)
+    df['menor dimensão'] = df[['h_x (m)', 'h_y (m)']].min(axis=1)
+    df['g maior dimensão'] = df.apply(lambda row: checagem_geometria(row['maior dimensão'], row['ap (m)']), axis=1)
+    # Restrição de sobreposição
     if n_fun == 1:
         df['g sobreposicao'] = 0.0
     else:
@@ -264,6 +278,9 @@ def obj_felipe_lucas(x, args):
 
     # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
+
+    # Validador de tensão
+    ## 
 
     # Rótulo das combinações
     labels_comb = [f'c{i}' for i in range(1, n_comb + 1)]
