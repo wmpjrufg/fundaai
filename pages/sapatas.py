@@ -90,6 +90,7 @@ with col2:
     h_max = st.number_input(t["h_max"], min_value=60., step=0.5, value=150.)
     n_gen = st.number_input(t["n_gen"], min_value=2, max_value=200, step=1, value=2)
     n_pop = st.number_input(t["n_pop"], min_value=200, max_value=2000, step=5, value=250)
+    gamma = st.selectbox("Majoração da tensão máxima do solo", options=["Somente vento = 1.30", "Esforços combinados = 1.15"], index=0)
 
 st.divider()
 
