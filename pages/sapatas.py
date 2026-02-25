@@ -29,7 +29,9 @@ def obter_textos():
             "resultado_header": "📊 Resultados Detalhados",
             "btn_geo": "📥 Baixar dados da geometria (Excel)",
             "btn_restr": "📥 Baixar dados das restrições (Excel)",
-            "erro_proc": "Erro durante o processamento."
+            "erro_proc": "Erro durante o processamento.",
+            "sigma_limite_min": "Limite mínimo da tensão admissível (kPa)",
+            "sigma_limite_max": "Limite máximo da tensão admissível (kPa)"
         },
         "en": {
             "titulo_pagina": "🏗️ Optimized Footing Design",
@@ -53,7 +55,9 @@ def obter_textos():
             "resultado_header": "📊 Detailed Results",
             "btn_geo": "📥 Download geometry data (Excel)",
             "btn_restr": "📥 Download restriction data (Excel)",
-            "erro_proc": "Error during processing."
+            "erro_proc": "Error during processing.",
+            "sigma_limite_min": "Minimum allowable soil stress limit (kPa)",
+            "sigma_limite_max": "Maximum allowable soil stress limit (kPa)"
         }
     }
 
@@ -78,6 +82,8 @@ with col1:
     n_comb = st.number_input(t["n_comb"], step=1, value=3, key="n_comb_input")
     f_ck = st.number_input(t["fck"], min_value=15., max_value=90., step=5.0, value=25.0)
     cob = st.number_input(t["cob"], step=0.5, value=4.0, format="%.1f")
+    sigma_limite_min = st.number_input(t["sigma_limite_min"], step=0.5, value=75.0, format="%.1f")
+    sigma_limite_max = st.number_input(t["sigma_limite_max"], step=0.5, value=600.0, format="%.1f")
 
 with col2:
     h_min = st.number_input(t["h_min"], min_value=60., step=0.5, value=60.)
@@ -137,7 +143,7 @@ if st.button(t["btn_dimensionar"], type="primary"):
                 status_text.write(f"🔄 **Executando tentativa {rep + 1} de {n_rep}...**")
                 x_new, best_of, _ = ego_01_architecture(
                                                             obj_felipe_lucas, n_gen, x_ini, x_l, x_u, 
-                                                            paras_opt, paras_kernel, args=(df, n_comb, f_ck_kpa, cob_m)
+                                                            paras_opt, paras_kernel, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max)
                                                         )
                 if best_of < best_of_aux:
                     best_of_aux = best_of
