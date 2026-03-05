@@ -91,6 +91,10 @@ with col2:
     n_gen = st.number_input(t["n_gen"], min_value=2, max_value=200, step=1, value=2)
     n_pop = st.number_input(t["n_pop"], min_value=200, max_value=2000, step=5, value=250)
     gamma = st.selectbox("Majoração da tensão máxima do solo", options=["Somente vento = 1.30", "Esforços combinados = 1.15"], index=0)
+    if gamma == "Somente vento = 1.30":
+        gamma_val = 1.30
+    else:
+        gamma_val = 1.15
 
 st.divider()
 
@@ -128,7 +132,7 @@ if st.button(t["btn_dimensionar"], type="primary"):
             # Cria um espaço vazio para o texto de status
             status_text = st.empty()
             # Lógica de Otimização
-            n_rep = 5
+            n_rep = 2
             x_l = [h_min_m] * 3 * n_fun
             x_u = [h_max_m] * 3 * n_fun
             x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
@@ -144,7 +148,7 @@ if st.button(t["btn_dimensionar"], type="primary"):
                 status_text.write(f"🔄 **Executando tentativa {rep + 1} de {n_rep}...**")
                 x_new, best_of, _ = ego_01_architecture(
                                                             obj_felipe_lucas, n_gen, x_ini, x_l, x_u, 
-                                                            paras_opt, paras_kernel, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max)
+                                                            paras_opt, paras_kernel, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max, gamma_val)
                                                         )
                 if best_of < best_of_aux:
                     best_of_aux = best_of
@@ -155,7 +159,7 @@ if st.button(t["btn_dimensionar"], type="primary"):
             # Processamento de Resultados
             x_arr = np.asarray(x_new_aux).reshape(n_fun, 3)
             dados_final = pd.DataFrame(x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)'])
-            _, df_novo = obj_teste(x_new_aux, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max))
+            _, df_novo = obj_teste(x_new_aux, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max, gamma_val))
             # --- Preparação do Arquivo Excel em Memória ---
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:

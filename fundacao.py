@@ -55,7 +55,7 @@ def tensao_adm_solo(solo: str, spt: float) -> float:
         return spt / 50 * 1E3
 
 
-def calcular_sigma_max_min(f_zk: float, m_xk: float, m_yk: float, h_x: float, h_y: float) -> tuple[float, float]:
+def calcular_sigma_max_min(f_zk: float, m_xk: float, m_yk: float, h_x: float, h_y: float, gamma_f: float) -> tuple[float, float]:
     """Calcula as tensões máxima e mínima atuantes na sapata, considerando excentricidades nos dois eixos.
 
     :param f_zk: Carga axial característica [kN]
@@ -76,12 +76,12 @@ def calcular_sigma_max_min(f_zk: float, m_xk: float, m_yk: float, h_x: float, h_
     if sigma_max <= 0:
         sigma_max *= 1.0
     else:
-        sigma_max *= 1.30
+        sigma_max *= gamma_f
     sigma_min = (sigma_fz) * (1 - aux_mx - aux_my)
     if sigma_min <= 0:
         sigma_min *= 1.0
     else:
-        sigma_min *= 1.30
+        sigma_min *= gamma_f
     
     return sigma_max, sigma_min
 
@@ -246,12 +246,17 @@ def obj_felipe_lucas(x, args):
     n_fun = df.shape[0]
     sigma_limite_min = args[4]
     sigma_limite_max = args[5]
+    gamma_val = args[6]
 
     # Correção formato
     df['spt'] = df['spt'].astype(float)
 
     # Variáveis de projeto
     x_arr = np.asarray(x).reshape(n_fun, 3)
+    # Arredondamento para os passos desejados
+    x_arr[:, 0] = np.round(x_arr[:, 0] / 0.05) * 0.05   # h_x
+    x_arr[:, 1] = np.round(x_arr[:, 1] / 0.05) * 0.05   # h_y
+    x_arr[:, 2] = np.round(x_arr[:, 2] / 0.10) * 0.10   # h_z
     df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
     df[['h_x (m)', 'h_y (m)', 'h_z (m)']] = df_aux_aux[['h_x (m)', 'h_y (m)', 'h_z (m)']]
     
@@ -259,14 +264,15 @@ def obj_felipe_lucas(x, args):
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
 
     # Cálculo das coordenadas completas dos vértices das sapatas
-    df['x1'] = df['xg (m)'] - df['h_x (m)'] / 2
-    df['y1'] = df['yg (m)'] - df['h_y (m)'] / 2
-    df['x2'] = df['xg (m)'] + df['h_x (m)'] / 2
-    df['y2'] = df['yg (m)'] - df['h_y (m)'] / 2
-    df['x3'] = df['xg (m)'] + df['h_x (m)'] / 2
-    df['y3'] = df['yg (m)'] + df['h_y (m)'] / 2
-    df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2
-    df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2
+    folga = 0.10
+    df['x1'] = df['xg (m)'] - df['h_x (m)'] / 2 - folga
+    df['y1'] = df['yg (m)'] - df['h_y (m)'] / 2 - folga
+    df['x2'] = df['xg (m)'] + df['h_x (m)'] / 2 + folga
+    df['y2'] = df['yg (m)'] - df['h_y (m)'] / 2 - folga
+    df['x3'] = df['xg (m)'] + df['h_x (m)'] / 2 + folga
+    df['y3'] = df['yg (m)'] + df['h_y (m)'] / 2 + folga
+    df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2 - folga
+    df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2 + folga
 
     # Restrição de maior valor
     df['maior dimensão'] = df[['h_x (m)', 'h_y (m)']].max(axis=1)
@@ -314,7 +320,7 @@ def obj_felipe_lucas(x, args):
     # Checagem tensao max e min
     for i in labels_comb:
         aux = f'{i}'
-        df[[f'tensao max. (kPa) - {aux}', f'tensao min. (kPa) - {aux}']] = df.apply(lambda row: calcular_sigma_max_min(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], row['h_x (m)'], row['h_y (m)']), axis=1, result_type='expand')
+        df[[f'tensao max. (kPa) - {aux}', f'tensao min. (kPa) - {aux}']] = df.apply(lambda row: calcular_sigma_max_min(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], row['h_x (m)'], row['h_y (m)'], gamma_val), axis=1, result_type='expand')
         df[f'g tensao max. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao max. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
         df[f'g tensao min. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao min. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
         df[f'g tensao - {aux}'] = df[[f'g tensao max. - {aux}', f'g tensao min. - {aux}']].max(axis=1)
@@ -342,12 +348,17 @@ def obj_teste(x, args):
     n_fun = df.shape[0]
     sigma_limite_min = args[4]
     sigma_limite_max = args[5]
+    gamma_val = args[6]
 
     # Correção formato
     df['spt'] = df['spt'].astype(float)
 
     # Variáveis de projeto
     x_arr = np.asarray(x).reshape(n_fun, 3)
+    # Arredondamento para os passos desejados
+    x_arr[:, 0] = np.round(x_arr[:, 0] / 0.05) * 0.05   # h_x
+    x_arr[:, 1] = np.round(x_arr[:, 1] / 0.05) * 0.05   # h_y
+    x_arr[:, 2] = np.round(x_arr[:, 2] / 0.10) * 0.10   # h_z
     df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
     df[['h_x (m)', 'h_y (m)', 'h_z (m)']] = df_aux_aux[['h_x (m)', 'h_y (m)', 'h_z (m)']]
     
@@ -355,14 +366,15 @@ def obj_teste(x, args):
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
 
     # Cálculo das coordenadas completas dos vértices das sapatas
-    df['x1'] = df['xg (m)'] - df['h_x (m)'] / 2
-    df['y1'] = df['yg (m)'] - df['h_y (m)'] / 2
-    df['x2'] = df['xg (m)'] + df['h_x (m)'] / 2
-    df['y2'] = df['yg (m)'] - df['h_y (m)'] / 2
-    df['x3'] = df['xg (m)'] + df['h_x (m)'] / 2
-    df['y3'] = df['yg (m)'] + df['h_y (m)'] / 2
-    df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2
-    df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2
+    folga = 0.10
+    df['x1'] = df['xg (m)'] - df['h_x (m)'] / 2 - folga
+    df['y1'] = df['yg (m)'] - df['h_y (m)'] / 2 - folga
+    df['x2'] = df['xg (m)'] + df['h_x (m)'] / 2 + folga
+    df['y2'] = df['yg (m)'] - df['h_y (m)'] / 2 - folga
+    df['x3'] = df['xg (m)'] + df['h_x (m)'] / 2 + folga
+    df['y3'] = df['yg (m)'] + df['h_y (m)'] / 2 + folga
+    df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2 - folga
+    df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2 + folga
 
     # Restrição de maior valor
     df['maior dimensão'] = df[['h_x (m)', 'h_y (m)']].max(axis=1)
@@ -410,7 +422,7 @@ def obj_teste(x, args):
     # Checagem tensao max e min
     for i in labels_comb:
         aux = f'{i}'
-        df[[f'tensao max. (kPa) - {aux}', f'tensao min. (kPa) - {aux}']] = df.apply(lambda row: calcular_sigma_max_min(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], row['h_x (m)'], row['h_y (m)']), axis=1, result_type='expand')
+        df[[f'tensao max. (kPa) - {aux}', f'tensao min. (kPa) - {aux}']] = df.apply(lambda row: calcular_sigma_max_min(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], row['h_x (m)'], row['h_y (m)'], gamma_val), axis=1, result_type='expand')
         df[f'g tensao max. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao max. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
         df[f'g tensao min. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao min. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
         df[f'g tensao - {aux}'] = df[[f'g tensao max. - {aux}', f'g tensao min. - {aux}']].max(axis=1)
