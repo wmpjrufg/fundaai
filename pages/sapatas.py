@@ -14,7 +14,28 @@ def obter_textos():
             "upload_sucesso": "Arquivo carregado com sucesso!",
             "upload_aviso": "Por favor, selecione um arquivo Excel para continuar.",
             "preview_header": "Primeiras linhas da planilha de dados",
-            "params_header": "Parâmetros gerais de dimensionamento",
+            "params_header": """
+                                Esta ferramenta utiliza um algoritmo de otimização global baseado em aprendizado de máquina para determinar dimensões eficientes de fundações do tipo sapata.
+
+                                O algoritmo requer como entrada os seguintes parâmetros:
+
+                                - Dimensões mínimas e máximas da fundação (hx, hy e hz);
+                                - Resistência à compressão do concreto (fck);
+                                - Planilha contendo os dados das fundações a serem analisadas, incluindo as combinações de carregamento;
+                                - Coeficiente de majoração aplicado às tensões no solo;
+                                - Tensões admissíveis mínima e máxima do solo utilizadas na verificação da capacidade de suporte.
+
+                                Durante o processo de verificação, caso alguma fundação apresente tensão no solo inferior à tensão admissível mínima informada, o sistema emitirá um aviso indicando qual fundação apresenta essa inconsistência. Nesses casos, recomenda-se avaliar outra solução de fundação, pois o uso de sapata pode não ser tecnicamente adequado.
+
+                                Além disso, o algoritmo requer dois parâmetros relacionados ao processo de otimização:
+
+                                - Número de iterações;
+                                - Tamanho da população (número de agentes de busca).
+
+                                Em testes realizados com até 10 fundações, foram utilizados 300 agentes e 10 iterações. Nessas condições, o tempo médio de execução da otimização é de aproximadamente 5 minutos.
+
+                                Durante a execução, a interface exibirá em tempo real o progresso do processo de otimização.
+                                """,
             "n_comb": "Número de combinações",
             "fck": "fck do concreto (MPa)",
             "cob": "Cobrimento do concreto (cm)",
@@ -40,7 +61,28 @@ def obter_textos():
             "upload_sucesso": "File uploaded successfully!",
             "upload_aviso": "Please select an Excel file to continue.",
             "preview_header": "Data spreadsheet preview",
-            "params_header": "General design parameters",
+            "params_header": """
+                            This tool uses a global optimization algorithm based on machine learning to determine efficient dimensions for shallow foundations (spread footings).
+
+                            The algorithm requires the following input parameters:
+
+                            - Minimum and maximum foundation dimensions (hx, hy, and hz);
+                            - Concrete compressive strength (fck);
+                            - A spreadsheet containing the foundation data, including the load combinations to be analyzed;
+                            - A soil stress amplification coefficient;
+                            - Minimum and maximum allowable soil bearing stresses used in the soil capacity verification.
+
+                            During the verification process, if any foundation produces a soil stress lower than the specified minimum allowable value, the system will display a warning indicating which foundation presents this issue. In such cases, it is recommended to reassess the structural solution, as a spread footing may not be an appropriate foundation type.
+
+                            Additionally, the algorithm requires two optimization parameters:
+
+                            • Number of iterations;
+                            • Population size (number of search agents).
+
+                            In tests performed with up to 10 foundations, the algorithm was configured with 300 agents and 10 iterations. Under these conditions, the optimization process typically takes approximately 5 minutes to complete.
+
+                            During execution, the interface will display the optimization progress in real time.
+                            """,
             "n_comb": "Number of combinations",
             "fck": "Concrete fck (MPa)",
             "cob": "Concrete cover (cm)",
@@ -75,7 +117,7 @@ if 'calculo_realizado' not in st.session_state:
 # --- 4. UPLOAD E INPUTS (Inserção de dados antes da planilha) ---
 
 # Colocamos os parâmetros gerais ANTES do upload para o usuário configurar o projeto primeiro
-st.subheader(t["params_header"])
+st.markdown(t["params_header"])
 col1, col2 = st.columns(2)
 
 with col1:
@@ -88,9 +130,9 @@ with col1:
 with col2:
     h_min = st.number_input(t["h_min"], min_value=60., step=0.5, value=60.)
     h_max = st.number_input(t["h_max"], min_value=60., step=0.5, value=150.)
-    n_gen = st.number_input(t["n_gen"], min_value=2, max_value=200, step=1, value=2)
-    n_pop = st.number_input(t["n_pop"], min_value=200, max_value=2000, step=5, value=250)
-    gamma = st.selectbox("Majoração da tensão máxima do solo", options=["Somente vento = 1.30", "Esforços combinados = 1.15"], index=0)
+    n_gen = st.number_input(t["n_gen"], min_value=2, max_value=20, step=1, value=2)
+    n_pop = st.number_input(t["n_pop"], min_value=200, max_value=500, step=5, value=350)
+    gamma = st.selectbox("Majoração da tensão máxima aplicada no solo", options=["Somente vento = 1.30", "Esforços combinados = 1.15"], index=0)
     if gamma == "Somente vento = 1.30":
         gamma_val = 1.30
     else:
@@ -109,13 +151,38 @@ if uploaded_file is not None:
         if col.startswith(("Fz-", "Mx-", "My-")):
             df[col] = df[col].astype(str).str.replace(",", ".", regex=False).astype(float)
     
+    # Cálculo da tensão admissível do solo
+    from fundacao import tensao_adm_solo
+    df["tensao adm. (kPa)"] = df.apply(lambda row: tensao_adm_solo(row["solo"], row["spt"]), axis=1)
+    # Verifica elementos fora do intervalo
+    fora_intervalo = df[(df["tensao adm. (kPa)"] < sigma_limite_min) | (df["tensao adm. (kPa)"] > sigma_limite_max)].copy()
+    
     st.success(t["upload_sucesso"])
     n_fun = df.shape[0]
     st.subheader(t["preview_header"])
     st.dataframe(df.head())
+    if fora_intervalo.empty:
+        st.success("Todos os elementos estão dentro do intervalo desejado de tensão admissível.")
+    else:
+        st.error(f"Foram encontrados {len(fora_intervalo)} elemento(s) com tensão admissível fora do intervalo desejado.")
+
+        # Caso exista uma coluna identificadora do elemento
+        col_elemento = None
+        for nome_col in ["elemento", "Elemento", "id", "ID", "nome", "Nome"]:
+            if nome_col in fora_intervalo.columns:
+                col_elemento = nome_col
+                break
+        if col_elemento is not None:
+            st.write("Elementos fora do intervalo:")
+            st.dataframe(
+                fora_intervalo[[col_elemento, "solo", "spt", "tensao adm. (kPa)"]])
+        else:
+            st.write("Linhas fora do intervalo:")
+            st.dataframe(fora_intervalo[["solo", "spt", "tensao adm. (kPa)"]])
+
 else:
     st.warning(t["upload_aviso"])
-    st.stop() # Interrompe a execução até o arquivo ser subido
+    st.stop()
 
 # Conversões Técnicas
 h_min_m, h_max_m = h_min / 100, h_max / 100
@@ -132,7 +199,7 @@ if st.button(t["btn_dimensionar"], type="primary"):
             # Cria um espaço vazio para o texto de status
             status_text = st.empty()
             # Lógica de Otimização
-            n_rep = 2
+            n_rep = 5
             x_l = [h_min_m] * 3 * n_fun
             x_u = [h_max_m] * 3 * n_fun
             x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
@@ -159,7 +226,7 @@ if st.button(t["btn_dimensionar"], type="primary"):
             # Processamento de Resultados
             x_arr = np.asarray(x_new_aux).reshape(n_fun, 3)
             dados_final = pd.DataFrame(x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)'])
-            _, df_novo = obj_teste(x_new_aux, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max, gamma_val))
+            best_of_aux, df_novo, phi_of_aux, diffs_of_aux = obj_teste(x_new_aux, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max, gamma_val))
             # --- Preparação do Arquivo Excel em Memória ---
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
@@ -172,6 +239,8 @@ if st.button(t["btn_dimensionar"], type="primary"):
             st.session_state['best_of_valor'] = best_of_aux
             st.session_state['excel_buffer'] = buffer.getvalue()
             st.session_state['calculo_realizado'] = True
+            st.session_state['phi_of_valor'] = phi_of_aux
+            st.session_state['diffs_of_valor'] = diffs_of_aux
             
             # Gerar bytes do Excel (Omitido aqui por brevidade, mas deve seguir sua lógica original)
             st.success(t["sucesso_otim"])
@@ -193,6 +262,7 @@ if st.session_state.get('calculo_realizado'):
     
     with col2:
         st.metric("Volume Total", f"{st.session_state['best_of_valor']:.4f} m³")
+        # st.metric("Volume Total penalizado", f"{st.session_state['phi_of_valor']:.4f} m³")
         
         # Botão de Download usando os bytes salvos no state
         st.download_button(

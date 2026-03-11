@@ -236,6 +236,7 @@ def validador_tensao(sigma_limite_min: float, sigma_limite_max: float, sigma_adm
     """
     return max(sigma_limite_min, min(sigma_adm, sigma_limite_max))
 
+
 def obj_felipe_lucas(x, args):
 
     # Argumentos
@@ -435,9 +436,11 @@ def obj_teste(x, args):
     
     # Volume final com penalizações
     df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E1 + df['g geometria3x'].clip(lower=0) * 1E1 + df['g punção secao C'].clip(lower=0) * 1E1 + df['g tensao'].clip(lower=0) * 1E1 + df['g geometria'].clip(lower=0) * 1E1
-    of = df['volume final (m3)'].sum()
+    of = df['volume (m3)'].sum()
+    phi_of = df['volume final (m3)'].sum()
+    diffs_of = phi_of - of
 
-    return of, df
+    return of, df, phi_of, diffs_of
 
 
 def constroi_kernel(ls0: float = 1.0) -> list:
@@ -503,12 +506,7 @@ def constroi_kernel(ls0: float = 1.0) -> list:
     return k
 
 
-def gpr_pipelines(
-                    ls0: float = 1.0,
-                    alpha: float = 1e-4,
-                    n_restarts: int = 5,
-                    random_state: int = 42
-                ) -> tuple[list, list]:
+def gpr_pipelines(ls0: float = 1.0, alpha: float = 1e-4, n_restarts: int = 5, random_state: int = 42) -> tuple[list, list]:
     """Monta os modelos de GPR (Gaussian Process Regressor).
     
     :param ls0: comprimento de escala inicial para os kernels
@@ -533,18 +531,7 @@ def gpr_pipelines(
     return modelos, nomes
 
 
-def aprendizado_maquina_paralelo(
-                                    x_treino: pd.DataFrame,
-                                    y_treino: pd.DataFrame,
-                                    x_teste: pd.DataFrame,
-                                    y_teste: pd.DataFrame,
-                                    n_jobs: int = mp.cpu_count(),
-                                    ls0: float = 1.0,
-                                    alpha: float = 0.1,
-                                    n_restarts: int = 5,
-                                    random_state: int = 42,
-                                    out_dir: str = "modelos"
-                                ) -> list:
+def aprendizado_maquina_paralelo(x_treino: pd.DataFrame, y_treino: pd.DataFrame, x_teste: pd.DataFrame, y_teste: pd.DataFrame,  n_jobs: int = mp.cpu_count(), ls0: float = 1.0, alpha: float = 0.1, n_restarts: int = 5, random_state: int = 42, out_dir: str = "modelos") -> list:
     """Treina e testa modelos de aprendizado de máquina em paralelo.
 
     :param x_treino: dados de treino (features)
@@ -570,15 +557,7 @@ def aprendizado_maquina_paralelo(
     return results
 
 
-def treino_teste_para_processo_paralelo(
-                                            nome: str,
-                                            modelo: Any, 
-                                            x_treino: pd.DataFrame,
-                                            y_treino: pd.DataFrame,
-                                            x_teste: pd.DataFrame,
-                                            y_teste: pd.DataFrame,
-                                            dir_modelos: Path = Path("modelos")
-                                        ) -> dict:
+def treino_teste_para_processo_paralelo(nome: str, modelo: Any, x_treino: pd.DataFrame, y_treino: pd.DataFrame, x_teste: pd.DataFrame, y_teste: pd.DataFrame, dir_modelos: Path = Path("modelos")) -> dict:
     """Treina e testa um modelo de aprendizado de máquina.
 
     :param nome: nome do modelo
