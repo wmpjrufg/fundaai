@@ -146,39 +146,72 @@ uploaded_file = st.file_uploader(t["upload_label"], type=["xlsx","xls"])
 
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
+
     # Sanitização
     for col in df.columns:
         if col.startswith(("Fz-", "Mx-", "My-")):
             df[col] = df[col].astype(str).str.replace(",", ".", regex=False).astype(float)
-    
+
     # Cálculo da tensão admissível do solo
     from fundacao import tensao_adm_solo
-    df["tensao adm. (kPa)"] = df.apply(lambda row: tensao_adm_solo(row["solo"], row["spt"]), axis=1)
-    # Verifica elementos fora do intervalo
-    fora_intervalo = df[(df["tensao adm. (kPa)"] < sigma_limite_min) | (df["tensao adm. (kPa)"] > sigma_limite_max)].copy()
-    
+    df["tensao adm. (kPa)"] = df.apply(
+        lambda row: tensao_adm_solo(row["solo"], row["spt"]), axis=1
+    )
+
+    # Separação por faixas
+    abaixo_min = df[df["tensao adm. (kPa)"] < sigma_limite_min].copy()
+    acima_max = df[df["tensao adm. (kPa)"] > sigma_limite_max].copy()
+    fora_intervalo = pd.concat([abaixo_min, acima_max])
+
     st.success(t["upload_sucesso"])
     n_fun = df.shape[0]
     st.subheader(t["preview_header"])
     st.dataframe(df.head())
-    if fora_intervalo.empty:
+
+    # Identifica coluna do elemento
+    col_elemento = None
+    for nome_col in ["elemento", "Elemento", "id", "ID", "nome", "Nome"]:
+        if nome_col in df.columns:
+            col_elemento = nome_col
+            break
+
+    qtd_abaixo = len(abaixo_min)
+    qtd_acima = len(acima_max)
+    qtd_total = qtd_abaixo + qtd_acima
+
+    if qtd_total == 0:
         st.success("Todos os elementos estão dentro do intervalo desejado de tensão admissível.")
     else:
-        st.error(f"Foram encontrados {len(fora_intervalo)} elemento(s) com tensão admissível fora do intervalo desejado.")
+        mensagem = (
+            f"Foram encontrados {qtd_total} elemento(s) fora do intervalo. "
+            f"{qtd_abaixo} abaixo do permitido (recomenda-se outro tipo de fundação). "
+            f"{qtd_acima} acima do permitido (recomenda-se adotar tensão de {sigma_limite_max} kPa)."
+        )
+        st.error(mensagem)
 
-        # Caso exista uma coluna identificadora do elemento
-        col_elemento = None
-        for nome_col in ["elemento", "Elemento", "id", "ID", "nome", "Nome"]:
-            if nome_col in fora_intervalo.columns:
-                col_elemento = nome_col
-                break
-        if col_elemento is not None:
-            st.write("Elementos fora do intervalo:")
-            st.dataframe(
-                fora_intervalo[[col_elemento, "solo", "spt", "tensao adm. (kPa)"]])
-        else:
-            st.write("Linhas fora do intervalo:")
-            st.dataframe(fora_intervalo[["solo", "spt", "tensao adm. (kPa)"]])
+        # Mostra elementos abaixo do mínimo
+        if qtd_abaixo > 0:
+            st.warning("Elementos abaixo do limite mínimo:")
+            if col_elemento is not None:
+                st.dataframe(
+                    abaixo_min[[col_elemento, "solo", "spt", "tensao adm. (kPa)"]]
+                )
+            else:
+                st.dataframe(
+                    abaixo_min[["solo", "spt", "tensao adm. (kPa)"]]
+                )
+
+        # Mostra elementos acima do máximo
+        if qtd_acima > 0:
+            st.warning("Elementos acima do limite máximo:")
+            if col_elemento is not None:
+                st.dataframe(
+                    acima_max[[col_elemento, "solo", "spt", "tensao adm. (kPa)"]]
+                )
+            else:
+                st.dataframe(
+                    acima_max[["solo", "spt", "tensao adm. (kPa)"]]
+                )
 
 else:
     st.warning(t["upload_aviso"])
