@@ -237,6 +237,26 @@ def validador_tensao(sigma_limite_min: float, sigma_limite_max: float, sigma_adm
     return max(sigma_limite_min, min(sigma_adm, sigma_limite_max))
 
 
+def filtrar_restricoes_positivas(df: pd.DataFrame, colunas: list[str], coluna_elemento: str = "elemento") -> pd.DataFrame:
+    mask = df[colunas] > 0
+    df_filtrado = df.loc[mask.any(axis=1)].copy()
+
+    resultado = pd.DataFrame()
+    resultado[coluna_elemento] = df_filtrado[coluna_elemento]
+
+    resultado["restrições violadas"] = df_filtrado.apply(
+        lambda row: [col for col in colunas if row[col] > 0],
+        axis=1
+    )
+
+    resultado["valores de violação"] = df_filtrado.apply(
+        lambda row: {col: round(row[col], 4) for col in colunas if row[col] > 0},
+        axis=1
+    )
+
+    return resultado
+
+
 def obj_felipe_lucas(x, args):
 
     # Argumentos

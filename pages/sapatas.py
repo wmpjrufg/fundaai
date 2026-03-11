@@ -191,7 +191,7 @@ f_ck_kpa, cob_m = f_ck * 1000, cob / 100
 # --- 5. EXECUÇÃO DO CÁLCULO ---
 if st.button(t["btn_dimensionar"], type="primary"):
     from metapy_toolbox import ego_01_architecture, initial_population_01
-    from fundacao import obj_felipe_lucas, obj_teste, constroi_kernel
+    from fundacao import obj_felipe_lucas, obj_teste, constroi_kernel, filtrar_restricoes_positivas
     from mealpy import GA
     
     try:
@@ -226,8 +226,41 @@ if st.button(t["btn_dimensionar"], type="primary"):
             # Processamento de Resultados
             x_arr = np.asarray(x_new_aux).reshape(n_fun, 3)
             dados_final = pd.DataFrame(x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)'])
+
             best_of_aux, df_novo, phi_of_aux, diffs_of_aux = obj_teste(x_new_aux, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max, gamma_val))
             # --- Preparação do Arquivo Excel em Memória ---
+            col_elemento = 'Elemento'
+            # Colunas de restrição que definem sapata não resolvida
+            colunas_restricao = [
+                col for col in [
+                    "g sobreposicao",
+                    "g geometria3x",
+                    "g punção secao C",
+                    "g tensao",
+                    "g geometria"
+                ] if col in df_novo.columns
+            ]
+            # DataFrame contendo somente as sapatas com alguma restrição positiva
+            if colunas_restricao:
+                df_nao_resolvidas = filtrar_restricoes_positivas(
+                    df=df_novo,
+                    colunas=colunas_restricao,
+                    coluna_elemento=col_elemento
+                )
+            else:
+                df_nao_resolvidas = pd.DataFrame()
+
+            # Excel apenas das não resolvidas
+            buffer_nao_resolvidas = BytesIO()
+            with pd.ExcelWriter(buffer_nao_resolvidas, engine='xlsxwriter') as writer:
+                if not df_nao_resolvidas.empty:
+                    df_nao_resolvidas.to_excel(writer, index=False, sheet_name='Sapatas_Nao_Resolvidas')
+                else:
+                    pd.DataFrame({"mensagem": ["Nenhuma sapata não resolvida foi encontrada."]}).to_excel(
+                        writer, index=False, sheet_name='Sapatas_Nao_Resolvidas'
+                    )
+
+            # excel geral
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
                 dados_final.to_excel(writer, index=False, sheet_name='Dimensoes_Finais')
@@ -241,6 +274,7 @@ if st.button(t["btn_dimensionar"], type="primary"):
             st.session_state['calculo_realizado'] = True
             st.session_state['phi_of_valor'] = phi_of_aux
             st.session_state['diffs_of_valor'] = diffs_of_aux
+            st.session_state['excel_nao_resolvidas_buffer'] = buffer_nao_resolvidas.getvalue()
             
             # Gerar bytes do Excel (Omitido aqui por brevidade, mas deve seguir sua lógica original)
             st.success(t["sucesso_otim"])
@@ -259,11 +293,7 @@ if st.session_state.get('calculo_realizado'):
     
     with col1:
         st.dataframe(st.session_state['dados_final_df'], use_container_width=True)
-    
-    with col2:
-        st.metric("Volume Total", f"{st.session_state['best_of_valor']:.4f} m³")
-        # st.metric("Volume Total penalizado", f"{st.session_state['phi_of_valor']:.4f} m³")
-        
+
         # Botão de Download usando os bytes salvos no state
         st.download_button(
             label="📥 Baixar Resultados (Excel)",
@@ -271,3 +301,21 @@ if st.session_state.get('calculo_realizado'):
             file_name="otimizacao_fundacao.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+        if 'df_nao_resolvidas' in st.session_state and not st.session_state['df_nao_resolvidas'].empty:
+            st.markdown("### Sapatas não resolvidas")
+            st.dataframe(st.session_state['df_nao_resolvidas'], use_container_width=True)
+
+        st.download_button(
+            label="📥 Baixar sapatas não resolvidas (Excel)",
+            data=st.session_state['excel_nao_resolvidas_buffer'],
+            file_name="rol_sapatas_nao_resolvidas.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+   
+
+    with col2:
+        st.metric("Volume Total", f"{st.session_state['best_of_valor']:.4f} m³")
+        # st.metric("Volume Total penalizado", f"{st.session_state['phi_of_valor']:.4f} m³")
+        
+        
