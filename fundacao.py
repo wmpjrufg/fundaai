@@ -1,10 +1,13 @@
 """Esse script contém as funções que verificam uma sapata e que são usadas na interface do projeto."""
 
-
+import tempfile
+import pypandoc
+from datetime import datetime
 import numpy as np
 import joblib
 import multiprocessing as mp
 import re
+import os
 import pandas as pd
 from pathlib import Path
 import streamlit as st
@@ -14,6 +17,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.gaussian_process.kernels import RBF, Matern, RationalQuadratic, DotProduct, ExpSineSquared, ConstantKernel as C, WhiteKernel
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from typing import Any
+from textwrap import dedent
 
 
 def download_template(path: str | Path, label: str, filename: str):
@@ -600,3 +604,137 @@ def treino_teste_para_processo_paralelo(nome: str, modelo: Any, x_treino: pd.Dat
                 "y_pred": y_pred_teste
             }
 
+
+def checagem_tensao(linha, ncomb):
+    blocos_combinacoes = []
+
+    for j in range(1, ncomb + 1):
+        bloco = "\n".join([
+            f"### Combinação {j}",
+            "",
+            f"- Tensão máxima aplicada no solo: {linha[f'tensao max. (kPa) - c{j}']:.3f} kPa",
+            f"- Tensão mínima aplicada no solo: {linha[f'tensao min. (kPa) - c{j}']:.3f} kPa",
+            f"- Verificação de tensão máxima: {'Satisfeita' if linha[f'g tensao max. - c{j}'] <= 0 else 'Não satisfeita'}",
+            f"- Verificação de tensão mínima: {'Satisfeita' if linha[f'g tensao min. - c{j}'] <= 0 else 'Não satisfeita'}",
+        ])
+
+        blocos_combinacoes.append(bloco)
+
+    return "\n\n".join(blocos_combinacoes)
+
+
+
+def gerar_relatorio_completo_pt(dados_final, ncomb):
+    """
+    """
+
+    partes = []
+
+    cabecalho = dedent(f"""\
+    ---
+    title: "FUNDAAI"
+    subtitle: "Memorial de cálculo detalhado de fundações otimizadas"
+    author: "Sistema de Otimização de Fundações"
+    date: "{datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    lang: "pt-BR"
+    documentclass: article
+    classoption:
+      - a4paper
+      - 11pt
+    geometry: margin=2.5cm
+    numbersections: true
+    toc: true
+    header-includes:
+      - \\usepackage{{amsmath}}
+      - \\usepackage{{amssymb}}
+      - \\usepackage{{booktabs}}
+      - \\usepackage{{longtable}}
+      - \\usepackage{{array}}
+      - \\usepackage{{fancyhdr}}
+      - \\pagestyle{{fancy}}
+      - \\fancyhead[L]{{FUNDAAI}}
+      - \\fancyhead[R]{{Relatório Técnico}}
+      - \\fancyfoot[C]{{\\thepage}}
+    ---
+
+    # Resumo
+
+    Este documento apresenta o memorial de cálculo detalhado das fundações otimizadas, incluindo dados de entrada, verificações e etapas de cálculo.
+
+    # Introdução
+
+    O presente relatório foi gerado automaticamente pela plataforma **FUNDAAI** com finalidade técnica e acadêmica. O presente relatório utiliza ponto (.) como separador decimal.
+    """).strip()
+
+    partes.append(cabecalho)
+
+    for _, linha in dados_final.iterrows():
+        texto_tensoes = checagem_tensao(linha, ncomb)
+        bloco = dedent(f"""
+        # Fundação {linha["Elemento"]}
+
+        ## Dados de entrada
+
+        | Parâmetro | Valor | Unidade | Descrição |
+        |:--|--:|:--:|:--|
+        | ap | {linha["ap (m)"]} | m | Maior dimensão do pilar |
+        | bp | {linha["bp (m)"]} | m | Menor dimensão do pilar |
+        | spt | {linha["spt"]} | - | Número de golpes do SPT |
+        | hx | {linha["h_x (m)"]:.2f} | m | Dimensão da sapata na direção x |
+        | hy | {linha["h_y (m)"]:.2f} | m | Dimensão da sapata na direção y |
+        | hz | {linha["h_z (m)"]:.2f} | m | Altura da sapata |
+        | xg | {linha["xg (m)"]:.3f} | m | Coordenada x do centro geométrico |
+        | yg | {linha["yg (m)"]:.3f} | m | Coordenada y do centro geométrico |
+        | ncomb | {ncomb} | - | Número de combinações consideradas |
+
+        ## Tensão admissível do solo
+
+        A tensão admissível estimada a partir do SPT foi calculada por:
+
+        $$
+        \\sigma_{{adm}} = \\frac{{N_{{SPT}} \\times 1000}}{{50}} = \\frac{{{linha["spt"]} \\times 1000}}{{50}} = {linha["tensao adm. (kPa)"]:.3f} \\text{{ kPa}}
+        $$
+
+        ## Verificação de Tensão máxima e mínima aplicada no solo
+        
+        {texto_tensoes}
+
+        """).strip()
+        partes.append(bloco)
+    partes.append(dedent(f"""Este relatório foi gerado automaticamente em {datetime.now().strftime('%d/%m/%Y às %H:%M')}.""").strip())
+
+    return "\n\n\\newpage\n\n".join(partes)
+
+
+def markdown_para_pdf(conteudo_md):
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        extra_args = [
+            "--standalone",
+            "--pdf-engine=xelatex",
+            "--toc",
+            "--number-sections",
+            "-V", "geometry:margin=2.5cm"
+        ]
+
+        pypandoc.convert_text(
+            conteudo_md,
+            to="pdf",
+            format="markdown+tex_math_dollars",
+            outputfile=tmp_path,
+            extra_args=extra_args
+        )
+
+        if os.path.exists(tmp_path) and os.path.getsize(tmp_path) > 0:
+            with open(tmp_path, "rb") as f:
+                pdf_bytes = f.read()
+            os.unlink(tmp_path)
+            return pdf_bytes
+
+        raise RuntimeError("O arquivo PDF foi criado, mas está vazio.")
+
+    except Exception as e:
+        raise RuntimeError(f"Erro ao converter Markdown para PDF: {e}")
+    

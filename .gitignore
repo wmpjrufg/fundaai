@@ -3,6 +3,7 @@
 /__pycache__/
 /ambiente_fundaIA/
 !requirements.txt
+!packages.txt
 env/
 venv/
 myenv/

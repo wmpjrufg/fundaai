@@ -191,7 +191,7 @@ f_ck_kpa, cob_m = f_ck * 1000, cob / 100
 # --- 5. EXECUÇÃO DO CÁLCULO ---
 if st.button(t["btn_dimensionar"], type="primary"):
     from metapy_toolbox import ego_01_architecture, initial_population_01
-    from fundacao import obj_felipe_lucas, obj_teste, constroi_kernel
+    from fundacao import obj_felipe_lucas, obj_teste, constroi_kernel, gerar_relatorio_completo_pt, markdown_para_pdf
     from mealpy import GA
     
     try:
@@ -199,7 +199,7 @@ if st.button(t["btn_dimensionar"], type="primary"):
             # Cria um espaço vazio para o texto de status
             status_text = st.empty()
             # Lógica de Otimização
-            n_rep = 5
+            n_rep = 2
             x_l = [h_min_m] * 3 * n_fun
             x_u = [h_max_m] * 3 * n_fun
             x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
@@ -225,8 +225,13 @@ if st.button(t["btn_dimensionar"], type="primary"):
             # print("Melhor solução encontrada:", x_new_aux)
             # Processamento de Resultados
             x_arr = np.asarray(x_new_aux).reshape(n_fun, 3)
+            x_arr[:, 0] = np.round(x_arr[:, 0] / 0.05) * 0.05   # h_x
+            x_arr[:, 1] = np.round(x_arr[:, 1] / 0.05) * 0.05   # h_y
+            x_arr[:, 2] = np.round(x_arr[:, 2] / 0.10) * 0.10   # h_z
             dados_final = pd.DataFrame(x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)'])
             best_of_aux, df_novo, phi_of_aux, diffs_of_aux = obj_teste(x_new_aux, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max, gamma_val))
+            markdown_relatorio = gerar_relatorio_completo_pt(df_novo, n_comb)
+            pdf_bytes = markdown_para_pdf(markdown_relatorio)
             # --- Preparação do Arquivo Excel em Memória ---
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
@@ -241,6 +246,8 @@ if st.button(t["btn_dimensionar"], type="primary"):
             st.session_state['calculo_realizado'] = True
             st.session_state['phi_of_valor'] = phi_of_aux
             st.session_state['diffs_of_valor'] = diffs_of_aux
+            st.session_state['markdown_relatorio'] = markdown_relatorio
+            st.session_state['pdf_buffer'] = pdf_bytes
             
             # Gerar bytes do Excel (Omitido aqui por brevidade, mas deve seguir sua lógica original)
             st.success(t["sucesso_otim"])
@@ -271,3 +278,11 @@ if st.session_state.get('calculo_realizado'):
             file_name="otimizacao_fundacao.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+        if 'pdf_buffer' in st.session_state:
+            st.download_button(
+                label="📄 Baixar Relatório (PDF)",
+                data=st.session_state['pdf_buffer'],
+                file_name="relatorio_otimizacao_fundacao.pdf",
+                mime="application/pdf"
+            )
