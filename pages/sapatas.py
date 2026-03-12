@@ -258,7 +258,9 @@ if st.button(t["btn_dimensionar"], type="primary"):
             # print("Melhor solução encontrada:", x_new_aux)
             # Processamento de Resultados
             x_arr = np.asarray(x_new_aux).reshape(n_fun, 3)
-            dados_final = pd.DataFrame(x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)'])
+            volumes = x_arr[:, 0] * x_arr[:, 1] * x_arr[:, 2]
+            x_arr = np.hstack((x_arr, volumes.reshape(-1, 1)))
+            dados_final = pd.DataFrame(x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)', 'volume (m³)'])
 
             best_of_aux, df_novo, phi_of_aux, diffs_of_aux = obj_teste(x_new_aux, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max, gamma_val))
             # --- Preparação do Arquivo Excel em Memória ---
@@ -338,6 +340,8 @@ if st.session_state.get('calculo_realizado'):
         if 'df_nao_resolvidas' in st.session_state and not st.session_state['df_nao_resolvidas'].empty:
             st.markdown("### Sapatas não resolvidas")
             st.dataframe(st.session_state['df_nao_resolvidas'], use_container_width=True)
+        
+        
 
         st.download_button(
             label="📥 Baixar sapatas não resolvidas (Excel)",
@@ -345,7 +349,7 @@ if st.session_state.get('calculo_realizado'):
             file_name="rol_sapatas_nao_resolvidas.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-   
+  
 
     with col2:
         st.metric("Volume Total", f"{st.session_state['best_of_valor']:.4f} m³")
