@@ -623,7 +623,6 @@ def checagem_tensao(linha, ncomb):
     return "\n\n".join(blocos_combinacoes)
 
 
-
 def gerar_relatorio_completo_pt(dados_final, ncomb):
     """
     """

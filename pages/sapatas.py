@@ -43,6 +43,7 @@ def obter_textos():
             "h_max": "Dimensão máxima da sapata (cm)",
             "n_gen": "Número de gerações da otimização",
             "n_pop": "Tamanho da população",
+            "btn_validar": "🔍 Validar Planilha",
             "btn_dimensionar": "Dimensionar",
             "info_agentes": "Criação dos agentes...",
             "info_otim": "Otimizando o sistema...",
@@ -90,6 +91,7 @@ def obter_textos():
             "h_max": "Maximum footing dimension (cm)",
             "n_gen": "Number of optimization generations",
             "n_pop": "Population size",
+            "btn_validar": "🔍 Validate Spreadsheet",
             "btn_dimensionar": "Design",
             "info_agentes": "Creating agents...",
             "info_otim": "Optimizing the system...",
@@ -104,7 +106,6 @@ def obter_textos():
     }
 
 # --- 2. CONFIGURAÇÃO DA LÍNGUA ---
-# Pega o idioma do session_state definido no app.py (padrão 'pt' se não existir)
 lang = st.session_state.get("lang", "pt")
 t = obter_textos()[lang]
 
@@ -115,8 +116,6 @@ if 'calculo_realizado' not in st.session_state:
     st.session_state['calculo_realizado'] = False
 
 # --- 4. UPLOAD E INPUTS (Inserção de dados antes da planilha) ---
-
-# Colocamos os parâmetros gerais ANTES do upload para o usuário configurar o projeto primeiro
 st.markdown(t["params_header"])
 col1, col2 = st.columns(2)
 
@@ -146,6 +145,7 @@ uploaded_file = st.file_uploader(t["upload_label"], type=["xlsx","xls"])
 
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
+    
     # Sanitização
     for col in df.columns:
         if col.startswith(("Fz-", "Mx-", "My-")):
@@ -154,6 +154,7 @@ if uploaded_file is not None:
     # Cálculo da tensão admissível do solo
     from fundacao import tensao_adm_solo
     df["tensao adm. (kPa)"] = df.apply(lambda row: tensao_adm_solo(row["solo"], row["spt"]), axis=1)
+    
     # Verifica elementos fora do intervalo
     fora_intervalo = df[(df["tensao adm. (kPa)"] < sigma_limite_min) | (df["tensao adm. (kPa)"] > sigma_limite_max)].copy()
     
@@ -161,24 +162,76 @@ if uploaded_file is not None:
     n_fun = df.shape[0]
     st.subheader(t["preview_header"])
     st.dataframe(df.head())
-    if fora_intervalo.empty:
-        st.success("Todos os elementos estão dentro do intervalo desejado de tensão admissível.")
-    else:
-        st.error(f"Foram encontrados {len(fora_intervalo)} elemento(s) com tensão admissível fora do intervalo desejado.")
-
-        # Caso exista uma coluna identificadora do elemento
-        col_elemento = None
-        for nome_col in ["elemento", "Elemento", "id", "ID", "nome", "Nome"]:
-            if nome_col in fora_intervalo.columns:
-                col_elemento = nome_col
-                break
-        if col_elemento is not None:
-            st.write("Elementos fora do intervalo:")
-            st.dataframe(
-                fora_intervalo[[col_elemento, "solo", "spt", "tensao adm. (kPa)"]])
+    
+    # --- BLOCO DO BOTÃO DE VALIDAÇÃO ---
+    if st.button(t["btn_validar"]):
+        
+        # 1. VERIFICAÇÃO DE TENSÃO ADMISSÍVEL DO SOLO
+        st.markdown("### 🛑 Verificação de Tensão Admissível")
+        col_elemento = next((col for col in ["elemento", "Elemento", "id", "ID", "nome", "Nome"] if col in df.columns), None)
+        
+        if fora_intervalo.empty:
+            st.success("Todos os elementos estão dentro do intervalo desejado de tensão admissível.")
         else:
-            st.write("Linhas fora do intervalo:")
-            st.dataframe(fora_intervalo[["solo", "spt", "tensao adm. (kPa)"]])
+            st.error(f"Foram encontrados {len(fora_intervalo)} elemento(s) com tensão admissível fora do intervalo desejado.")
+            if col_elemento:
+                st.dataframe(fora_intervalo[[col_elemento, "solo", "spt", "tensao adm. (kPa)"]])
+            else:
+                st.dataframe(fora_intervalo[["solo", "spt", "tensao adm. (kPa)"]])
+
+        st.divider()
+
+        # 2. PRÉ-DIMENSIONAMENTO: SUGESTÃO DE SAPATA QUADRADA
+        st.markdown("### 📏 Estimativa de Dimensão Inicial (Sapata Quadrada)")
+        st.write("Calculando a dimensão mínima da base para que a tensão máxima atenda a capacidade do solo...")
+        
+        from fundacao import calcular_sigma_max_min 
+        
+        # Identifica as combinações dinamicamente a partir das colunas Fz
+        labels_comb = [col.split('-')[1] for col in df.columns if col.startswith('Fz-')]
+
+        def estimar_b_quadrado(row):
+            b_teste = 0.60 # Começa testando uma sapata de 60 cm
+            limite_b = 50.00 # Limite de segurança aumentado para 50 metros
+            tensao_adm = row['tensao adm. (kPa)']
+            
+            while b_teste <= limite_b:
+                passou_em_todas = True
+                
+                # Checa todas as combinações para este tamanho de B
+                for i in labels_comb:
+                    fz = row.get(f'Fz-{i}', 0)
+                    mx = row.get(f'Mx-{i}', 0)
+                    my = row.get(f'My-{i}', 0)
+                    
+                    # Retorna tensão max e min. Pegamos apenas a max [0]
+                    sigma_max, _ = calcular_sigma_max_min(fz, mx, my, b_teste, b_teste, gamma_val)
+                    
+                    # Se estourar a tensão, essa dimensão é insuficiente
+                    if sigma_max > tensao_adm:
+                        passou_em_todas = False
+                        break 
+                
+                if passou_em_todas:
+                    return f"{b_teste:.2f}" 
+                
+                b_teste += 0.05 # Incrementa de 5 em 5 cm
+                
+            return "> 50.00" # Se ultrapassar 50 metros
+
+        with st.spinner("Processando estimativas iterativas..."):
+            df_sugestao = df.copy()
+            df_sugestao['Dimensão Sugerida (m)'] = df_sugestao.apply(estimar_b_quadrado, axis=1) ######### Multiplicar por um valor 1.3 ou 1.3 (xxxx)
+            
+            # Prepara colunas de exibição
+            colunas_exibicao = []
+            if col_elemento:
+                colunas_exibicao.append(col_elemento)
+            colunas_exibicao.extend(['solo', 'spt', 'tensao adm. (kPa)', 'Dimensão Sugerida (m)'])
+            
+            st.dataframe(df_sugestao[colunas_exibicao], use_container_width=True)
+            st.info("💡 **Dica:** Utilize as dimensões sugeridas na tabela acima para balizar os parâmetros de **Dimensão mínima** e **Dimensão máxima** e garantir que o otimizador encontre soluções viáveis.")
+    # --- FIM DO BLOCO DE VALIDAÇÃO ---
 
 else:
     st.warning(t["upload_aviso"])
@@ -188,6 +241,8 @@ else:
 h_min_m, h_max_m = h_min / 100, h_max / 100
 f_ck_kpa, cob_m = f_ck * 1000, cob / 100 
 
+st.divider()
+
 # --- 5. EXECUÇÃO DO CÁLCULO ---
 if st.button(t["btn_dimensionar"], type="primary"):
     from metapy_toolbox import ego_01_architecture, initial_population_01
@@ -196,14 +251,14 @@ if st.button(t["btn_dimensionar"], type="primary"):
     
     try:
         with st.spinner(t["info_otim"]):
-            # Cria um espaço vazio para o texto de status
             status_text = st.empty()
+            
             # Lógica de Otimização
             n_rep = 2
             x_l = [h_min_m] * 3 * n_fun
             x_u = [h_max_m] * 3 * n_fun
             x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
-            # paras_opt = {'optimizer algorithm': 'scipy_slsqp'}
+            
             paras_opt = {'optimizer algorithm': GA.BaseGA(epoch=50, pop_size=150)}
             k = constroi_kernel()
             paras_kernel = {'kernel': k[-1]}
@@ -211,27 +266,27 @@ if st.button(t["btn_dimensionar"], type="primary"):
             best_of_aux = np.inf
             
             for rep in range(n_rep):
-                # Atualiza o texto na tela
                 status_text.write(f"🔄 **Executando tentativa {rep + 1} de {n_rep}...**")
                 x_new, best_of, _ = ego_01_architecture(
-                                                            obj_felipe_lucas, n_gen, x_ini, x_l, x_u, 
-                                                            paras_opt, paras_kernel, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max, gamma_val)
-                                                        )
+                                                        obj_felipe_lucas, n_gen, x_ini, x_l, x_u, 
+                                                        paras_opt, paras_kernel, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max, gamma_val)
+                                                    )
                 if best_of < best_of_aux:
                     best_of_aux = best_of
                     x_new_aux = x_new
 
-            # print("Melhor OF encontrado:", best_of_aux)
-            # print("Melhor solução encontrada:", x_new_aux)
             # Processamento de Resultados
             x_arr = np.asarray(x_new_aux).reshape(n_fun, 3)
             x_arr[:, 0] = np.round(x_arr[:, 0] / 0.05) * 0.05   # h_x
             x_arr[:, 1] = np.round(x_arr[:, 1] / 0.05) * 0.05   # h_y
             x_arr[:, 2] = np.round(x_arr[:, 2] / 0.10) * 0.10   # h_z
+            
             dados_final = pd.DataFrame(x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)'])
             best_of_aux, df_novo, phi_of_aux, diffs_of_aux = obj_teste(x_new_aux, args=(df, n_comb, f_ck_kpa, cob_m, sigma_limite_min, sigma_limite_max, gamma_val))
+            
             markdown_relatorio = gerar_relatorio_completo_pt(df_novo, n_comb)
             pdf_bytes = markdown_para_pdf(markdown_relatorio)
+            
             # --- Preparação do Arquivo Excel em Memória ---
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
@@ -249,7 +304,6 @@ if st.button(t["btn_dimensionar"], type="primary"):
             st.session_state['markdown_relatorio'] = markdown_relatorio
             st.session_state['pdf_buffer'] = pdf_bytes
             
-            # Gerar bytes do Excel (Omitido aqui por brevidade, mas deve seguir sua lógica original)
             st.success(t["sucesso_otim"])
             st.rerun()
 
@@ -269,9 +323,7 @@ if st.session_state.get('calculo_realizado'):
     
     with col2:
         st.metric("Volume Total", f"{st.session_state['best_of_valor']:.4f} m³")
-        # st.metric("Volume Total penalizado", f"{st.session_state['phi_of_valor']:.4f} m³")
         
-        # Botão de Download usando os bytes salvos no state
         st.download_button(
             label="📥 Baixar Resultados (Excel)",
             data=st.session_state['excel_buffer'],
