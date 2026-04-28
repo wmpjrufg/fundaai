@@ -1,22 +1,31 @@
-"""Core package of the FundaIA project — pure domain code.
+"""Core package of the FundaIA project — framework-free project code.
 
-This package hosts the architectural layers that are independent of any
-presentation framework (Streamlit, CLI, notebooks). It is the long-term
-home of the engineering, optimisation, I/O and API layers, and is being
-populated incrementally during Sprint 3 of the refactor roadmap.
+Hosts the architectural layers that are independent of any
+presentation framework (Streamlit, CLI, notebooks). The full layout
+materialised across Sprints 3.1 → 4.7 of the refactor roadmap.
 
-Camadas (referência rápida em português):
-    * ``core.domain``       — business entities (Solo, Pilar, Sapata, ...).
-    * ``core.engineering``  — pure analytical checks (NBR 6118 / 6122).
-    * ``core.optimization`` — EGO/GA/GWO algorithms (will absorb metapy_toolbox).
-    * ``core.io``           — Excel readers/writers and DXF export.
-    * ``core.api``          — high-level functions used by the UI/CLI.
+Camadas:
+    * ``core.domain``         — business entities (Solo, Pilar,
+                                 Combinacao, Sapata, FundacaoProjeto).
+    * ``core.engineering``    — pure analytical checks (NBR 6118 / 6122).
+    * ``core.optimization``   — EGO / GA / GWO algorithms + benchmark
+                                 functions + ``SurrogateCache`` (the
+                                 retired ``metapy_toolbox`` was folded
+                                 here in Sprint 3.6 and removed in 4.3).
+    * ``core.io``             — Excel reader, DXF writer and the
+                                 ``ExperimentRecorder`` /
+                                 ``load_experiment`` persistence layer.
+    * ``core.api``            — high-level functions consumed by the
+                                 UI / CLI / notebooks (``optimize``,
+                                 ``evaluate``, ``OptimisationConfig``).
+    * ``core.observability``  — structured JSON logging primitives
+                                 (``configure_logging``, ``run_context``,
+                                 ``get_logger``) shared by every layer.
 
-Migration policy (current sprint — 3.1):
-    The package starts empty on purpose. No production code from
-    ``fundacao.py`` or ``metapy_toolbox/`` has been moved yet. The
-    intent is to ship the skeleton first, validate that the test suite
-    stays green, and then migrate logic file by file in subsequent
-    sprints — always preserving the regression baseline
-    ``of = 19.70604234767181`` (see ``tests/test_avaliar_projeto.py``).
+Dependency direction (enforced by convention, see ARCHITECTURE.md):
+    domain  ←  engineering / optimization / io  ←  api  ←  frontend.
+
+Acceptance criterion preserved across every commit:
+    ``tests/test_avaliar_projeto.py::test_baseline_three_foundations_returns_19_706``
+    must keep locking ``of = 19.70604234767181`` (rel=1e-12).
 """

@@ -123,8 +123,13 @@ em numpy desde a Sprint 3.8 (`core.engineering.sobreposicao_matrix`).
                                 │
                           frontend/                 ← Streamlit only
                           ├── pages/
-                          ├── components/   (planned: 3D viewer,
-                          └── i18n/          EGO chart, GPR plots)
+                          ├── components/   (3D viewer, EGO history
+                          │                  chart, exports;
+                          │                  GPR diagnostics planned)
+                          ├── theme/        (palette + Plotly template
+                          │                  + CSS overrides)
+                          └── i18n/         (centralised PT/EN —
+                                             planned, scaffolded only)
                                 │
                           core.api                  ← optimize / evaluate
                           (OptimisationConfig, OptimisationResult,
@@ -183,17 +188,21 @@ fundaIA/
 │       ├── types.py
 │       └── _adapter.py
 │
-├── frontend/                    # camada Streamlit (Sprint 4.3)
+├── frontend/                    # camada Streamlit (Sprint 4.3+)
 │   ├── pages/
 │   │   ├── home.py              # página inicial PT/EN + download do template
 │   │   └── sapatas.py           # página de dimensionamento (shell fino)
-│   ├── components/              # widgets reutilizáveis (planned)
+│   ├── components/              # widgets reutilizáveis (Sprints 4.5–4.7)
+│   │   ├── footings_3d.py       # visualizador 3D (Plotly + presets/lighting)
+│   │   ├── ego_chart.py         # gráfico premium do histórico do EGO
+│   │   └── result_export.py     # bundle DXF/JSON/HTML/PNG
+│   ├── theme/                   # paleta + Plotly template + CSS (Sprint 4.6)
 │   └── i18n/                    # dicionários PT/EN centralizados (planned)
 │
 ├── fundacao.py                  # compat shim (núcleo de FO + helpers GPR)
 │                                # — track de deprecação descrito em ARCHITECTURE.md
 │
-├── tests/                       # suite pytest (162 testes, ~6 s)
+├── tests/                       # suite pytest (219 testes, ~8 s)
 │   ├── conftest.py
 │   ├── test_engenharia.py
 │   ├── test_avaliar_projeto.py
@@ -461,7 +470,7 @@ o comportamento numérico atual e para o contrato de cada camada,
 viabilizando refatorações sem regressão silenciosa.
 
 ```bash
-# Toda a suite (162 testes em ~6 segundos)
+# Toda a suite (219 testes em ~8 segundos)
 pytest
 
 # Por marker
@@ -471,20 +480,26 @@ pytest -m optimization  # contrato EGO/GPR + cache + recorder
 pytest -m benchmark     # funções clássicas (sphere, rosenbrock, ...)
 ```
 
-Distribuição (pós-Sprint 4.3):
+Distribuição (pós-Sprint 4.8):
 
-| Arquivo                       | Testes |
-|-------------------------------|--------|
-| `tests/test_engenharia.py`    | 31     |
-| `tests/test_domain.py`        | 15     |
-| `tests/test_api.py`           | 26     |
-| `tests/test_io.py`            | 21     |
-| `tests/test_cache.py`         | 23     |
-| `tests/test_experiments.py`   | 17     |
-| `tests/test_ego_historico.py` |  8     |
-| `tests/test_benchmark.py`     | 15     |
-| `tests/test_avaliar_projeto.py`|  6     |
-| **Total**                     | **162**|
+| Arquivo                          | Testes |
+|----------------------------------|-------:|
+| `tests/test_engenharia.py`       | 37     |
+| `tests/test_domain.py`           | 16     |
+| `tests/test_api.py`              | 26     |
+| `tests/test_io.py`               | 21     |
+| `tests/test_cache.py`            | 23     |
+| `tests/test_experiments.py`      | 19     |
+| `tests/test_ego_historico.py`    |  8     |
+| `tests/test_benchmark.py`        | 15     |
+| `tests/test_avaliar_projeto.py`  |  6     |
+| `tests/test_observability.py`    |  9     |
+| `tests/test_components_3d.py`    | 17     |
+| `tests/test_ego_chart.py`        |  9     |
+| `tests/test_result_export.py`    |  7     |
+| `tests/test_theme.py`            |  5     |
+| `tests/test_funcs.py`            |  3     |
+| **Total**                        | **221**|
 
 A regressão `of = 19,70604234767181` para o caso
 `assets/data/problema_fund_três.xlsx` com seed canônica é travada
@@ -550,6 +565,12 @@ Marcos das sprints concluídas (detalhe completo em
   `n_rep` exposto na UI, default `n_gen` subido para 20,
   flicker do 3D corrigido (lighting reduzido + hover
   desabilitado em grid/contorno do terreno).
+- ✅ **Sprint 4.8** — limpeza de auditoria: `Solo` deixa de
+  importar `core.engineering` (pureza arquitetural), índice
+  seguro em `best_avg_worst`, testes de borda para os
+  helpers de engenharia, input morto `n_comb` removido,
+  pendências de documentação purgadas, `env_setup.py`
+  alinhado com `.venv`.
 
 ---
 

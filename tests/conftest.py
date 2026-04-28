@@ -1,7 +1,7 @@
 """Configuracao compartilhada da suite de testes do FundaIA.
 
 Adiciona a raiz do repositorio ao sys.path para que os testes possam
-importar `fundacao` e `metapy_toolbox` sem necessidade de instalar o
+importar `fundacao` e `core.*` sem necessidade de instalar o
 projeto. Tambem expoe fixtures comuns (caminho dos assets, dataframe
 canonico do problema de tres fundacoes, configuracao de calibracao
 historica) reutilizadas em multiplos arquivos de teste.

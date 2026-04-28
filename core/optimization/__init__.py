@@ -1,6 +1,6 @@
 """Optimization layer — surrogate-assisted global optimisation.
 
-This subpackage hosts the algorithms that historically lived under
+This subpackage hosts the algorithms that originally lived under
 ``metapy_toolbox``:
 
     * Common utilities (Latin Hypercube sampling, fitness, evaluation,
@@ -12,15 +12,16 @@ This subpackage hosts the algorithms that historically lived under
     * Grey Wolf Optimizer in ``grey_wolf``.
     * Hybrid Efficient Global Optimization (EGO) architecture with GPR
       surrogate in ``ego``.
+    * Content-addressed surrogate cache in ``cache``.
 
-The legacy package ``metapy_toolbox`` is now a backwards-compatibility
-shim that re-exports from this subpackage, so existing imports such as
-``from metapy_toolbox import ego_01_architecture`` keep working.
+The legacy package ``metapy_toolbox`` was retired in **Sprint 4.3**;
+all imports must use ``from core.optimization import ...`` directly.
 
 Resumo em português:
-    Camada de otimização. Hospeda EGO+GPR+AG, GWO, funções benchmark e
-    utilitários comuns, todos migrados de ``metapy_toolbox``. O pacote
-    antigo permanece como camada de compatibilidade.
+    Camada de otimização. Hospeda EGO+GPR+AG, GWO, funções benchmark,
+    utilitários comuns e o cache do surrogate. Todo código novo deve
+    importar diretamente de ``core.optimization``; o pacote
+    ``metapy_toolbox`` foi removido na Sprint 4.3.
 """
 
 from .funcs import *   # noqa: F401, F403  (intentional re-export)

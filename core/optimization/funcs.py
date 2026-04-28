@@ -241,20 +241,28 @@ def best_avg_worst(df: pd.DataFrame, d: int) -> pd.DataFrame:
     df_resume.loc[0, 'ITER'] = df['ITER'].values[-1]
     df_resume.loc[0, 'OF EVALUATIONS'] = df['OF EVALUATIONS'].values[-1]
 
-    # Find best, worst and statistics
-    best_idx = int(df['OF'].idxmin())
-    worst_idx = int(df['OF'].idxmax())
-    df_resume.loc[0, 'BEST ID'] = best_idx
+    # Find best, worst and statistics. ``idxmin`` / ``idxmax`` return
+    # the *label* of the row, which only equals the positional index
+    # when df.index is the default RangeIndex (0..n-1). To stay safe
+    # against filtered DataFrames (where the index can be e.g. [5, 6])
+    # we look the X columns up by label via ``df.loc[best_idx, ...]``
+    # rather than positional access via ``.values[best_idx]``.
+    best_idx = df['OF'].idxmin()
+    worst_idx = df['OF'].idxmax()
+    df_resume.loc[0, 'BEST ID'] = int(best_idx) if isinstance(best_idx, (int, np.integer)) else best_idx
     df_resume.loc[0, 'OF BEST'] = df.loc[:, 'OF'].min()
-    df_resume.loc[0, 'WORST ID'] = worst_idx
+    df_resume.loc[0, 'WORST ID'] = int(worst_idx) if isinstance(worst_idx, (int, np.integer)) else worst_idx
     df_resume.loc[0, 'OF WORST'] = df.loc[:, 'OF'].max()
     df_resume.loc[0, 'MEAN OF'] = df.loc[:, 'OF'].mean()
     df_resume.loc[0, 'STD OF'] = df.loc[:, 'OF'].std()
 
-    # Add X_BEST and X_WORST values for all rows
+    # Add X_BEST and X_WORST values for all rows. Use .loc so a
+    # non-default index (e.g. after df.query / df.iloc[a:b] without
+    # reset_index) still resolves correctly.
     for j in range(d):
-        df_resume.loc[0, 'X_BEST_' + str(j)] = df['X_' + str(j)].values[best_idx]
-        df_resume.loc[0, 'X_WORST_' + str(j)] = df['X_' + str(j)].values[worst_idx]
+        col = 'X_' + str(j)
+        df_resume.loc[0, 'X_BEST_' + str(j)] = df.loc[best_idx, col]
+        df_resume.loc[0, 'X_WORST_' + str(j)] = df.loc[worst_idx, col]
 
     return df_resume
 

@@ -28,18 +28,33 @@ from core.domain import (
 class TestSolo:
     """This class verifies the ``Solo`` immutable entity.
 
-    Confirms field acceptance, the ``sigma_adm_kpa`` derivation against
-    the engineering helper and the SPT validation invariant.
+    Confirms field acceptance, the SPT validation invariant and that
+    the entity itself does not import the engineering layer (so the
+    architectural rule "core.domain depends on nothing inside the
+    project" stays intact).
     """
 
-    def test_sigma_adm_delegates_to_engineering(self):
-        """This test ensures ``sigma_adm_kpa`` returns the engineering layer value.
+    def test_pure_data_container_no_engineering_import(self):
+        """This test ensures Solo carries data but does not derive sigma_adm.
 
-        :return: None (internal asserts)
+        Sigma_adm is computed by the engineering layer and exposed
+        via ``core.engineering.tensao_adm_solo``; the entity must
+        not provide that as a method or property.
         """
-        assert Solo("argila", 50).sigma_adm_kpa == pytest.approx(1000.0)
-        assert Solo("areia", 40).sigma_adm_kpa == pytest.approx(1000.0)
-        assert Solo("pedregulho", 30).sigma_adm_kpa == pytest.approx(1000.0)
+        s = Solo("argila", 50)
+        assert s.tipo == "argila" and s.spt == 50
+        assert not hasattr(s, "sigma_adm_kpa")
+
+    def test_admissible_pressure_delegated_to_engineering_helper(self):
+        """This test verifies the canonical correlation through the engineering helper.
+
+        Callers that need sigma_adm import the helper explicitly:
+        ``from core.engineering import tensao_adm_solo``.
+        """
+        from core.engineering import tensao_adm_solo
+        assert tensao_adm_solo("argila", 50) == pytest.approx(1000.0)
+        assert tensao_adm_solo("areia", 40) == pytest.approx(1000.0)
+        assert tensao_adm_solo("pedregulho", 30) == pytest.approx(1000.0)
 
     def test_negative_spt_raises(self):
         """This test ensures the SPT non-negativity invariant.

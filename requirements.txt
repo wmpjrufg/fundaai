@@ -5,7 +5,7 @@
 #
 # Dependências de notebooks (jupyter) e auxiliares de manutenção (pip-chill)
 # permanecem aqui por compatibilidade com o fluxo atual da equipe.
-# Dependências de operação (playwright) seguem isoladas em ops/requirements.txt.
+# Dependências de operação (playwright) seguem isoladas em scripts/requirements.txt.
 # =============================================================================
 
 # --- Núcleo numérico / científico --------------------------------------------

@@ -1,4 +1,4 @@
-"""Testes das funcoes benchmark de `metapy_toolbox.benchmark`.
+"""Testes das funcoes benchmark de `core.optimization.benchmark`.
 
 Cada funcao classica deve respeitar duas garantias minimas:
     * `f(x*) = f_min` no minimo global conhecido (`x*` da literatura).

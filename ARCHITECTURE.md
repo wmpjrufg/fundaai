@@ -74,8 +74,9 @@ must keep locking ``of = 19.70604234767181`` after every commit.
 | `core.io`             | Excel reader, DXF writer, experiment recorder/loader (`ExperimentRecorder`, `load_experiment`, `summarise_history`, `compute_metrics`) | Streamlit, sklearn, mealpy |
 | `core.api`            | `optimize(project, config, *, recorder, cache)`, `evaluate(project, sapatas)`, public types `OptimisationConfig`, `OptimisationResult`, `EvaluationResult` | Streamlit |
 | `frontend.pages`      | Streamlit widgets, session state, file uploads, page-level rendering | Direct imports of engineering or optimisation modules |
-| `frontend.components` | Reusable Streamlit widgets (3D viewer, EGO curve chart, GPR plots) — **planned**; package scaffolded only | Engineering or optimisation logic |
+| `frontend.components` | Reusable Plotly/Streamlit widgets — populated in Sprints 4.5–4.7: ``footings_3d.render_footings_3d`` (3D viewer with camera presets, lighting, terrain), ``ego_chart.render_ego_history`` (per-rep convergence + time bars, hover-closest, scrollZoom), ``result_export.build_export_artifacts`` (DXF/JSON/HTML/PNG bundle). GPR diagnostics still **planned**. | Engineering or optimisation logic |
 | `frontend.i18n`       | Centralised PT/EN translation dictionaries — **planned**; package scaffolded only | Anything stateful |
+| `frontend.theme`      | Single source of truth for visual identity: ``PALETTE`` mirroring ``.streamlit/config.toml``, the ``"fundaia_dark"`` Plotly template, and ``apply_theme()`` that injects the supplemental CSS layer. | Engineering or optimisation logic |
 
 ---
 
@@ -110,9 +111,15 @@ fundaIA/
 │       ├── types.py
 │       └── _adapter.py
 │
-├── frontend/                  ← Streamlit-only layer (Sprint 4.3)
+├── frontend/                  ← Streamlit-only layer (Sprint 4.3+)
 │   ├── pages/{home,sapatas}.py
-│   ├── components/            ← scaffold (3D viewer, EGO/GPR plots planned)
+│   ├── components/
+│   │   ├── footings_3d.py     ← interactive 3D viewer (Sprint 4.5/4.7)
+│   │   ├── ego_chart.py       ← EGO history premium chart (Sprint 4.6/4.7)
+│   │   └── result_export.py   ← DXF/JSON/HTML/PNG bundle (Sprint 4.6)
+│   ├── theme/                 ← palette + Plotly template + CSS (Sprint 4.6)
+│   │   ├── palette.py
+│   │   └── css.py
 │   └── i18n/                  ← scaffold (centralised PT/EN dicts planned)
 │
 ├── fundacao.py                ← legacy compat shim — see "Deprecation tracks" below
@@ -160,12 +167,17 @@ fundaIA/
 | **4.1**| `SurrogateCache` for the GPR pipeline (LRU + optional joblib disk).                       | 145   |
 | **4.2**| `ExperimentRecorder` + `load_experiment`; per-run folder with manifest + Parquet history. | 162   |
 | **4.3**| Repository reorganisation (frontend/, scripts/, notebooks/, archive/, assets/data/) + docs. | 162   |
+| **4.4**| Structured JSON logging in ``core.observability/`` with ``run_context`` and named events. | 171   |
+| **4.5**| 3D footings viewer (``frontend.components.footings_3d``) with Plotly + camera presets. | 183   |
+| **4.6**| Premium UI: dark theme + Plotly template + EGO history chart + unified export panel; recorder + cache default-on in the UI. | 205   |
+| **4.7**| UI polish: live progress callback, hover-closest charts, full-width 3D section, ``n_rep`` input, stable lighting (no flicker). | 211   |
+| **4.8**| Audit cleanup: domain purity (Solo no longer imports engineering), idxmin index-safety in ``best_avg_worst``, engineering edge-case guardrail tests, dead ``n_comb`` input removed, stale ``metapy_toolbox`` mentions purged from docs/tests, ``env_setup.py`` aligned with ``.venv`` convention. | 221   |
 
 ---
 
 ## Acceptance criteria for every commit
 
-1. `pytest` is green (162 tests at the end of Sprint 4.3).
+1. `pytest` is green (221 tests at the end of Sprint 4.8).
 2. The regression test
    `tests/test_avaliar_projeto.py::test_baseline_three_foundations_returns_19_706`
    keeps locking ``of = 19.70604234767181``.
@@ -202,18 +214,29 @@ exposes:
 
 The file is **safe to import** but should not grow new functions.
 
-### `frontend/components/` and `frontend/i18n/` (placeholders)
+### `frontend/components/` and `frontend/i18n/`
 
-Scaffolded in Sprint 4.3 but not yet populated. Future moves:
+`frontend/components/` was scaffolded in Sprint 4.3 and populated
+across Sprints 4.5–4.7:
+
+- `footings_3d.py` — interactive 3D viewer (Sprints 4.5 / 4.7).
+- `ego_chart.py` — premium EGO history chart (Sprints 4.6 / 4.7).
+- `result_export.py` — DXF/JSON/HTML/PNG bundle (Sprint 4.6).
+
+Still planned:
+
+- A `frontend/components/footings_2d.py` to unbundle the matplotlib
+  layout helper currently inlined in `frontend/pages/sapatas.py`.
+- A `frontend/components/gpr_diagnostics.py` for GPR
+  hyperparameter / residual visualisations (paired plots, banda de
+  incerteza, kernel hyperparameter trace).
+
+`frontend/i18n/` is **still scaffolded only** and pending a first
+migration:
 
 - The PT/EN dict in `app.py` (`titulos_nav`) → `frontend/i18n/nav.py`.
-- The plot helpers `_plot_layout` and `_plot_layout_3d` from
-  `frontend/pages/sapatas.py` → `frontend/components/footings_2d.py`
-  and `frontend/components/footings_3d.py`.
-- A new `frontend/components/ego_charts.py` for the per-iteration
-  best-so-far plot consuming `ExperimentRun.history`.
-- A new `frontend/components/gpr_diagnostics.py` for GPR
-  hyperparameter / residual visualisations.
+- The PT/EN dicts inside `frontend/pages/sapatas.py::obter_textos`
+  → `frontend/i18n/sapatas.py`.
 
 ### `archive/`
 

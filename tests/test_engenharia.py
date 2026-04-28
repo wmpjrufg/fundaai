@@ -498,3 +498,74 @@ class TestSobreposicaoMatrix:
         m = sobreposicao_matrix(xmin, xmax, ymin, ymax)
         assert m.shape == (1, 1)
         assert m[0, 0] == 0.0
+
+
+# =============================================================================
+# Guardrails — edge cases of the analytical helpers (Sprint 4.8)
+# =============================================================================
+@pytest.mark.engineering
+class TestEngineeringEdgeCases:
+    """This class documents edge-case behaviour of the engineering helpers.
+
+    The audit raised four concerns:
+      1. tensao_adm_solo with unknown soil silently falls back to spt/50.
+      2. tensao_adm_solo with spt=0 returns 0; downstream divisions blow up.
+      3. calcular_sigma_max_min divides by f_zk; f_zk=0 explodes.
+      4. verificacao_puncao_sapata uses d = h_z - cob; h_z <= cob explodes.
+    These tests pin the **current** behaviour so a future fix is an
+    intentional change reviewed against the regression baseline.
+    """
+
+    def test_tensao_adm_solo_unknown_soil_falls_back_to_spt_over_50(self):
+        """An unknown soil label silently picks the silte/argila branch.
+
+        Locked here as a guardrail. The Excel reader already validates
+        the soil string against the official set, so this branch is
+        only reachable from direct programmatic calls; if a future
+        sprint replaces the silent fallback with a ValueError, this
+        test must be updated explicitly.
+        """
+        assert tensao_adm_solo("pedra rara", 50) == pytest.approx(1000.0)
+        assert tensao_adm_solo("UNKNOWN", 25) == pytest.approx(500.0)
+
+    def test_tensao_adm_solo_spt_zero_returns_zero(self):
+        """spt=0 -> sigma_adm=0; downstream callers must handle this."""
+        assert tensao_adm_solo("argila", 0) == 0.0
+
+    def test_checagem_tensao_zero_admissible_is_undefined(self):
+        """sigma_adm=0 raises ZeroDivisionError; downstream guard required."""
+        with pytest.raises(ZeroDivisionError):
+            checagem_tensao_max_min(sigma=10.0, sigma_adm=0.0)
+
+    def test_sigma_max_min_zero_load_raises(self):
+        """f_zk=0 makes the moment ratios undefined; raises ZeroDivisionError."""
+        with pytest.raises(ZeroDivisionError):
+            calcular_sigma_max_min(f_zk=0.0, m_xk=10.0, m_yk=10.0,
+                                   h_x=1.0, h_y=1.0)
+
+    def test_puncao_h_z_equal_to_cover_raises(self):
+        """h_z == cob makes d = 0; the formula raises ZeroDivisionError.
+
+        Pinned as a known unsafe regime: the optimiser bounds h_z
+        above the cover by construction, but a direct caller must
+        ensure h_z > cob themselves. A future sprint may add an
+        explicit ``ValueError`` upfront; this test will then need to
+        be updated to assert ``ValueError`` instead.
+        """
+        with pytest.raises(ZeroDivisionError):
+            verificacao_puncao_sapata(
+                h_z=0.04, f_ck=25_000.0, a_p=0.30, b_p=0.30,
+                f_zk=500.0, cob=0.04,
+            )
+
+    def test_puncao_h_z_below_cover_yields_negative_stress(self):
+        """h_z < cob makes d < 0; the formula returns a negative tau_sd2.
+
+        Same regime as above: the optimiser does not visit it, but
+        a direct caller must guard against it.
+        """
+        tau_sd2, _tau_rd2, _u, _g = verificacao_puncao_sapata(
+            h_z=0.03, f_ck=25_000.0, a_p=0.30, b_p=0.30,
+            f_zk=500.0, cob=0.04,
+        )
+        assert tau_sd2 < 0

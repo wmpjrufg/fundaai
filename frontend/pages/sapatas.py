@@ -155,7 +155,6 @@ def obter_textos() -> Dict[str, Dict[str, str]]:
             "upload_aviso": "Por favor, selecione um arquivo Excel para continuar.",
             "preview_header": "Primeiras linhas da planilha de dados",
             "params_header": "⚙️ Parâmetros gerais de dimensionamento",
-            "n_comb": "Número de combinações",
             "fck": "fck do concreto (MPa)",
             "cob": "Cobrimento do concreto (cm)",
             "h_min": "Dimensão mínima da sapata (cm)",
@@ -177,7 +176,6 @@ def obter_textos() -> Dict[str, Dict[str, str]]:
             "upload_aviso": "Please select an Excel file to continue.",
             "preview_header": "Data spreadsheet preview",
             "params_header": "⚙️ General design parameters",
-            "n_comb": "Number of combinations",
             "fck": "Concrete fck (MPa)",
             "cob": "Concrete cover (cm)",
             "h_min": "Minimum footing dimension (cm)",
@@ -213,7 +211,10 @@ st.subheader(t["params_header"])
 col1, col2 = st.columns(2)
 
 with col1:
-    n_comb_ui = st.number_input(t["n_comb"], step=1, value=3, key="n_comb_input")
+    # n_comb is detected automatically from the spreadsheet columns
+    # by ``read_projeto_from_excel`` — exposing it as an editable
+    # input historically misled users (changing the field had no
+    # effect on the optimisation). Sprint 4.8 removed the input.
     f_ck_mpa = st.number_input(t["fck"], min_value=15.0, max_value=90.0, step=5.0, value=25.0)
     cob_cm = st.number_input(t["cob"], step=0.5, value=4.0, format="%.1f")
 
@@ -251,6 +252,12 @@ except (ValueError, FileNotFoundError) as exc:
     st.stop()
 
 st.success(t["upload_sucesso"])
+
+# Surface auto-detected counts so the user knows what was parsed.
+detected_a, detected_b = st.columns(2)
+detected_a.metric("Pilares detectados", projeto.n_fund)
+detected_b.metric("Combinações detectadas", projeto.n_comb)
+
 st.subheader(t["preview_header"])
 uploaded_file.seek(0)
 st.dataframe(pd.read_excel(uploaded_file).head(), use_container_width=True)

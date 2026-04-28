@@ -1,4 +1,4 @@
-"""Testes do contrato de historico de `metapy_toolbox.ego.ego_01_architecture`.
+"""Testes do contrato de historico de `core.optimization.ego.ego_01_architecture`.
 
 A Sprint 1 corrigiu duas falhas que comprometiam a interpretacao
 cientifica do EGO:
