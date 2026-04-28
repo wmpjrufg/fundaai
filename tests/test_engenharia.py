@@ -22,10 +22,13 @@ import math
 
 import pytest
 
+import numpy as np
+
 from fundacao import (
     calcular_sigma_max_min,
     checagem_geometria,
     checagem_tensao_max_min,
+    sobreposicao_matrix,
     sobreposicao_sapatas,
     tensao_adm_solo,
     verificacao_puncao_sapata,
@@ -380,3 +383,118 @@ class TestSobreposicaoSapatas:
         assert sobreposicao_sapatas(*a, *b) == pytest.approx(
             sobreposicao_sapatas(*b, *a)
         )
+
+
+# =============================================================================
+# sobreposicao_matrix (vetorizada — Sprint 3.8)
+# =============================================================================
+@pytest.mark.engineering
+class TestSobreposicaoMatrix:
+    """This class verifies the vectorised N×N overlap matrix.
+
+    `sobreposicao_matrix` deve produzir resultados *exatamente* iguais
+    aos da versao escalar `sobreposicao_sapatas` para qualquer
+    configuracao, com diagonal zerada e matriz simetrica. Esta e a
+    rede de seguranca da Sprint 3.8 (substituicao do laco duplo
+    df.iterrows() por uma matriz numpy).
+    """
+
+    @staticmethod
+    def _bounds(centros, dims):
+        """This helper turns lists of (xc, yc) and (hx, hy) into AABB arrays.
+
+        :param centros: Lista de tuplas (xc, yc) — centroides
+        :param dims:    Lista de tuplas (hx, hy) — dimensoes da sapata
+
+        :return: Tupla `(xmin, xmax, ymin, ymax)` como arrays numpy
+        """
+        centros = np.asarray(centros, dtype=float)
+        dims = np.asarray(dims, dtype=float)
+        xmin = centros[:, 0] - dims[:, 0] / 2
+        xmax = centros[:, 0] + dims[:, 0] / 2
+        ymin = centros[:, 1] - dims[:, 1] / 2
+        ymax = centros[:, 1] + dims[:, 1] / 2
+        return xmin, xmax, ymin, ymax
+
+    def test_diagonal_zerada(self):
+        """This test ensures the diagonal of the overlap matrix is exactly zero.
+
+        :return: Nada (asserts internos)
+        """
+        xmin, xmax, ymin, ymax = self._bounds(
+            [(0, 0), (1, 1), (5, 5)], [(2, 2), (2, 2), (1, 1)]
+        )
+        m = sobreposicao_matrix(xmin, xmax, ymin, ymax)
+        assert np.all(np.diag(m) == 0.0)
+
+    def test_matriz_simetrica(self):
+        """This test ensures M[i, j] == M[j, i] for every pair.
+
+        :return: Nada (asserts internos)
+        """
+        xmin, xmax, ymin, ymax = self._bounds(
+            [(0, 0), (0.7, 0.4), (3, -1)], [(2, 2), (1.5, 2.5), (2, 2)]
+        )
+        m = sobreposicao_matrix(xmin, xmax, ymin, ymax)
+        assert np.allclose(m, m.T, rtol=0, atol=0)
+
+    def test_concorda_com_versao_escalar(self):
+        """This test compares the matrix entry-by-entry against the legacy scalar function.
+
+        Constroi um cenario com 4 sapatas em diferentes regimes (sem
+        sobreposicao, com sobreposicao parcial, identicas) e verifica
+        que cada entrada (i, j) coincide com o valor de
+        `sobreposicao_sapatas` aplicado aos vertices das duas sapatas.
+
+        :return: Nada (asserts internos)
+        """
+        centros = [(0, 0), (0.5, 0.5), (10, 10), (0, 0)]
+        dims = [(2.0, 2.0), (1.0, 1.0), (2.0, 2.0), (2.0, 2.0)]
+        xmin, xmax, ymin, ymax = self._bounds(centros, dims)
+        m = sobreposicao_matrix(xmin, xmax, ymin, ymax)
+
+        n = len(centros)
+        for i in range(n):
+            for j in range(n):
+                if i == j:
+                    continue
+                xc_i, yc_i = centros[i]
+                hx_i, hy_i = dims[i]
+                xc_j, yc_j = centros[j]
+                hx_j, hy_j = dims[j]
+                rect_i = (
+                    xc_i - hx_i / 2, yc_i - hy_i / 2,
+                    xc_i + hx_i / 2, yc_i - hy_i / 2,
+                    xc_i + hx_i / 2, yc_i + hy_i / 2,
+                    xc_i - hx_i / 2, yc_i + hy_i / 2,
+                )
+                rect_j = (
+                    xc_j - hx_j / 2, yc_j - hy_j / 2,
+                    xc_j + hx_j / 2, yc_j - hy_j / 2,
+                    xc_j + hx_j / 2, yc_j + hy_j / 2,
+                    xc_j - hx_j / 2, yc_j + hy_j / 2,
+                )
+                assert m[i, j] == pytest.approx(
+                    sobreposicao_sapatas(*rect_i, *rect_j), rel=0, abs=0
+                )
+
+    def test_caso_sem_sobreposicao_devolve_zeros(self):
+        """This test ensures three far-apart rectangles produce an all-zero matrix.
+
+        :return: Nada (asserts internos)
+        """
+        xmin, xmax, ymin, ymax = self._bounds(
+            [(0, 0), (100, 100), (-100, 100)], [(1, 1), (1, 1), (1, 1)]
+        )
+        m = sobreposicao_matrix(xmin, xmax, ymin, ymax)
+        assert np.all(m == 0.0)
+
+    def test_caso_unitario_n_igual_1(self):
+        """This test ensures a single rectangle yields a 1×1 zero matrix.
+
+        :return: Nada (asserts internos)
+        """
+        xmin, xmax, ymin, ymax = self._bounds([(0, 0)], [(2, 2)])
+        m = sobreposicao_matrix(xmin, xmax, ymin, ymax)
+        assert m.shape == (1, 1)
+        assert m[0, 0] == 0.0

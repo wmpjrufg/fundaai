@@ -18,7 +18,7 @@ from .solo import tensao_adm_solo
 from .tensao import calcular_sigma_max_min, checagem_tensao_max_min
 from .geometria import checagem_geometria
 from .puncao import verificacao_puncao_sapata
-from .packing import sobreposicao_sapatas
+from .packing import sobreposicao_matrix, sobreposicao_sapatas
 
 __all__ = [
     "tensao_adm_solo",
@@ -27,4 +27,5 @@ __all__ = [
     "checagem_geometria",
     "verificacao_puncao_sapata",
     "sobreposicao_sapatas",
+    "sobreposicao_matrix",
 ]

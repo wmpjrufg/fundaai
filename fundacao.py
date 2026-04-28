@@ -38,6 +38,7 @@ from core.engineering import (  # noqa: F401  (re-exported on purpose)
     checagem_geometria,
     verificacao_puncao_sapata,
     sobreposicao_sapatas,
+    sobreposicao_matrix,
 )
 
 
@@ -142,23 +143,21 @@ def _avaliar_projeto(x, args, *, penalty=None):
     df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2
     df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2
 
-    # Sobreposição entre sapatas (g_sob por sapata, soma sobre vizinhas)
+    # Sobreposição entre sapatas (g_sob por sapata, soma sobre vizinhas).
+    # Vetorizado em Sprint 3.8: matriz N×N em numpy substitui o laço
+    # duplo `df.iterrows()`. Como os retângulos são axis-aligned, os
+    # bounds AABB coincidem com x1, x2, y1 e y3.
     if n_fun == 1:
         df['g sobreposicao'] = 0.0
     else:
-        for idx, row in df.iterrows():
-            aux = 0
-            xi = (row['x1'], row['y1'], row['x2'], row['y2'],
-                  row['x3'], row['y3'], row['x4'], row['y4'])
-            for jdx, row_j in df.iterrows():
-                if jdx == idx:
-                    continue
-                xj = (row_j['x1'], row_j['y1'], row_j['x2'], row_j['y2'],
-                      row_j['x3'], row_j['y3'], row_j['x4'], row_j['y4'])
-                aux += sobreposicao_sapatas(*xi, *xj)
-            df.loc[idx, 'g sobreposicao'] = (
-                aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
-            )
+        xmin = df['x1'].to_numpy(dtype=np.float64)
+        xmax = df['x2'].to_numpy(dtype=np.float64)
+        ymin = df['y1'].to_numpy(dtype=np.float64)
+        ymax = df['y3'].to_numpy(dtype=np.float64)
+        overlap = sobreposicao_matrix(xmin, xmax, ymin, ymax)
+        h_x_arr = df['h_x (m)'].to_numpy(dtype=np.float64)
+        h_y_arr = df['h_y (m)'].to_numpy(dtype=np.float64)
+        df['g sobreposicao'] = overlap.sum(axis=1) / (h_x_arr * h_y_arr)
 
     # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(
