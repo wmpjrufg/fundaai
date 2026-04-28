@@ -101,7 +101,7 @@ def main(argv: list[str]) -> int:
 
     cfg = WakeUpConfig(
         url=url,
-        button_text="Wake Up",  # não será usado
+        button_text="Wake Up",  # não vai ser usado/ button_selector tem prioridade
         button_selector="button[data-testid='wakeup-button-viewer']",
         wait_seconds_after_click=10,
         headless=True,
