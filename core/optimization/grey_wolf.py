@@ -4,7 +4,7 @@ from typing import Callable, Optional, Union
 import numpy as np
 import pandas as pd
 
-from metapy_toolbox import funcs
+from core.optimization import funcs
 
 
 def gray_wolf_hunting(parent_0: list, x_alpha: list, x_beta: list, x_delta: list, a: float,x_lower: list, x_upper: list) -> tuple[list, list, list, str]:

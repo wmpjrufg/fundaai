@@ -11,7 +11,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 import scipy as sc
 import mealpy as mp
 
-from metapy_toolbox import funcs
+from core.optimization import funcs
 
 
 def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_lower: list, x_upper: list, params_opt: dict, params_kernel: Optional[dict] = None, args: Optional[tuple] = None, seed: Optional[int] = None) -> tuple[list, float, pd.DataFrame]:

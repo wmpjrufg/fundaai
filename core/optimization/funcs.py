@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from metapy_toolbox import funcs
+from core.optimization import funcs
 
 
 def initial_population_01(n_population: int, n_dimensions: int, x_lower: list, x_upper: list, seed: int = None, use_lhs: bool = True, scramble: bool = True):

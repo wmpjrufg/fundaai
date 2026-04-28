@@ -1,13 +1,30 @@
 """Optimization layer — surrogate-assisted global optimisation.
 
-This subpackage will progressively absorb the algorithms currently
-hosted under ``metapy_toolbox`` (EGO, GPR surrogate, GA, GWO, helper
-functions). Migration is incremental and starts in a later Sprint 3
-ticket — for now this package is empty and ``metapy_toolbox`` remains
-the source of truth.
+This subpackage hosts the algorithms that historically lived under
+``metapy_toolbox``:
+
+    * Common utilities (Latin Hypercube sampling, fitness, evaluation,
+      bounds-checking, mutation operators) in ``funcs``.
+    * Classical benchmark functions (sphere, rosenbrock, rastrigin,
+      ackley, griewank, powell, ...) in ``benchmark``.
+    * Genetic Algorithm with eight crossover operators in
+      ``genetic_algorithm``.
+    * Grey Wolf Optimizer in ``grey_wolf``.
+    * Hybrid Efficient Global Optimization (EGO) architecture with GPR
+      surrogate in ``ego``.
+
+The legacy package ``metapy_toolbox`` is now a backwards-compatibility
+shim that re-exports from this subpackage, so existing imports such as
+``from metapy_toolbox import ego_01_architecture`` keep working.
 
 Resumo em português:
-    Camada de otimização. Vai absorver gradualmente o que hoje está em
-    ``metapy_toolbox`` (EGO, GPR, GA, GWO, utilitários). Por enquanto
-    permanece vazia; a migração começa em sprint posterior.
+    Camada de otimização. Hospeda EGO+GPR+AG, GWO, funções benchmark e
+    utilitários comuns, todos migrados de ``metapy_toolbox``. O pacote
+    antigo permanece como camada de compatibilidade.
 """
+
+from .funcs import *   # noqa: F401, F403  (intentional re-export)
+from .benchmark import *   # noqa: F401, F403
+from .genetic_algorithm import *   # noqa: F401, F403
+from .grey_wolf import *   # noqa: F401, F403
+from .ego import *   # noqa: F401, F403

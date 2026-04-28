@@ -1,15 +1,16 @@
-"""metapy_toolbox — núcleo de otimização do FundaIA.
+"""Backwards-compatibility shim for the legacy ``metapy_toolbox`` import path.
 
-Re-exporta utilitários (funcs), funções de benchmark, Algoritmo Genético,
-Grey Wolf Optimizer e a arquitetura EGO híbrida.
+The optimisation library was migrated to ``core.optimization`` in
+Sprint 3.6. This package now exists solely to preserve the public
+import surface used by historical notebooks (``testes_otm.ipynb``,
+``testes_otm_lucas.ipynb``, ``testes_gpr_lucas.ipynb``) and by any
+external consumer that imported from ``metapy_toolbox``.
 
-Histórico: o módulo `methods.py` foi removido em refactor/code-base-v2 por
-estar 100% comentado; sua única função pública (`initial_population_01`)
-permanece em `funcs.py`, com versão atualizada.
+Resumo em português:
+    Camada de compatibilidade. A biblioteca de otimização vive agora em
+    ``core.optimization``; este pacote apenas reexporta tudo para que
+    notebooks legados (``from metapy_toolbox import ego_01_architecture``)
+    continuem funcionando sem alteração.
 """
 
-from .funcs import *
-from .benchmark import *
-from .genetic_algorithm import *
-from .grey_wolf import *
-from .ego import *
+from core.optimization import *   # noqa: F401, F403  (intentional re-export)
