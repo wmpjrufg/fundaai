@@ -17,3 +17,13 @@ myenv/
 # vault Obsidian com mapa de orientacao
 /docs/
 /obsidian_vault/
+
+# --- Configuracao local do Claude Code (nao versionado) ----------------------
+# Settings locais por maquina; nao deve entrar no historico publico.
+/.claude/
+
+# --- Modelos GPR persistidos (nao versionado) --------------------------------
+# Reproduziveis a partir de fundacao.aprendizado_maquina_paralelo (~553 MB).
+# Manter no historico do repo seria pesado e desnecessario.
+/models/
+*.pkl
