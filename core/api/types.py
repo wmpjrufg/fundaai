@@ -1,25 +1,31 @@
-"""Public dataclasses exposed by the API layer.
+"""Public types exposed by the API layer.
 
-Two dataclasses live here:
+Three structures live here:
 
-    * ``OptimisationConfig`` bundles every knob that the user (or a
-      Streamlit page, or a notebook) exposes to the optimisation
-      pipeline: bounds on the design variables, generations, population
-      size, number of independent repetitions, base seed and the
-      kernel/optimiser strings consumed by ``ego_01_architecture``.
+    * ``OptimisationConfig`` — Pydantic v2 ``BaseModel`` that bundles
+      every knob exposed to the optimisation pipeline. Field-level
+      constraints (``ge``, ``gt``) and a ``model_validator`` enforce
+      the cross-field invariants up front, with rich error messages,
+      JSON schema generation and round-trip serialisation built in.
 
-    * ``OptimisationResult`` is the structured answer of ``optimize``:
-      the best objective value found, the corresponding list of
-      ``Sapata`` entities and the seed that produced the winning
-      repetition.
+    * ``OptimisationResult`` — frozen dataclass returned by
+      ``optimize``: the best objective, the corresponding ``Sapata``
+      list, the winning seed and the per-rep trajectory.
 
-Both are deliberately framework-free (pure dataclasses) so that the
-result can travel from a notebook to a CSV report or to the Streamlit
-session state without any glue code.
+    * ``EvaluationResult`` — frozen dataclass returned by ``evaluate``
+      for diagnostics: pseudo-objective and the per-element constraint
+      table.
+
+The result types stay as dataclasses on purpose — they are produced by
+the API itself, not received from the outside world, so Pydantic's
+input validation buys us nothing for them. The configuration, on the
+other hand, is the natural place for strict validation because it
+flows in from Streamlit, CLI or notebooks.
 
 Resumo em português:
-    Dataclasses públicas da camada API. Encapsulam a configuração da
-    otimização e o resultado final, mantendo as fronteiras tipadas.
+    Tipos públicos da camada API. ``OptimisationConfig`` é Pydantic
+    (validação rigorosa de entrada vinda da UI/CLI). ``OptimisationResult``
+    e ``EvaluationResult`` permanecem como dataclasses imutáveis.
 """
 
 from __future__ import annotations
@@ -27,78 +33,84 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Sequence
 
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
 from core.domain import Sapata
 
 
-@dataclass(frozen=True, slots=True)
-class OptimisationConfig:
+# =============================================================================
+# OptimisationConfig — Pydantic input validation
+# =============================================================================
+class OptimisationConfig(BaseModel):
     """This class bundles every parameter consumed by the API ``optimize`` function.
 
-    All fields have safe defaults that mirror the historical Streamlit
-    page (``n_rep = 5``, ``n_gen = 2``, ``n_pop = 250``, ``base_seed = 42``).
-    The penalty factor stays optional and falls back to the engineering
-    default ``_PENALTY_DEFAULT = 10`` when ``None``.
+    Built on Pydantic v2 to provide rich field-level validation,
+    generated JSON schema and frozen instances. All defaults mirror the
+    historical Streamlit page (``n_rep = 5``, ``base_seed = 42``,
+    ``kernel_index = -1``). The optional ``penalty`` falls back to the
+    engineering default ``_PENALTY_DEFAULT = 10`` when ``None``.
 
-    :param h_min_m: Lower bound for h_x, h_y, h_z [m]
-    :param h_max_m: Upper bound for h_x, h_y, h_z [m]
-    :param n_gen: Number of EGO generations per repetition
-    :param n_pop: Initial Latin Hypercube population size
-    :param n_rep: Number of independent EGO repetitions (best-of-N selection)
+    :param h_min_m: Lower bound for h_x, h_y, h_z [m]; must be > 0
+    :param h_max_m: Upper bound for h_x, h_y, h_z [m]; must be > 0 and > h_min_m
+    :param n_gen: Number of EGO generations per repetition (>= 1)
+    :param n_pop: Initial Latin Hypercube population size (>= 2)
+    :param n_rep: Number of independent EGO repetitions (>= 1)
     :param base_seed: Seed used to derive ``rep_seed = base_seed + rep``
-    :param kernel_index: Index in ``constroi_kernel()`` that selects the
-                         GPR covariance function. ``-1`` means "the last
-                         kernel", which is the production default
-    :param ga_epoch: ``epoch`` parameter passed to ``mealpy.GA.BaseGA``
-    :param ga_pop_size: ``pop_size`` parameter passed to ``mealpy.GA.BaseGA``
-    :param penalty: Penalty factor applied to constraint violations.
-                    ``None`` falls back to the engineering default
+    :param kernel_index: Index in ``constroi_kernel()`` selecting the GPR
+                         covariance function. ``-1`` means "the last kernel"
+                         and is the production default
+    :param ga_epoch: ``epoch`` parameter for ``mealpy.GA.BaseGA`` (>= 1)
+    :param ga_pop_size: ``pop_size`` parameter for ``mealpy.GA.BaseGA`` (>= 2)
+    :param penalty: Penalty factor applied to constraint violations
+                    (positive when set; ``None`` falls back to the engineering default)
 
-    :raises ValueError: When the configuration is internally inconsistent
-                        (non-positive bounds, h_min >= h_max, non-positive
-                        counts, ...)
+    :raises pydantic.ValidationError: When any single field violates its
+                                      constraints. ``ValidationError``
+                                      derives from ``ValueError``, so any
+                                      ``except ValueError`` block keeps
+                                      working as before
     """
 
-    h_min_m: float = 0.60
-    h_max_m: float = 1.50
-    n_gen: int = 2
-    n_pop: int = 250
-    n_rep: int = 5
-    base_seed: int = 42
-    kernel_index: int = -1
-    ga_epoch: int = 50
-    ga_pop_size: int = 150
-    penalty: float | None = None
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
 
-    def __post_init__(self) -> None:
-        """This hook validates the cross-field invariants.
+    h_min_m: float = Field(default=0.60, gt=0.0, description="Lower bound for h_x, h_y, h_z [m]")
+    h_max_m: float = Field(default=1.50, gt=0.0, description="Upper bound for h_x, h_y, h_z [m]")
+    n_gen: int = Field(default=2, ge=1, description="Number of EGO generations per repetition")
+    n_pop: int = Field(default=250, ge=2, description="Initial Latin Hypercube population size")
+    n_rep: int = Field(default=5, ge=1, description="Number of independent EGO repetitions")
+    base_seed: int = Field(default=42, description="Seed used to derive rep_seed = base_seed + rep")
+    kernel_index: int = Field(default=-1, description="Index in constroi_kernel(); -1 = last kernel")
+    ga_epoch: int = Field(default=50, ge=1, description="mealpy GA epoch")
+    ga_pop_size: int = Field(default=150, ge=2, description="mealpy GA population size")
+    penalty: float | None = Field(
+        default=None,
+        gt=0.0,
+        description="Penalty factor for constraint violations; None falls back to engineering default",
+    )
 
-        :return: None
+    @model_validator(mode="after")
+    def _check_bounds_order(self) -> "OptimisationConfig":
+        """This validator ensures h_min_m < h_max_m after both fields are set.
+
+        :return: The validated model (Pydantic v2 contract)
+
+        :raises ValueError: When h_min_m >= h_max_m
         """
-        if self.h_min_m <= 0 or self.h_max_m <= 0:
-            raise ValueError(
-                f"h_min_m and h_max_m must be positive; "
-                f"got h_min_m={self.h_min_m}, h_max_m={self.h_max_m}."
-            )
         if self.h_min_m >= self.h_max_m:
             raise ValueError(
                 f"h_min_m must be strictly less than h_max_m; "
                 f"got h_min_m={self.h_min_m}, h_max_m={self.h_max_m}."
             )
-        if self.n_gen < 1:
-            raise ValueError(f"n_gen must be >= 1; got {self.n_gen}.")
-        if self.n_pop < 2:
-            raise ValueError(f"n_pop must be >= 2; got {self.n_pop}.")
-        if self.n_rep < 1:
-            raise ValueError(f"n_rep must be >= 1; got {self.n_rep}.")
-        if self.ga_epoch < 1 or self.ga_pop_size < 2:
-            raise ValueError(
-                f"ga_epoch must be >= 1 and ga_pop_size must be >= 2; "
-                f"got ga_epoch={self.ga_epoch}, ga_pop_size={self.ga_pop_size}."
-            )
-        if self.penalty is not None and self.penalty <= 0:
-            raise ValueError(f"penalty (when set) must be positive; got {self.penalty}.")
+        return self
 
 
+# =============================================================================
+# Result types — pure dataclasses (produced by the API, not received from outside)
+# =============================================================================
 @dataclass(frozen=True, slots=True)
 class OptimisationResult:
     """This class holds the structured answer produced by ``optimize``.

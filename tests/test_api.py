@@ -137,6 +137,64 @@ class TestOptimisationConfig:
         cfg = OptimisationConfig(penalty=None)
         assert cfg.penalty is None
 
+    def test_extra_fields_are_forbidden(self):
+        """This test ensures Pydantic rejects unknown fields at construction.
+
+        Catches typos in callers before they silently bypass validation
+        (e.g. ``pop_size`` when the field is actually ``ga_pop_size``).
+
+        :return: None (internal asserts)
+        """
+        with pytest.raises(ValueError):
+            OptimisationConfig(unknown_field=1)   # type: ignore[call-arg]
+
+    def test_model_is_frozen(self):
+        """This test ensures ``OptimisationConfig`` instances are immutable.
+
+        :return: None (internal asserts)
+        """
+        cfg = OptimisationConfig()
+        with pytest.raises(ValueError):
+            cfg.h_min_m = 1.0   # type: ignore[misc]
+
+    def test_model_dump_round_trip(self):
+        """This test ensures the model serialises and re-loads losslessly.
+
+        Useful for persisting the configuration alongside experiment
+        results (mlflow / parquet / json reports).
+
+        :return: None (internal asserts)
+        """
+        original = OptimisationConfig(
+            h_min_m=0.5, h_max_m=2.0, n_gen=3, n_pop=100, n_rep=4,
+            base_seed=7, kernel_index=2, ga_epoch=20, ga_pop_size=40,
+            penalty=12.5,
+        )
+        as_dict = original.model_dump()
+        round_tripped = OptimisationConfig(**as_dict)
+        assert round_tripped == original
+
+    def test_json_schema_is_self_describing(self):
+        """This test ensures Pydantic generates a JSON schema with all fields.
+
+        Confirms that downstream tools (FastAPI, OpenAPI, docs) will see
+        the configuration surface as a documented contract.
+
+        :return: None (internal asserts)
+        """
+        schema = OptimisationConfig.model_json_schema()
+        assert schema["type"] == "object"
+        properties = schema["properties"]
+        for field_name in (
+            "h_min_m", "h_max_m", "n_gen", "n_pop", "n_rep",
+            "base_seed", "kernel_index", "ga_epoch", "ga_pop_size", "penalty",
+        ):
+            assert field_name in properties, f"missing field in schema: {field_name}"
+            # Every documented field carries a description for tooling
+            assert properties[field_name].get("description"), (
+                f"field {field_name!r} is missing a description in the JSON schema"
+            )
+
 
 # =============================================================================
 # evaluate — preserves the regression baseline
