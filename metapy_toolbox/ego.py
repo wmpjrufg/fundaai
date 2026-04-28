@@ -14,20 +14,32 @@ import mealpy as mp
 from metapy_toolbox import funcs
 
 
-def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_lower: list, x_upper: list, params_opt: dict, params_kernel: Optional[dict] = None, args: Optional[tuple] = None) -> tuple[list, float, pd.DataFrame]:
-    """Hybrid Architecture for Efficient Global Optimization (EGO) algorithm.
+def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_lower: list, x_upper: list, params_opt: dict, params_kernel: Optional[dict] = None, args: Optional[tuple] = None, seed: Optional[int] = None) -> tuple[list, float, pd.DataFrame]:
+    """This function performs the hybrid Efficient Global Optimization (EGO) loop.
 
-    :param obj: The objective function: obj(x, args) -> float or obj(x) -> float, where x is a list with shape dim and args is a tuple fixed parameters needed to completely specify the function
-    :param n_gen: Number of generations or iterations
-    :param initial_population: Initial population
+    Em cada iteração ajusta um modelo substituto Gaussian Process Regressor
+    aos pares (x, OF) coletados, maximiza a função de aquisição Expected
+    Improvement por meio de um otimizador interno (SciPy ou Mealpy) e
+    avalia o ponto candidato na função objetivo real, atualizando a base
+    sequencialmente.
+
+    :param obj: Objective function `obj(x, args) -> float` (or `obj(x) -> float` when args is None)
+    :param n_gen: Number of EGO iterations beyond the initial population
+    :param initial_population: Initial population, list with shape (n_pop, d)
     :param x_lower: Lower limit of the design variables
     :param x_upper: Upper limit of the design variables
-    :param params_opt: Parameters of the optimization algorithm. Suppport optimizers from scipy or mealpy. Scipy optimizers: 'scipy_lbfgs', 'scipy_tnc',  'scipy_slsqp', 'scipy_trust'. Mealpy optimizers: Any optimizer from mealpy library
-    :param params_kernel: Parameters of the kernel function. Support kernels from sklearn.gaussian_process.kernels (optional)
-    :param args: Extra arguments to pass to the objective function (optional)
-    :param robustness: If True, the objective function is evaluated in a robust way (default is False)
+    :param params_opt: Internal optimizer configuration. Strings 'scipy_lbfgs', 'scipy_tnc', 'scipy_slsqp', 'scipy_trust' or any mealpy algorithm instance
+    :param params_kernel: Kernel configuration for the Gaussian Process Regressor (optional). Defaults to RBF when None
+    :param args: Extra arguments forwarded to the objective function (optional)
+    :param seed: Random seed propagated to the GPR (`random_state`), to NumPy (initial points of SciPy minimizers) and to mealpy via `seed=seed`. Default `None` keeps the historical behaviour (`random_state=42` in the GPR; non-deterministic SciPy x0)
 
-    :return: [0] = Best solution, [1] = Best objective function value, [2] = Dataframe with all evaluations
+    :return: [0] = Best solution found, list with shape (d,) [best_x]
+             [1] = Best objective function value [best_of]
+             [2] = DataFrame with the full optimisation history. Columns include
+                   ID, ITER, X_0..X_{d-1}, OF, FIT, OF EVALUATIONS and
+                   TIME CONSUMPTION. Each row of the initial sample has
+                   ITER=0; each iteration `t` of the EGO appends one row
+                   with ITER=t and a fresh ID = max(ID)+1 [df_history]
 
     Example 1: Using SciPy (SLSQP) as optimizer algorithm and RBF kernel from sklearn
         >>> from sklearn.gaussian_process.kernels import RBF
@@ -104,40 +116,56 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
     n_pop = len(x_t0)
     all_results = []
 
-    # GPR organzation and optimization loop
-    sca = ("scaler", StandardScaler())
-    gp = ("gp", GaussianProcessRegressor(kernel=params_kernel['kernel'], normalize_y=True, alpha=0.1, n_restarts_optimizer=5, random_state=42)) if params_kernel is not None else ("gp", GaussianProcessRegressor(kernel=sk.gaussian_process.kernels.RBF(), normalize_y=True, alpha=0.1, n_restarts_optimizer=5, random_state=42))
-    pipe = Pipeline([sca, gp])   
+    # Random seed propagation. None preserves the historical default
+    # (random_state=42 hardcoded in the GPR; non-deterministic SciPy x0).
+    rng = np.random.default_rng(seed)
+    gpr_random_state = 42 if seed is None else int(seed)
 
-    # Initial population evaluation (Don't remove this part)
+    # GPR organization and optimization loop
+    sca = ("scaler", StandardScaler())
+    if params_kernel is not None:
+        kernel = params_kernel['kernel']
+    else:
+        kernel = sk.gaussian_process.kernels.RBF()
+    gp = ("gp", GaussianProcessRegressor(
+        kernel=kernel,
+        normalize_y=True,
+        alpha=0.1,
+        n_restarts_optimizer=5,
+        random_state=gpr_random_state,
+    ))
+    pipe = Pipeline([sca, gp])
+
+    # Initial population evaluation (Don't remove this part).
+    # Each row receives ID = n and ITER = 0.
     for n in range(n_pop):
         aux_df = funcs.evaluation(obj, n, x_t0[n], 0, args=args) if args is not None else funcs.evaluation(obj, n, x_t0[n], 0)
         all_results.append(aux_df)
     df = pd.concat(all_results, ignore_index=True)
     x_cols = [col for col in df.columns if col.startswith("X_")]
-    
+
     # Iterations
     for t in range(1, n_gen + 1):
         # Training the surrogate model
-        x_train= df[x_cols]
-        y_train= df[['OF']]
+        x_train = df[x_cols]
+        y_train = df[['OF']]
         model = pipe.fit(x_train, y_train)
 
-        # Traditional optimization
+        # Acquisition function: maximise Expected Improvement (EI)
         argss = (model, df['OF'].min())
+
         def obj_ego(x, coef):
             model, fmin = coef
             x_df = pd.DataFrame([x], columns=model.feature_names_in_)
             mu, sig = model.predict(x_df, return_std=True)
-            if sig[0] < 1e-10:
-                sigma = 1e-10
-            else:
-                sigma = sig[0]
+            sigma = sig[0] if sig[0] >= 1e-10 else 1e-10
             z = (fmin - mu[0]) / sigma
             of = (fmin - mu[0]) * sc.stats.norm.cdf(z) + sigma * sc.stats.norm.pdf(z)
             return -of
+
         wrapped_obj = partial(obj_ego, coef=argss)
         opt = params_opt["optimizer algorithm"]
+
         if isinstance(opt, str) and opt.lower().startswith("scipy"):
             if opt.lower() == "scipy_lbfgs":
                 method = "L-BFGS-B"
@@ -148,25 +176,37 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
             elif opt.lower() == "scipy_trust":
                 method = "trust-constr"
             bounds = list(zip(x_lower, x_upper))
-            x0 = np.random.uniform(x_lower, x_upper)
-            res = sc.optimize.minimize(wrapped_obj, x0, method=method, bounds=bounds, options={"maxiter": 300, "ftol": 1e-5})     
-            x_best = res.x
-            x_new = x_best.tolist()
+            # Use the seeded RNG when seed is provided, otherwise the global numpy state
+            x0 = rng.uniform(x_lower, x_upper) if seed is not None else np.random.uniform(x_lower, x_upper)
+            res = sc.optimize.minimize(wrapped_obj, x0, method=method, bounds=bounds, options={"maxiter": 300, "ftol": 1e-5})
+            x_new = res.x.tolist()
         else:
             problem_dict = {
-                                "obj_func": wrapped_obj,
-                                "bounds": mp.FloatVar(lb=x_lower, ub=x_upper),
-                                "minmax": "min",
-                                "log_to": None,
-                            }
+                "obj_func": wrapped_obj,
+                "bounds": mp.FloatVar(lb=x_lower, ub=x_upper),
+                "minmax": "min",
+                "log_to": None,
+            }
             optimizer = params_opt["optimizer algorithm"]
-            g_best = optimizer.solve(problem_dict)
+            if seed is not None:
+                # mealpy expone seed via solve(...) na maioria das versoes
+                try:
+                    g_best = optimizer.solve(problem_dict, seed=int(seed) + t)
+                except TypeError:
+                    g_best = optimizer.solve(problem_dict)
+            else:
+                g_best = optimizer.solve(problem_dict)
             x_new = g_best.solution
-        
-        # Add new training point
-        aux_df = funcs.evaluation(obj, n, x_new, 0, args=args) if args is not None else funcs.evaluation(obj, n, x_new, 0)
+
+        # Add new training point with correct ITER=t and a fresh ID.
+        # Antes desta correcao todos os pontos novos eram registrados com
+        # ITER=0 e ID herdado do ultimo indice da populacao inicial, o que
+        # corrompia o historico do EGO (ver issue: Historico do EGO com
+        # ITER e ID incorretos).
+        new_id = int(df['ID'].max()) + 1
+        aux_df = funcs.evaluation(obj, new_id, x_new, t, args=args) if args is not None else funcs.evaluation(obj, new_id, x_new, t)
         df = pd.concat([df, aux_df], ignore_index=True)
-    
+
     # Best solution extraction
     x_cols = [col for col in df.columns if col.startswith("X_")]
     idx_min = df["OF"].idxmin()

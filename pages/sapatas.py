@@ -233,25 +233,46 @@ if st.button(t["btn_dimensionar"], type="primary"):
         with st.spinner(t["info_otim"]):
             # Cria um espaço vazio para o texto de status
             status_text = st.empty()
-            # Lógica de Otimização
+
+            # Configuração do experimento de otimização
             n_rep = 5
+            base_seed = 42  # semente base; cada repetição usa base_seed + rep
             x_l = [h_min_m] * 3 * n_fun
             x_u = [h_max_m] * 3 * n_fun
-            x_ini = initial_population_01(n_pop, 3 * n_fun, x_l, x_u, use_lhs=True)
-            # paras_opt = {'optimizer algorithm': 'scipy_slsqp'}
             paras_opt = {'optimizer algorithm': GA.BaseGA(epoch=50, pop_size=150)}
             k = constroi_kernel()
             paras_kernel = {'kernel': k[-1]}
             x_new_aux = []
             best_of_aux = np.inf
-            
+
             for rep in range(n_rep):
-                # Atualiza o texto na tela
                 status_text.write(f"🔄 **Executando tentativa {rep + 1} de {n_rep}...**")
+
+                # Cada repetição parte de uma população inicial INDEPENDENTE,
+                # gerada com seed propagada (base_seed + rep). Antes desta
+                # correção todas as repetições usavam o mesmo x_ini, o que
+                # invalidava a interpretação estatística do best-of-N.
+                rep_seed = base_seed + rep
+                x_ini = initial_population_01(
+                    n_pop,
+                    3 * n_fun,
+                    x_l,
+                    x_u,
+                    seed=rep_seed,
+                    use_lhs=True,
+                )
+
                 x_new, best_of, _ = ego_01_architecture(
-                                                            obj_felipe_lucas, n_gen, x_ini, x_l, x_u, 
-                                                            paras_opt, paras_kernel, args=(df, n_comb, f_ck_kpa, cob_m)
-                                                        )
+                    obj_felipe_lucas,
+                    n_gen,
+                    x_ini,
+                    x_l,
+                    x_u,
+                    paras_opt,
+                    paras_kernel,
+                    args=(df, n_comb, f_ck_kpa, cob_m),
+                    seed=rep_seed,
+                )
                 if best_of < best_of_aux:
                     best_of_aux = best_of
                     x_new_aux = x_new
