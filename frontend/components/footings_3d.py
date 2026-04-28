@@ -41,21 +41,23 @@ __all__ = [
 
 
 CAMERA_PRESETS: dict[str, dict] = {
-    "isométrica": dict(eye=dict(x=1.6, y=-1.6, z=1.1),
-                       up=dict(x=0, y=0, z=1)),
-    "topo":       dict(eye=dict(x=0.0, y=0.0, z=2.5),
-                       up=dict(x=0, y=1, z=0)),
-    "lateral X":  dict(eye=dict(x=2.5, y=0.0, z=0.4),
-                       up=dict(x=0, y=0, z=1)),
-    "lateral Y":  dict(eye=dict(x=0.0, y=-2.5, z=0.4),
-                       up=dict(x=0, y=0, z=1)),
-    "perspectiva":dict(eye=dict(x=2.0, y=-2.0, z=0.7),
-                       up=dict(x=0, y=0, z=1)),
+    "isométrica":  dict(eye=dict(x=1.6, y=-1.6, z=1.1),
+                        up=dict(x=0, y=0, z=1)),
+    "topo":        dict(eye=dict(x=0.0, y=0.0, z=2.5),
+                        up=dict(x=0, y=1, z=0)),
+    "lateral X":   dict(eye=dict(x=2.5, y=0.0, z=0.4),
+                        up=dict(x=0, y=0, z=1)),
+    "lateral Y":   dict(eye=dict(x=0.0, y=-2.5, z=0.4),
+                        up=dict(x=0, y=0, z=1)),
+    "perspectiva": dict(eye=dict(x=2.0, y=-2.0, z=0.7),
+                        up=dict(x=0, y=0, z=1)),
 }
 """Named camera presets exposed by the 3D viewer.
 
 Each entry feeds directly into ``go.layout.scene.camera`` and pairs
-with one of the buttons rendered in the Streamlit page.
+with one of the buttons rendered in the Streamlit page. All presets
+keep ``up = +z`` so the world stays vertical, in line with the
+``dragmode="turntable"`` set by :func:`render_footings_3d`.
 """
 
 
@@ -386,6 +388,12 @@ def render_footings_3d(
     # underground territory beyond the deepest sapata).
     z_min = min((-s.h_z for s in sapatas), default=-1.0)
     z_max = max(0.0, pillar_height_m if show_pillars else 0.5)
+    # Lock the camera "up" vector to +z and pin it on the camera dict
+    # so the user can only orbit around the z axis (azimuth) and tilt
+    # the elevation. Plotly's "turntable" dragmode keeps the world
+    # vertical exactly like a CAD turntable — no roll, no upside-down,
+    # no sideways flips.
+    camera_dict = {**camera_dict, "up": dict(x=0, y=0, z=1)}
     fig.update_layout(
         title=title,
         scene=dict(
@@ -397,7 +405,7 @@ def render_footings_3d(
             aspectmode="data",
             camera=camera_dict,
             hovermode="closest",
-            dragmode="orbit",
+            dragmode="turntable",
         ),
         height=int(height),
         margin=dict(l=0, r=0, t=40 if title else 10, b=0),

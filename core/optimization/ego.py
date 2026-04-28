@@ -18,7 +18,16 @@ from core.optimization.cache import SurrogateCache, fit_or_get_cached
 _log = get_logger("ego")
 
 
-def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_lower: list, x_upper: list, params_opt: dict, params_kernel: Optional[dict] = None, args: Optional[tuple] = None, seed: Optional[int] = None, cache: Optional[SurrogateCache] = None, progress: Optional[Callable[[Mapping[str, Any]], None]] = None) -> tuple[list, float, pd.DataFrame]:
+class _CancelSentinel(BaseException):
+    """Internal sentinel raised when ``should_stop()`` returns True.
+
+    Inherits from ``BaseException`` (not ``Exception``) so it bypasses
+    blanket ``except Exception`` clauses that might otherwise eat it
+    (e.g. inside the SciPy / mealpy inner optimisers).
+    """
+
+
+def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_lower: list, x_upper: list, params_opt: dict, params_kernel: Optional[dict] = None, args: Optional[tuple] = None, seed: Optional[int] = None, cache: Optional[SurrogateCache] = None, progress: Optional[Callable[[Mapping[str, Any]], None]] = None, should_stop: Optional[Callable[[], bool]] = None) -> tuple[list, float, pd.DataFrame]:
     """This function performs the hybrid Efficient Global Optimization (EGO) loop.
 
     Em cada iteração ajusta um modelo substituto Gaussian Process Regressor
@@ -37,7 +46,8 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
     :param args: Extra arguments forwarded to the objective function (optional)
     :param seed: Random seed propagated to the GPR (`random_state`), to NumPy (initial points of SciPy minimizers) and to mealpy via `seed=seed`. Default `None` keeps the historical behaviour (`random_state=42` in the GPR; non-deterministic SciPy x0)
     :param cache: Optional :class:`core.optimization.cache.SurrogateCache`. When provided, the GPR is fit through :func:`fit_or_get_cached` so identical (X, y, pipeline) tuples are reused across replications, notebook re-runs and batch experiments instead of being refit from scratch. Default `None` keeps the historical behaviour (always refit)
-    :param progress: Optional callable invoked once per EGO iteration with a dict ``{"event": "ego.iter", "iter": t, "n_gen": n_gen, "of_min": current_min, "n_train": n}``. Errors raised by the callback are intentionally swallowed so a buggy UI hook does not abort the optimisation. Default ``None`` disables the hook
+    :param progress: Optional callable invoked at every milestone with a dict carrying ``event`` (``"lhs.start"``, ``"lhs.eval"``, ``"lhs.done"``, ``"ego.iter"``) plus contextual fields (``iter``, ``n_gen``, ``of_min``, ``n_train``, ...). Errors raised by the callback are intentionally swallowed so a buggy UI hook does not abort the optimisation. Default ``None`` disables the hook
+    :param should_stop: Optional zero-argument callable returning ``True`` when the user has requested cancellation. Polled at the start of every EGO iteration and after every LHS evaluation; on the first ``True`` the function raises an internal sentinel that the caller (typically :func:`core.api.optimize`) translates into :class:`core.api.OptimisationCancelled`. ``None`` disables cancellation
 
     :return: [0] = Best solution found, list with shape (d,) [best_x]
              [1] = Best objective function value [best_of]
@@ -144,14 +154,37 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
 
     # Initial population evaluation (Don't remove this part).
     # Each row receives ID = n and ITER = 0.
+    if progress is not None:
+        try:
+            progress({"event": "lhs.start", "n_pop": int(n_pop)})
+        except Exception:   # pragma: no cover  (UI hook must not abort)
+            pass
     for n in range(n_pop):
+        if should_stop is not None and should_stop():
+            raise _CancelSentinel()
         aux_df = funcs.evaluation(obj, n, x_t0[n], 0, args=args) if args is not None else funcs.evaluation(obj, n, x_t0[n], 0)
         all_results.append(aux_df)
+        # Emit only every 10 evaluations (or the last one) so a 250-pop
+        # LHS does not flood the queue with quasi-instantaneous events.
+        if progress is not None and (n + 1) % 10 == 0 or n == n_pop - 1:
+            try:
+                progress({"event": "lhs.eval",
+                          "n": int(n + 1), "n_pop": int(n_pop)})
+            except Exception:   # pragma: no cover
+                pass
     df = pd.concat(all_results, ignore_index=True)
     x_cols = [col for col in df.columns if col.startswith("X_")]
+    if progress is not None:
+        try:
+            progress({"event": "lhs.done", "n_pop": int(n_pop),
+                      "of_min": float(df["OF"].min())})
+        except Exception:   # pragma: no cover
+            pass
 
     # Iterations
     for t in range(1, n_gen + 1):
+        if should_stop is not None and should_stop():
+            raise _CancelSentinel()
         # Training the surrogate model. When `cache` is provided, identical
         # (X, y, pipeline) tuples short-circuit the kernel-hyperparameter
         # optimisation (the dominant cost of `fit`); otherwise behaviour is

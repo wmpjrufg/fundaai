@@ -36,9 +36,24 @@ from core.io.experiments import ExperimentRecorder
 from core.observability import get_logger, run_context
 from core.optimization.cache import SurrogateCache
 from core.optimization import ego_01_architecture, initial_population_01
+from core.optimization.ego import _CancelSentinel
 from fundacao import constroi_kernel, obj_felipe_lucas
 
 _log = get_logger("optimize")
+
+
+class OptimisationCancelled(Exception):
+    """Raised by :func:`optimize` when the user requested cancellation.
+
+    The exception is the public counterpart of the internal sentinel
+    used inside ``core.optimization.ego.ego_01_architecture``. As soon
+    as the ``should_stop`` callable returns ``True``, the optimisation
+    aborts cooperatively at the next safe point (next LHS evaluation
+    or next EGO iteration); the recorder is marked as ``failed``
+    (with ``error="cancelled by user"``), and this exception is
+    raised so the caller can render an explicit "cancelled" message
+    instead of a generic crash.
+    """
 
 
 def optimize(
@@ -48,6 +63,7 @@ def optimize(
     recorder: Optional[ExperimentRecorder] = None,
     cache: Optional[SurrogateCache] = None,
     progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
+    should_stop: Optional[Callable[[], bool]] = None,
 ) -> OptimisationResult:
     """This function runs the EGO+GPR+GA pipeline with independent repetitions.
 
@@ -75,13 +91,24 @@ def optimize(
     :param progress: Optional callable invoked at every milestone of the
                      pipeline with a dict carrying ``event``
                      (``"optimize.start"``, ``"optimize.rep_start"``,
+                     ``"lhs.start"``, ``"lhs.eval"``, ``"lhs.done"``,
                      ``"ego.iter"``, ``"optimize.rep_end"``,
-                     ``"optimize.end"``, ``"optimize.failed"``) plus
-                     contextual fields (``rep``, ``seed``, ``iter``,
-                     ``n_gen``, ``n_rep``, ``of_min``, ``of_rep``,
-                     ``best_of`` …). Errors raised by the callback are
-                     swallowed so a buggy UI hook never aborts the
-                     optimisation. ``None`` disables the hook
+                     ``"optimize.recording"``, ``"optimize.end"``,
+                     ``"optimize.failed"``, ``"optimize.cancelled"``)
+                     plus contextual fields (``rep``, ``seed``,
+                     ``iter``, ``n``, ``n_pop``, ``n_gen``, ``n_rep``,
+                     ``of_min``, ``of_rep``, ``best_of`` …). Errors
+                     raised by the callback are swallowed so a buggy
+                     UI hook never aborts the optimisation. ``None``
+                     disables the hook
+    :param should_stop: Optional zero-argument callable that returns
+                        ``True`` when the user has requested
+                        cancellation. Polled per LHS evaluation and per
+                        EGO iteration. The first ``True`` aborts the
+                        run cooperatively, marks the recorder as
+                        ``failed`` with ``error="cancelled by user"``
+                        and raises :class:`OptimisationCancelled`.
+                        ``None`` disables cancellation
 
     :return: OptimisationResult with the winning sapatas, the best
              objective, the seed that produced it and the per-rep
@@ -173,6 +200,7 @@ def optimize(
                     seed=rep_seed,
                     cache=cache,
                     progress=_iter_progress,
+                    should_stop=should_stop,
                 )
                 wall_time_s = time.perf_counter() - t0
                 per_rep_of.append(float(of_rep))
@@ -188,6 +216,8 @@ def optimize(
                        "n_rep": int(config.n_rep)})
 
                 if recorder is not None:
+                    _emit({"event": "optimize.recording",
+                           "rep": int(rep), "n_rep": int(config.n_rep)})
                     recorder.record_rep(
                         rep_id=rep,
                         seed=rep_seed,
@@ -200,6 +230,11 @@ def optimize(
                     best_x = list(map(float, x_new))
                     best_seed = rep_seed
 
+                # Honour cancellation between repetitions even when the
+                # caller disabled per-iter polling at the EGO level.
+                if should_stop is not None and should_stop():
+                    raise _CancelSentinel()
+
             if best_x is None:   # pragma: no cover  (only when config.n_rep == 0, blocked by validator)
                 raise RuntimeError("optimize did not run any repetition.")
 
@@ -210,6 +245,20 @@ def optimize(
                 best_seed=best_seed,
                 per_rep_of=tuple(per_rep_of),
             )
+        except _CancelSentinel:
+            wall = time.perf_counter() - t_start
+            _log.warning(
+                "optimize cancelled by user",
+                extra={"event": "optimize.cancelled",
+                       "wall_time_s": wall},
+            )
+            _emit({"event": "optimize.cancelled",
+                   "wall_time_s": wall})
+            if recorder is not None:
+                recorder.cancel("cancelled by user")
+            raise OptimisationCancelled(
+                "Optimisation cancelled by user request."
+            ) from None
         except BaseException as exc:
             _log.error("optimize failed",
                        extra={"event": "optimize.failed",

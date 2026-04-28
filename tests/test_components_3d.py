@@ -200,3 +200,16 @@ class TestRenderFootings3D:
         """Scene hovermode must be 'closest' to avoid border-flicker."""
         fig = render_footings_3d(_make_sapatas(1))
         assert fig.layout.scene.hovermode == "closest"
+
+    def test_scene_uses_turntable_dragmode_with_z_up(self):
+        """Camera must rotate as a turntable (azimuth + elevation only).
+
+        The turntable dragmode keeps the world vertical; combined
+        with ``camera.up = +z`` it prevents the user from rolling the
+        scene into upside-down or sideways orientations (the issue
+        reported during 4.7 hands-on testing).
+        """
+        fig = render_footings_3d(_make_sapatas(1))
+        assert fig.layout.scene.dragmode == "turntable"
+        cam_up = fig.layout.scene.camera.up
+        assert (cam_up.x, cam_up.y, cam_up.z) == pytest.approx((0.0, 0.0, 1.0))

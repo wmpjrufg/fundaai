@@ -374,6 +374,61 @@ class TestOptimizeIntegration:
             for e in ego_evs
         )
 
+    def test_should_stop_callback_aborts_with_cancelled_exception(
+        self, tmp_path: Path, projeto_tres
+    ):
+        """should_stop=lambda True raises OptimisationCancelled cleanly.
+
+        The recorder must end up tagged ``failed`` with the canonical
+        ``"cancelled by user"`` error message so a CI dashboard can
+        distinguish user cancels from genuine failures.
+        """
+        from core.api import OptimisationCancelled, OptimisationConfig, optimize
+
+        cfg = OptimisationConfig(
+            h_min_m=0.6, h_max_m=3.0,
+            n_pop=4, n_gen=2, n_rep=1,
+            ga_epoch=5, ga_pop_size=10,
+        )
+        rec = ExperimentRecorder(root=tmp_path, run_id="cancel-1")
+        with pytest.raises(OptimisationCancelled):
+            optimize(projeto_tres, cfg, recorder=rec,
+                     should_stop=lambda: True)
+        # Manifest reflects the cancellation
+        manifest_path = rec.run_dir / "manifest.json"
+        assert manifest_path.exists()
+        manifest = json.loads(manifest_path.read_text())
+        assert manifest["status"] == "failed"
+        assert "cancelled by user" in manifest["error"]
+
+    def test_should_stop_after_first_iter_aborts_mid_run(
+        self, tmp_path: Path, projeto_tres
+    ):
+        """A latched flag triggered after the first ego.iter aborts the run.
+
+        Models the realistic case where the user clicks "Parar"
+        partway through: the run finishes the in-flight evaluation
+        and then exits at the next polling site.
+        """
+        from core.api import OptimisationCancelled, OptimisationConfig, optimize
+
+        flag = {"stop": False}
+
+        def progress(ev):
+            if ev.get("event") == "ego.iter":
+                flag["stop"] = True
+
+        cfg = OptimisationConfig(
+            h_min_m=0.6, h_max_m=3.0,
+            n_pop=4, n_gen=4, n_rep=1,
+            ga_epoch=5, ga_pop_size=10,
+        )
+        rec = ExperimentRecorder(root=tmp_path, run_id="cancel-2")
+        with pytest.raises(OptimisationCancelled):
+            optimize(projeto_tres, cfg, recorder=rec,
+                     progress=progress,
+                     should_stop=lambda: flag["stop"])
+
     def test_progress_callback_errors_do_not_abort_run(self, tmp_path: Path, projeto_tres):
         """A buggy progress callback must not crash the optimisation."""
         from core.api import OptimisationConfig, optimize

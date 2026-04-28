@@ -19,6 +19,9 @@ Resumo em português:
 
 from __future__ import annotations
 
+import queue
+import threading
+import time
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Sequence
@@ -29,7 +32,13 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from core.api import OptimisationConfig, OptimisationResult, evaluate, optimize
+from core.api import (
+    OptimisationCancelled,
+    OptimisationConfig,
+    OptimisationResult,
+    evaluate,
+    optimize,
+)
 from core.domain import FundacaoProjeto, Sapata
 from core.io import read_projeto_from_excel
 from core.io.experiments import ExperimentRecorder, load_experiment
@@ -46,6 +55,7 @@ from frontend.theme import apply_theme
 apply_theme()
 
 EXPERIMENTS_ROOT = Path("experiments")
+POLL_INTERVAL_S = 0.4   # how often the page reruns to refresh progress
 
 
 # =============================================================================
@@ -263,133 +273,212 @@ uploaded_file.seek(0)
 st.dataframe(pd.read_excel(uploaded_file).head(), use_container_width=True)
 
 # --- Optimisation -------------------------------------------------------
-if st.button(t["btn_dimensionar"], type="primary"):
-    try:
-        config = OptimisationConfig(
-            h_min_m=float(h_min_cm) / 100.0,
-            h_max_m=float(h_max_cm) / 100.0,
-            n_gen=int(n_gen_ui),
-            n_pop=int(n_pop_ui),
-            n_rep=int(n_rep_ui),
-            base_seed=42,
-            kernel_index=-1,
-            ga_epoch=50,
-            ga_pop_size=150,
-            penalty=None,
-        )
+def _spawn_optimisation_thread(projeto, config, run_state):
+    """Launch ``optimize`` in a daemon thread and wire the progress queue.
 
-        # ── Live progress UI: a status block (collapses on completion)
-        #     plus a deterministic progress bar. Every milestone of the
-        #     pipeline updates these widgets through the `progress=`
-        #     callback wired below. The total work unit is
-        #     n_rep * n_gen ego iterations; each rep_start/end shifts
-        #     the pointer. The displayed status carries the running
-        #     best OF so the user has immediate signal.
-        total_units = int(config.n_rep) * int(config.n_gen)
-        progress_bar = st.progress(0, text="Preparando...")
-        status_box = st.status("⏳ Otimização em andamento...",
-                               state="running", expanded=True)
-        info_line = status_box.empty()
-        sub_line = status_box.empty()
+    The thread pushes every progress event into ``run_state['queue']``
+    and reads ``run_state['cancel_event']`` to honour cancellation
+    cooperatively. The result, the cancellation flag or the exception
+    is parked into ``run_state['holder']`` so the page rerun can
+    finalise the session.
+    """
+    events_q: queue.Queue = queue.Queue()
+    cancel_event = threading.Event()
+    holder: dict = {}
+    recorder = ExperimentRecorder(root=EXPERIMENTS_ROOT)
+    cache = SurrogateCache(maxsize=128)
 
-        progress_state = {"unit": 0, "best": float("inf"),
-                          "rep": 0, "iter": 0}
-
-        def _on_progress(ev: dict) -> None:
-            """Translate optimisation events into Streamlit widgets.
-
-            Streamlit renders mid-script updates synchronously, so
-            calling ``progress_bar.progress(...)`` and
-            ``info_line.write(...)`` from here is enough to surface
-            the percentage and the running best OF.
-            """
-            kind = ev.get("event")
-            if kind == "optimize.start":
-                info_line.markdown(
-                    f"**Configuração:** "
-                    f"`n_rep={ev['n_rep']}` · `n_gen={ev['n_gen']}` · "
-                    f"`n_pop={ev['n_pop']}` · `n_fund={ev['n_fund']}`"
-                )
-                sub_line.markdown(
-                    "Iniciando população inicial via Latin Hypercube..."
-                )
-                progress_bar.progress(0, text="Iniciando...")
-                return
-
-            if kind == "optimize.rep_start":
-                rep = ev["rep"]; seed = ev["seed"]
-                progress_state["rep"] = rep
-                progress_state["iter"] = 0
-                sub_line.markdown(
-                    f"🔁 **Repetição {rep + 1}/{ev['n_rep']}** "
-                    f"(seed `{seed}`) — amostrando LHS e treinando GPR..."
-                )
-                return
-
-            if kind == "ego.iter":
-                rep = ev.get("rep", progress_state["rep"])
-                it = ev["iter"]
-                n_gen = ev["n_gen"]
-                of_min = ev["of_min"]
-                progress_state["unit"] += 1
-                progress_state["best"] = min(progress_state["best"], of_min)
-                pct = min(progress_state["unit"] / max(total_units, 1), 1.0)
-                running_best = progress_state["best"]
-                progress_bar.progress(
-                    pct,
-                    text=(f"Repetição {rep + 1}/{ev.get('n_rep', '?')} · "
-                          f"iter {it}/{n_gen} · "
-                          f"melhor OF até agora: {running_best:.4f} m³"),
-                )
-                sub_line.markdown(
-                    f"🧠 Treinando GPR · iteração `{it}/{n_gen}` · "
-                    f"OF da rep: `{of_min:.6f} m³`"
-                )
-                return
-
-            if kind == "optimize.rep_end":
-                rep = ev["rep"]
-                of_rep = ev["of_rep"]
-                wall = ev["wall_time_s"]
-                sub_line.markdown(
-                    f"✅ Repetição {rep + 1} concluída — "
-                    f"OF: `{of_rep:.6f} m³` · "
-                    f"tempo: `{wall:.2f} s`"
-                )
-                return
-
-            if kind == "optimize.end":
-                progress_bar.progress(
-                    1.0,
-                    text=f"✅ Concluído · best OF: {ev['best_of']:.4f} m³",
-                )
-                return
-
-            if kind == "optimize.failed":
-                sub_line.markdown(f"❌ Falhou: `{ev['error']}`")
-                return
-
+    def _runner():
         try:
-            # Recorder switched on by default (writes under
-            # experiments/<run_id>/) so the "Ver histórico" button has
-            # the EGO history available immediately after this call.
-            recorder = ExperimentRecorder(root=EXPERIMENTS_ROOT)
-            cache = SurrogateCache(maxsize=128)
-            result: OptimisationResult = optimize(
+            holder["result"] = optimize(
                 projeto, config,
                 recorder=recorder, cache=cache,
-                progress=_on_progress,
+                progress=lambda ev: events_q.put(ev),
+                should_stop=cancel_event.is_set,
             )
-        except Exception:
-            status_box.update(label="❌ Otimização interrompida",
-                              state="error", expanded=True)
-            raise
+        except OptimisationCancelled:
+            holder["cancelled"] = True
+        except Exception as exc:   # pragma: no cover
+            holder["error"] = exc
+        finally:
+            holder["done"] = True
 
-        status_box.update(
-            label=f"✅ Otimização concluída em {len(result.per_rep_of)} repetições",
-            state="complete", expanded=False,
+    thread = threading.Thread(target=_runner, daemon=True)
+    thread.start()
+    run_state["queue"] = events_q
+    run_state["cancel_event"] = cancel_event
+    run_state["holder"] = holder
+    run_state["thread"] = thread
+    run_state["recorder"] = recorder
+    run_state["events_seen"] = []   # accumulated for cross-rerun rendering
+    run_state["total_units"] = int(config.n_rep) * (int(config.n_gen) + 1)
+    run_state["best_of"] = float("inf")
+    return run_state
+
+
+# Trigger button: spawns the thread once.
+if st.button(t["btn_dimensionar"], type="primary",
+             disabled="run" in st.session_state):
+    config = OptimisationConfig(
+        h_min_m=float(h_min_cm) / 100.0,
+        h_max_m=float(h_max_cm) / 100.0,
+        n_gen=int(n_gen_ui),
+        n_pop=int(n_pop_ui),
+        n_rep=int(n_rep_ui),
+        base_seed=42,
+        kernel_index=-1,
+        ga_epoch=50,
+        ga_pop_size=150,
+        penalty=None,
+    )
+    st.session_state["run"] = _spawn_optimisation_thread(
+        projeto, config, run_state={"config": config}
+    )
+    st.session_state["calculo_realizado"] = False
+    st.rerun()
+
+
+def _render_progress(run_state: dict) -> None:
+    """Render the live progress + cancel UI from accumulated events.
+
+    Reads every event delivered to the queue so far, derives the
+    pipeline state (current rep, current iter, running best OF) and
+    paints the widgets. The caller is responsible for triggering
+    ``st.rerun()`` (or letting the user click the cancel button) so
+    progress keeps refreshing while the thread runs.
+    """
+    events_q: queue.Queue = run_state["queue"]
+    cancel_event: threading.Event = run_state["cancel_event"]
+    holder: dict = run_state["holder"]
+
+    # Drain the queue into events_seen so a partial render history
+    # survives reruns even if Streamlit is faster than the thread.
+    while True:
+        try:
+            ev = events_q.get_nowait()
+            run_state["events_seen"].append(ev)
+            if ev.get("event") in ("ego.iter", "lhs.done") and "of_min" in ev:
+                run_state["best_of"] = min(run_state["best_of"], float(ev["of_min"]))
+        except queue.Empty:
+            break
+
+    seen = run_state["events_seen"]
+    total_units = run_state["total_units"]
+    units_done = sum(
+        1 for e in seen
+        if e.get("event") in ("lhs.done", "ego.iter")
+    )
+    pct = min(units_done / max(total_units, 1), 1.0)
+    n_rep = run_state["config"].n_rep
+    n_gen = run_state["config"].n_gen
+
+    last = seen[-1] if seen else {}
+    last_kind = last.get("event")
+
+    # Header text driven by the latest event.
+    if cancel_event.is_set():
+        headline = "⏹️ Cancelando — aguarde o fim do trecho atual..."
+    elif last_kind == "lhs.start":
+        n_pop = last.get("n_pop", "?")
+        rep = last.get("rep", 0) + 1
+        headline = (f"📐 Rep {rep}/{n_rep} — amostrando LHS "
+                    f"({n_pop} avaliações reais)...")
+    elif last_kind == "lhs.eval":
+        n = last.get("n", "?"); n_pop = last.get("n_pop", "?")
+        rep = last.get("rep", 0) + 1
+        headline = (f"📐 Rep {rep}/{n_rep} — LHS {n}/{n_pop}")
+    elif last_kind == "lhs.done":
+        rep = last.get("rep", 0) + 1
+        of_min = last.get("of_min", float("nan"))
+        headline = (f"📐 Rep {rep}/{n_rep} — LHS pronta "
+                    f"(melhor OF inicial: `{of_min:.4f} m³`)")
+    elif last_kind == "ego.iter":
+        rep = last.get("rep", 0) + 1
+        it = last.get("iter", 0)
+        of_min = last.get("of_min", float("nan"))
+        headline = (
+            f"🧠 Rep {rep}/{n_rep} · iter {it}/{n_gen} — "
+            f"re-treinando GPR + maximizando EI + avaliando candidato · "
+            f"melhor OF da rep: `{of_min:.6f} m³`"
+        )
+    elif last_kind == "optimize.recording":
+        rep = last.get("rep", 0) + 1
+        headline = f"💾 Rep {rep}/{n_rep} — gravando histórico em disco..."
+    elif last_kind == "optimize.rep_end":
+        headline = "✅ Rep concluída — preparando próxima..."
+    elif last_kind == "optimize.end":
+        headline = (f"✅ Concluído — best OF: `{last.get('best_of', float('nan')):.4f} m³`")
+    elif last_kind == "optimize.cancelled":
+        headline = "⏹️ Otimização cancelada"
+    elif last_kind == "optimize.failed":
+        headline = f"❌ Falha: `{last.get('error', '?')}`"
+    else:
+        headline = "⏳ Iniciando..."
+
+    progress_label = (
+        f"Repetição {min(_seen_rep_index(seen) + 1, n_rep)}/{n_rep} · "
+        f"melhor OF até agora: "
+        f"{(run_state['best_of'] if run_state['best_of'] != float('inf') else '—')}"
+        if run_state["best_of"] != float("inf")
+        else f"Repetição {min(_seen_rep_index(seen) + 1, n_rep)}/{n_rep}"
+    )
+
+    st.progress(pct, text=progress_label)
+
+    with st.status("Otimização em andamento", expanded=True,
+                   state=("running" if not holder.get("done")
+                          else ("error"
+                                if "error" in holder or "cancelled" in holder
+                                else "complete"))):
+        st.markdown(headline)
+        st.caption(
+            f"Pipeline: cada rep faz **{run_state['config'].n_pop}** avaliações "
+            f"reais (LHS, iter 0) + **{n_gen}** iterações do EGO; "
+            f"em cada iteração o **GPR é re-treinado**, o ponto que maximiza "
+            f"a função de aquisição (EI) é escolhido por um GA interno e "
+            f"avaliado de verdade."
         )
 
+    # Cancel control. While the thread is alive the button is the
+    # cooperative cancel; once cancellation has been requested it shows
+    # a hint that the optimiser will exit at the next safe point.
+    if not holder.get("done"):
+        if cancel_event.is_set():
+            st.warning(
+                "Cancelamento solicitado — a thread irá interromper na "
+                "próxima iteração ou avaliação LHS."
+            )
+        else:
+            if st.button("⏹️ Parar dimensionamento", key="cancel_btn"):
+                cancel_event.set()
+                st.rerun()
+
+
+def _seen_rep_index(seen) -> int:
+    """Largest ``rep`` value seen in any event; -1 when nothing yet."""
+    rep = -1
+    for e in seen:
+        r = e.get("rep")
+        if isinstance(r, int):
+            rep = max(rep, r)
+    return rep
+
+
+# Live render block. Activates whenever a run is registered. Re-renders
+# every POLL_INTERVAL_S until the runner thread completes.
+if "run" in st.session_state:
+    run_state = st.session_state["run"]
+    _render_progress(run_state)
+
+    holder = run_state["holder"]
+    if not holder.get("done"):
+        time.sleep(POLL_INTERVAL_S)
+        st.rerun()
+
+    # Thread finished — finalise.
+    if "result" in holder:
+        result = holder["result"]
+        recorder = run_state["recorder"]
         st.session_state["projeto"] = projeto
         st.session_state["result"] = result
         st.session_state["dados_final_df"] = _result_to_dataframe(result.sapatas)
@@ -398,13 +487,17 @@ if st.button(t["btn_dimensionar"], type="primary"):
         st.session_state["calculo_realizado"] = True
         st.session_state["run_dir"] = str(recorder.run_dir)
         st.session_state["run_id"] = recorder.run_id
-        st.session_state["show_history"] = False   # collapsed by default
-
+        st.session_state["show_history"] = False
         st.success(t["sucesso_otim"])
-        st.rerun()
-    except Exception as exc:   # pragma: no cover
+    elif "cancelled" in holder:
+        st.warning("⏹️ Otimização cancelada pelo usuário.")
+    elif "error" in holder:
         st.error(t["erro_proc"])
-        st.exception(exc)
+        st.exception(holder["error"])
+
+    # One-shot cleanup so the next "Dimensionar" click starts fresh.
+    del st.session_state["run"]
+    st.rerun()
 
 # --- Results -------------------------------------------------------------
 if st.session_state.get("calculo_realizado"):

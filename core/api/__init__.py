@@ -17,11 +17,12 @@ Resumo em português:
 """
 
 from .evaluate import evaluate
-from .optimize import optimize
+from .optimize import OptimisationCancelled, optimize
 from .types import EvaluationResult, OptimisationConfig, OptimisationResult
 
 __all__ = [
     "EvaluationResult",
+    "OptimisationCancelled",
     "OptimisationConfig",
     "OptimisationResult",
     "evaluate",
