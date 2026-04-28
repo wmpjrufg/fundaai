@@ -26,6 +26,8 @@ streamlit==1.52.1
 openpyxl==3.1.5
 xlsxwriter==3.2.9
 ezdxf==1.4.3
+# Parquet engine for experiment history persistence (core/io/experiments.py).
+pyarrow>=14.0,<24.0
 
 # --- Configuration validation -------------------------------------------------
 # OptimisationConfig (core/api/types.py) is a Pydantic v2 BaseModel.
