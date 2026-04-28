@@ -2,8 +2,6 @@
 
 > Plataforma computacional para o **dimensionamento otimizado de sapatas isoladas** em concreto armado, integrando critérios estruturais, geotécnicos e geométricos da NBR 6118 e da NBR 6122 em um ambiente único de projeto. A solução é obtida por uma arquitetura híbrida do tipo **Efficient Global Optimization (EGO)**, combinando um modelo substituto baseado em Regressão por Processos Gaussianos (GPR) com um Algoritmo Genético (AG) como otimizador interno da função de aquisição *Expected Improvement* (EI).
 
-Projeto vinculado ao grupo de pesquisa **Identification, Modeling and Artificial Intelligence for Systems Optimization** (PUC Goiás).
-
 ---
 
 ## Sumário
@@ -17,7 +15,6 @@ Projeto vinculado ao grupo de pesquisa **Identification, Modeling and Artificial
 - [Stack técnica](#stack-técnica)
 - [Status atual](#status-atual)
 - [Próximos passos](#próximos-passos)
-- [Equipe](#equipe)
 
 ---
 
@@ -34,6 +31,8 @@ O dimensionamento de sapatas isoladas é tradicionalmente conduzido por procedim
 A solução é obtida por uma arquitetura híbrida em três níveis: o **EGO** ([Jones, Schonlau & Welch, 1998](https://doi.org/10.1023/A:1008306431147)) orquestra a busca, um **GPR** ([Williams & Rasmussen, 2006](https://gaussianprocess.org/gpml/)) atua como surrogate da função objetivo cara, e um **AG** ([Mealpy](https://mealpy.readthedocs.io/)) maximiza a função de aquisição *Expected Improvement* a cada iteração.
 
 A interface web é construída em **Streamlit** ([fundaai.streamlit.app](https://fundaai.streamlit.app/)) e permite que o usuário forneça os dados de projeto via planilha Excel, parametrize o método, execute a otimização e exporte o resultado tanto em Excel quanto em DXF para integração direta com o fluxo tradicional de CAD.
+
+A pesquisa associada é desenvolvida no contexto de uma Iniciação Científica em andamento.
 
 ## Pipeline de execução
 
@@ -202,16 +201,10 @@ O projeto está em **fase de saneamento de código e validação experimental**,
 - ✅ **Correções científicas** — histórico do EGO com `ITER` e `ID` corretos, repetições de robustez agora independentes, parâmetro `seed` propagado para reprodutibilidade.
 - ✅ **Rede de segurança** — suite `pytest` com 55 testes cobrindo engenharia, regressão numérica, contrato do EGO e benchmarks.
 - 🔄 **Em curso** — refatoração estrutural (separação de UI e domínio, modelagem orientada a objetos, vetorização da função objetivo).
-- 🔮 **Próximas frentes** — incorporação explícita do problema de empacotamento (posicionamento conjunto das fundações como variável de projeto) e estudo de modelos substitutos fisicamente informados.
+- 🔮 **Próxima frente** — incorporação explícita do problema de empacotamento (posicionamento conjunto das fundações como variável de projeto).
 
 ## Próximos passos
 
-A frente seguinte da pesquisa contempla a **incorporação do problema de empacotamento (packing 2D)** ao processo de otimização, tratando as posições `(xg, yg)` como variáveis de projeto adicionais sob restrições rígidas de não sobreposição e fronteira do lote. O objetivo é convergir para uma versão acoplada do problema (sizing + layout) coerente com o escopo da Iniciação Científica.
-
-Em paralelo, está prevista a investigação de **modelos substitutos fisicamente informados** (PI-GPR), nos quais leis físicas conhecidas são embutidas no kernel ou no procedimento de treinamento — direção promissora dado que a função objetivo do FundaIA combina volume contínuo e termos de penalização derivados de equações normativas bem estabelecidas.
-
-## Equipe
-
-Pesquisa de Iniciação Científica desenvolvida no âmbito da **Pontifícia Universidade Católica de Goiás**, sob coordenação do grupo de pesquisa *Identification, Modeling and Artificial Intelligence for Systems Optimization*. A ferramenta integra contribuições de iniciações científicas anteriores e do trabalho atual de continuidade.
+A frente seguinte da pesquisa contempla a **incorporação do problema de empacotamento (packing 2D)** ao processo de otimização, tratando as posições `(xg, yg)` como variáveis de projeto adicionais sob restrições rígidas de não sobreposição e fronteira do lote. O objetivo é convergir para uma versão acoplada do problema (sizing + layout) coerente com o escopo da pesquisa em andamento.
 
 Para questões técnicas ou colaborações, abrir uma *issue* neste repositório.
