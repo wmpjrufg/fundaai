@@ -293,9 +293,6 @@ def render_footings_3d(
     camera: str | dict | None = None,
     terrain_margin_m: float = 1.0,
     height: int = 720,
-    axis_lock: str = "elevation",
-    azimuth_deg: float = 45.0,
-    elevation_deg: float = 30.0,
 ) -> go.Figure:
     """Build a 3D Plotly figure showing the optimised footings + pillars.
 
@@ -327,28 +324,9 @@ def render_footings_3d(
                    :data:`CAMERA_PRESETS` (``"isométrica"``,
                    ``"topo"``, ``"lateral X"``, ``"lateral Y"``,
                    ``"perspectiva"``) or a raw camera dict; defaults
-                   to the isometric preset when ``None``. Ignored
-                   when ``axis_lock="elevation"``, in which case the
-                   camera is rebuilt from ``azimuth_deg`` and
-                   ``elevation_deg``
+                   to the isometric preset when ``None``
     :param terrain_margin_m: Margin around the footings AABB used to
                              draw the terrain rectangle and grid [m]
-    :param axis_lock: ``"elevation"`` (default) disables mouse-drag
-                      rotation entirely and rebuilds the camera from
-                      the supplied ``azimuth_deg`` / ``elevation_deg``
-                      so the user can only orbit around the vertical
-                      Z axis without ever flipping or distorting the
-                      world. ``"none"`` enables Plotly's
-                      ``dragmode="turntable"`` so the user can rotate
-                      and tilt with the mouse (the elevation can then
-                      go beyond 90°, which exposes the historical
-                      "entorta" feel)
-    :param azimuth_deg: Azimuth angle in degrees [0..360] used when
-                        ``axis_lock="elevation"`` to position the
-                        camera around the vertical axis
-    :param elevation_deg: Elevation angle in degrees [10..80] used
-                          when ``axis_lock="elevation"`` to position
-                          the camera above the ground plane
 
     :return: ``plotly.graph_objects.Figure`` ready for
              ``st.plotly_chart(fig, use_container_width=True)``
@@ -388,25 +366,8 @@ def render_footings_3d(
         if show_pillars:
             fig.add_trace(pillar_box(s, height_m=pillar_height_m))
 
-    # Resolve camera. When axis_lock="elevation" the supplied azimuth
-    # and elevation override the preset entirely, since the user is
-    # explicitly controlling the orbit and we want to disable mouse
-    # rotation. Otherwise the camera follows the preset / dict path.
-    if axis_lock == "elevation":
-        azimuth_rad = float(np.radians(azimuth_deg % 360.0))
-        elevation_clamped = float(np.clip(elevation_deg, 5.0, 85.0))
-        elevation_rad = float(np.radians(elevation_clamped))
-        radius = 2.4   # Plotly camera-eye radius units (relative to scene)
-        camera_dict = dict(
-            eye=dict(
-                x=radius * np.cos(elevation_rad) * np.sin(azimuth_rad),
-                y=radius * np.cos(elevation_rad) * np.cos(azimuth_rad),
-                z=radius * np.sin(elevation_rad),
-            ),
-            center=dict(x=0, y=0, z=0),
-            up=dict(x=0, y=0, z=1),
-        )
-    elif camera is None:
+    # Resolve camera preset
+    if camera is None:
         camera_dict = CAMERA_PRESETS["isométrica"]
     elif isinstance(camera, str):
         if camera not in CAMERA_PRESETS:
@@ -428,25 +389,11 @@ def render_footings_3d(
     z_min = min((-s.h_z for s in sapatas), default=-1.0)
     z_max = max(0.0, pillar_height_m if show_pillars else 0.5)
     # Lock the camera "up" vector to +z so the world stays vertical
-    # under any rotation mode.
+    # under any rotation mode (no roll). Free azimuth + elevation via
+    # mouse-drag is restored as the default — "turntable" is exactly
+    # the CAD-style turntable: horizontal drag = orbit around z,
+    # vertical drag = tilt elevation.
     camera_dict = {**camera_dict, "up": dict(x=0, y=0, z=1)}
-    # Choose the drag interaction based on axis_lock:
-    #   - "elevation": disable rotation entirely. The camera is rebuilt
-    #     from azimuth/elevation by the caller (typically a Streamlit
-    #     slider) so there is no way for vertical drag to flip the
-    #     scene past 90° (the previously reported "entorta" feel).
-    #     Mouse pan is still allowed via dragmode="pan".
-    #   - "none": Plotly's native turntable — drag rotates with horizon
-    #     locked but allows free elevation, including past-vertical.
-    if axis_lock == "elevation":
-        scene_dragmode = "pan"
-    elif axis_lock == "none":
-        scene_dragmode = "turntable"
-    else:
-        raise ValueError(
-            f"unknown axis_lock={axis_lock!r}; "
-            f"expected 'elevation' or 'none'."
-        )
     fig.update_layout(
         title=title,
         scene=dict(
@@ -458,7 +405,7 @@ def render_footings_3d(
             aspectmode="data",
             camera=camera_dict,
             hovermode="closest",
-            dragmode=scene_dragmode,
+            dragmode="turntable",
             uirevision="fundaia_3d_camera",
         ),
         height=int(height),

@@ -169,14 +169,8 @@ class TestRenderFootings3D:
         assert max(pillar_zs) == pytest.approx(DEFAULT_PILLAR_HEIGHT_M)
 
     def test_camera_preset_applied(self):
-        """camera='topo' positions the camera looking straight down at +z.
-
-        Note: camera presets only take effect when axis_lock='none';
-        the default lock rebuilds the camera from azimuth/elevation
-        sliders, see ``test_axis_lock_elevation_camera_follows_azimuth_slider``.
-        """
-        fig = render_footings_3d(_make_sapatas(2),
-                                 camera="topo", axis_lock="none")
+        """camera='topo' positions the camera looking straight down at +z."""
+        fig = render_footings_3d(_make_sapatas(2), camera="topo")
         cam = fig.layout.scene.camera
         assert cam.eye.x == pytest.approx(0.0)
         assert cam.eye.y == pytest.approx(0.0)
@@ -185,8 +179,7 @@ class TestRenderFootings3D:
     def test_unknown_camera_preset_raises(self):
         """Unknown preset names raise rather than silently picking a default."""
         with pytest.raises(ValueError, match="camera preset"):
-            render_footings_3d(_make_sapatas(1),
-                               camera="nope", axis_lock="none")
+            render_footings_3d(_make_sapatas(1), camera="nope")
 
     def test_terrain_margin_propagates_to_ground_extent(self):
         """A larger terrain_margin_m widens the ground rectangle."""
@@ -208,51 +201,13 @@ class TestRenderFootings3D:
         fig = render_footings_3d(_make_sapatas(1))
         assert fig.layout.scene.hovermode == "closest"
 
-    def test_default_disables_drag_rotation_for_axis_lock(self):
-        """Default axis_lock='elevation' uses dragmode='pan'.
+    def test_default_uses_turntable_with_z_up(self):
+        """Default 3D view uses turntable rotation with Z locked as up.
 
-        With elevation locked the user controls orbit via the
-        azimuth slider; mouse-drag rotation is intentionally
-        disabled so the scene never tilts past 90° or flips.
+        Mouse-drag rotates azimuth + elevation freely; the world
+        stays vertical (no roll) because ``camera.up = (0, 0, 1)``.
         """
         fig = render_footings_3d(_make_sapatas(1))
-        assert fig.layout.scene.dragmode == "pan"
+        assert fig.layout.scene.dragmode == "turntable"
         cam_up = fig.layout.scene.camera.up
         assert (cam_up.x, cam_up.y, cam_up.z) == pytest.approx((0.0, 0.0, 1.0))
-
-    def test_axis_lock_none_uses_turntable(self):
-        """Opting out of the lock returns turntable mouse rotation."""
-        fig = render_footings_3d(_make_sapatas(1), axis_lock="none")
-        assert fig.layout.scene.dragmode == "turntable"
-
-    def test_axis_lock_elevation_camera_follows_azimuth_slider(self):
-        """Camera eye is rebuilt from the azimuth/elevation parameters.
-
-        With axis_lock='elevation' the supplied azimuth and
-        elevation override any preset, so the slider in the UI
-        deterministically positions the orbit around the vertical
-        axis.
-        """
-        fig0 = render_footings_3d(
-            _make_sapatas(1), axis_lock="elevation",
-            azimuth_deg=0.0, elevation_deg=30.0,
-        )
-        fig90 = render_footings_3d(
-            _make_sapatas(1), axis_lock="elevation",
-            azimuth_deg=90.0, elevation_deg=30.0,
-        )
-        # Azimuth 0°: eye on +y axis, x near 0.
-        # Azimuth 90°: eye on +x axis, y near 0.
-        eye_0 = fig0.layout.scene.camera.eye
-        eye_90 = fig90.layout.scene.camera.eye
-        assert eye_0.x == pytest.approx(0.0, abs=1e-6)
-        assert eye_0.y > 0
-        assert eye_90.y == pytest.approx(0.0, abs=1e-6)
-        assert eye_90.x > 0
-        # Elevation pinned -> z component stable
-        assert eye_0.z == pytest.approx(eye_90.z, rel=1e-6)
-
-    def test_unknown_axis_lock_raises(self):
-        """Unknown axis_lock values raise ValueError."""
-        with pytest.raises(ValueError, match="axis_lock"):
-            render_footings_3d(_make_sapatas(1), axis_lock="diagonal")
