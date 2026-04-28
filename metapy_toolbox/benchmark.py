@@ -83,22 +83,33 @@ def ackley(x: list) -> float:
 
 
 def griewank(x: list) -> float:
-    """The Griewank function has many widespread local minima, which are regularly distributed.
+    """This function evaluates the Griewank benchmark on a d-dimensional vector.
 
-    :param x: Design variables
+    The Griewank function has many widespread local minima regularly
+    distributed. Reference: Surjanovic & Bingham
+    (https://www.sfu.ca/~ssurjano/griewank.html). Global minimum at
+    x = 0, f(0) = 0.
 
-    :return: Objective function value
+    Notas de correcao (Sprint 2):
+        Versao anterior tinha o produto fora do loop (`prod *= cos(...)`
+        com indentacao errada), o que usava apenas o ultimo `x_i` e
+        produzia valores numericamente errados para todo `d > 1`. A
+        correcao move o produto para dentro do loop, partindo de
+        `prod = 1` e multiplicando por `cos(x_i / sqrt(i+1))` em cada
+        passo.
+
+    :param x: Vetor das variaveis de projeto, com `d >= 1`
+
+    :return: Valor da funcao objetivo `sum(x_i^2)/4000 - prod(cos(x_i/sqrt(i+1))) + 1`
     """
-
     n_dimensions = len(x)
-    sum = 0
-    prod = 1
+    soma = 0.0
+    produto = 1.0
     for i in range(n_dimensions):
         x_i = x[i]
-        sum += (x_i ** 2) / 4000
-    prod *= np.cos(x_i / np.sqrt(i+1))
-    of = sum - prod + 1
-
+        soma += (x_i ** 2) / 4000.0
+        produto *= np.cos(x_i / np.sqrt(i + 1))
+    of = soma - produto + 1.0
     return of
 
 
@@ -202,24 +213,47 @@ def goldstein_price(x: list) -> float:
 
 
 def powell(x: list) -> float:
-    """The Powell function.
+    """This function evaluates the Powell benchmark on a d-dimensional vector.
 
-    :param x: Design variables
+    Reference: Surjanovic & Bingham
+    (https://www.sfu.ca/~ssurjano/powell.html). The function is defined
+    in blocks of four variables; therefore `d` must be a multiple of 4
+    (`d in {4, 8, 12, ...}`). Global minimum at x = 0, f(0) = 0.
 
-    :return: Objective function value
+    Notas de correcao (Sprint 2):
+        Versao anterior usava indexacao 1-based (`x[4i-3], x[4i-2],
+        x[4i-1], x[4i]`) sem ajuste para Python 0-based, o que
+        estourava o ultimo indice `x[4i]` quando o vetor tinha tamanho
+        exatamente multiplo de 4 (caso canonico do Powell). A nova
+        implementacao usa o equivalente 0-based: para
+        `i = 0..n_blocks - 1`, le `x[4i], x[4i+1], x[4i+2], x[4i+3]`.
+
+    :param x: Vetor das variaveis de projeto, com `d` multiplo de 4
+
+    :return: Valor da funcao objetivo
+             `sum_{i=0..n/4-1} (x_{4i} + 10·x_{4i+1})^2 + 5·(x_{4i+2} - x_{4i+3})^2
+              + (x_{4i+1} - 2·x_{4i+2})^4 + 10·(x_{4i} - x_{4i+3})^4`
+
+    :raises ValueError: Se `len(x) % 4 != 0`
     """
-
     n_dimensions = len(x)
-    sum = 0
-    for i in range(1, n_dimensions//4 + 1):
-        term1 = (x[4 * i - 3] + 10 * x[4 * i - 2])**2
-        term2 = 5 * (x[4 * i-1] - x[4 * i])**2
-        term3 = (x[4 * i - 2] - 2 * x[4 * i - 1])**4
-        term4 = 10 * (x[4 * i - 3] - x[4 * i])**4
-        sum = sum + term1 + term2 + term3 + term4
-    of = sum
-    
-    return of
+    if n_dimensions % 4 != 0:
+        raise ValueError(
+            f"powell exige d multiplo de 4; recebeu d={n_dimensions}."
+        )
+    soma = 0.0
+    n_blocks = n_dimensions // 4
+    for i in range(n_blocks):
+        a = x[4 * i + 0]
+        b = x[4 * i + 1]
+        c = x[4 * i + 2]
+        d = x[4 * i + 3]
+        term1 = (a + 10 * b) ** 2
+        term2 = 5 * (c - d) ** 2
+        term3 = (b - 2 * c) ** 4
+        term4 = 10 * (a - d) ** 4
+        soma += term1 + term2 + term3 + term4
+    return soma
 
 
 def active_learning_example(x: list) -> float:
