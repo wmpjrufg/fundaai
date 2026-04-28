@@ -54,6 +54,10 @@ try:
 except Exception:  # pragma: no cover  (joblib is in requirements but be resilient)
     joblib = None  # type: ignore
 
+from core.observability import get_logger
+
+_log = get_logger("cache")
+
 
 __all__ = [
     "SurrogateCache",
@@ -222,6 +226,9 @@ class SurrogateCache:
         if key in self._mem:
             self._mem.move_to_end(key)
             self._stats["hits"] += 1
+            _log.debug("cache memory hit", extra={"event": "cache.hit",
+                                                   "key": key[:16],
+                                                   "size": len(self._mem)})
             return copy.deepcopy(self._mem[key])
 
         if self.disk_dir is not None and joblib is not None:
@@ -232,9 +239,13 @@ class SurrogateCache:
                 self._mem[key] = copy.deepcopy(model)
                 self._evict_if_needed()
                 self._stats["disk_hits"] += 1
+                _log.debug("cache disk hit", extra={"event": "cache.disk_hit",
+                                                     "key": key[:16],
+                                                     "disk_dir": str(self.disk_dir)})
                 return model
 
         self._stats["misses"] += 1
+        _log.debug("cache miss", extra={"event": "cache.miss", "key": key[:16]})
         return None
 
     def put(self, key: str, model: Any) -> None:

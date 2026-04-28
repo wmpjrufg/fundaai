@@ -11,8 +11,11 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 import scipy as sc
 import mealpy as mp
 
+from core.observability import get_logger
 from core.optimization import funcs
 from core.optimization.cache import SurrogateCache, fit_or_get_cached
+
+_log = get_logger("ego")
 
 
 def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_lower: list, x_upper: list, params_opt: dict, params_kernel: Optional[dict] = None, args: Optional[tuple] = None, seed: Optional[int] = None, cache: Optional[SurrogateCache] = None) -> tuple[list, float, pd.DataFrame]:
@@ -155,6 +158,12 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
         x_train = df[x_cols]
         y_train = df[['OF']]
         model = fit_or_get_cached(pipe, x_train, y_train, cache)
+        _log.debug(
+            "ego iteration",
+            extra={"event": "ego.iter", "iter": int(t),
+                   "of_min": float(df["OF"].min()),
+                   "n_train": int(len(df))},
+        )
 
         # Acquisition function: maximise Expected Improvement (EI)
         argss = (model, df['OF'].min())

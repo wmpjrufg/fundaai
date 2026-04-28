@@ -55,6 +55,7 @@ import numpy as np
 import pandas as pd
 
 from core.domain import FundacaoProjeto
+from core.observability import get_logger
 
 if TYPE_CHECKING:  # imported for type hints only — breaks the
                    # core.io <-> core.api circular import cycle.
@@ -62,6 +63,8 @@ if TYPE_CHECKING:  # imported for type hints only — breaks the
 
 # numpy>=2.0 renamed np.trapz to np.trapezoid; keep working under both.
 _trapezoid = getattr(np, "trapezoid", None) or getattr(np, "trapz")
+
+_log = get_logger("experiments")
 
 
 __all__ = [
@@ -505,6 +508,9 @@ class ExperimentRecorder:
         _atomic_write_json(self._run_dir / "env.json", self._env)
         _atomic_write_json(self._run_dir / "project.json", self._project)
         self._flush_manifest(status="running")
+        _log.info("experiment begin",
+                  extra={"event": "experiment.begin", "run_id": self._run_id,
+                         "run_dir": str(self._run_dir)})
 
     # ------------------------------------------------------------ record_rep
     def record_rep(
@@ -542,6 +548,11 @@ class ExperimentRecorder:
         # Keep summary.csv up to date so a crash mid-run leaves partial data.
         pd.DataFrame(self._summary_rows).to_csv(self._run_dir / "summary.csv", index=False)
         self._flush_manifest(status="running")
+        _log.info("rep recorded",
+                  extra={"event": "experiment.record_rep",
+                         "rep_id": int(rep_id), "seed": int(seed),
+                         "of_best": per_rep.get("of_best"),
+                         "wall_time_s": float(wall_time_s)})
         return row
 
     # ----------------------------------------------------------- artifacts
@@ -577,6 +588,11 @@ class ExperimentRecorder:
         metrics = compute_metrics(self._summary_per_rep) if self._summary_per_rep else None
         if metrics is not None:
             _atomic_write_json(self._run_dir / "metrics.json", metrics)
+        _log.info("experiment end",
+                  extra={"event": "experiment.end", "run_id": self._run_id,
+                         "status": status,
+                         "best_of": (metrics or {}).get("best_of"),
+                         "n_rep": (metrics or {}).get("n_rep")})
         return self._flush_manifest(status=status,
                                     completed_at=datetime.now(timezone.utc).isoformat(),
                                     metrics=metrics)
@@ -588,6 +604,9 @@ class ExperimentRecorder:
 
         :return: The final manifest written to disk
         """
+        _log.error("experiment cancel",
+                   extra={"event": "experiment.cancel",
+                          "run_id": self._run_id, "error": error})
         return self._flush_manifest(status="failed",
                                     completed_at=datetime.now(timezone.utc).isoformat(),
                                     error=error)

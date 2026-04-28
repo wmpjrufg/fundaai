@@ -33,9 +33,12 @@ from core.api._adapter import (
 from core.api.types import OptimisationConfig, OptimisationResult
 from core.domain import FundacaoProjeto
 from core.io.experiments import ExperimentRecorder
+from core.observability import get_logger, run_context
 from core.optimization.cache import SurrogateCache
 from core.optimization import ego_01_architecture, initial_population_01
 from fundacao import constroi_kernel, obj_felipe_lucas
+
+_log = get_logger("optimize")
 
 
 def optimize(
@@ -105,57 +108,82 @@ def optimize(
     if recorder is not None:
         recorder.begin(config, projeto)
 
-    try:
-        for rep in range(config.n_rep):
-            rep_seed = config.base_seed + rep
-            x_ini = initial_population_01(
-                config.n_pop, dim, x_lower, x_upper, seed=rep_seed, use_lhs=True
-            )
-
-            t0 = time.perf_counter()
-            x_new, of_rep, history_df = ego_01_architecture(
-                obj_felipe_lucas,
-                config.n_gen,
-                x_ini,
-                x_lower,
-                x_upper,
-                paras_opt,
-                paras_kernel,
-                args=args_obj,
-                seed=rep_seed,
-                cache=cache,
-            )
-            wall_time_s = time.perf_counter() - t0
-            per_rep_of.append(float(of_rep))
-
-            if recorder is not None:
-                recorder.record_rep(
-                    rep_id=rep,
-                    seed=rep_seed,
-                    history=history_df,
-                    wall_time_s=wall_time_s,
+    run_id = recorder.run_id if recorder is not None else None
+    with run_context(run_id):
+        _log.info("optimize start",
+                  extra={"event": "optimize.start", "n_rep": int(config.n_rep),
+                         "n_pop": int(config.n_pop), "n_gen": int(config.n_gen),
+                         "n_fund": int(n_fund),
+                         "base_seed": int(config.base_seed)})
+        t_start = time.perf_counter()
+        try:
+            for rep in range(config.n_rep):
+                rep_seed = config.base_seed + rep
+                x_ini = initial_population_01(
+                    config.n_pop, dim, x_lower, x_upper, seed=rep_seed, use_lhs=True
                 )
 
-            if of_rep < best_of:
-                best_of = float(of_rep)
-                best_x = list(map(float, x_new))
-                best_seed = rep_seed
+                _log.info("rep start",
+                          extra={"event": "optimize.rep_start",
+                                 "rep": int(rep), "seed": int(rep_seed)})
+                t0 = time.perf_counter()
+                x_new, of_rep, history_df = ego_01_architecture(
+                    obj_felipe_lucas,
+                    config.n_gen,
+                    x_ini,
+                    x_lower,
+                    x_upper,
+                    paras_opt,
+                    paras_kernel,
+                    args=args_obj,
+                    seed=rep_seed,
+                    cache=cache,
+                )
+                wall_time_s = time.perf_counter() - t0
+                per_rep_of.append(float(of_rep))
+                _log.info("rep end",
+                          extra={"event": "optimize.rep_end",
+                                 "rep": int(rep), "seed": int(rep_seed),
+                                 "of_rep": float(of_rep),
+                                 "wall_time_s": wall_time_s})
 
-        if best_x is None:   # pragma: no cover  (only when config.n_rep == 0, blocked by validator)
-            raise RuntimeError("optimize did not run any repetition.")
+                if recorder is not None:
+                    recorder.record_rep(
+                        rep_id=rep,
+                        seed=rep_seed,
+                        history=history_df,
+                        wall_time_s=wall_time_s,
+                    )
 
-        sapatas = design_vector_to_sapatas(best_x, projeto)
-        result = OptimisationResult(
-            sapatas=tuple(sapatas),
-            best_of=best_of,
-            best_seed=best_seed,
-            per_rep_of=tuple(per_rep_of),
-        )
-    except BaseException as exc:
+                if of_rep < best_of:
+                    best_of = float(of_rep)
+                    best_x = list(map(float, x_new))
+                    best_seed = rep_seed
+
+            if best_x is None:   # pragma: no cover  (only when config.n_rep == 0, blocked by validator)
+                raise RuntimeError("optimize did not run any repetition.")
+
+            sapatas = design_vector_to_sapatas(best_x, projeto)
+            result = OptimisationResult(
+                sapatas=tuple(sapatas),
+                best_of=best_of,
+                best_seed=best_seed,
+                per_rep_of=tuple(per_rep_of),
+            )
+        except BaseException as exc:
+            _log.error("optimize failed",
+                       extra={"event": "optimize.failed",
+                              "error": repr(exc),
+                              "wall_time_s": time.perf_counter() - t_start})
+            if recorder is not None:
+                recorder.cancel(repr(exc))
+            raise
+
         if recorder is not None:
-            recorder.cancel(repr(exc))
-        raise
-
-    if recorder is not None:
-        recorder.end()
-    return result
+            recorder.end()
+        _log.info("optimize end",
+                  extra={"event": "optimize.end",
+                         "best_of": float(best_of),
+                         "best_seed": int(best_seed),
+                         "wall_time_s": time.perf_counter() - t_start})
+        return result
