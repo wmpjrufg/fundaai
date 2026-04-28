@@ -1,20 +1,26 @@
-"""Streamlit page — optimised footing design (thin shell over ``core.api``).
+"""Streamlit page — optimised footing design (premium UI shell).
 
-This module is intentionally a thin presentation layer. All engineering
-and optimisation logic lives in ``core/``: ``core.io.read_projeto_from_excel``
-parses the upload, ``core.api.optimize`` orchestrates the EGO+GPR+GA
-pipeline and ``core.io.sapatas_to_dxf_bytes`` produces the CAD export.
-The page itself only handles widgets, session state and rendering.
+This module is intentionally a thin presentation layer. All
+engineering and optimisation logic lives in ``core/``:
+``core.io.read_projeto_from_excel`` parses the upload,
+``core.api.optimize`` orchestrates the EGO+GPR+GA pipeline (now with
+the experiment recorder switched on by default so the EGO history is
+always available for the "Ver histórico" button), and the export
+panel hands the user every artifact they may need (DXF, JSON, HTML
+3D, PNG history).
 
 Resumo em português:
-    Página Streamlit refatorada como camada fina sobre ``core.api``.
-    Toda a lógica de engenharia e otimização está em ``core/``; aqui
-    cuidamos apenas de widgets, estado da sessão e renderização.
+    Página Streamlit (camada fina sobre ``core.api``). Aplica o tema
+    dark do projeto, dispara a otimização com o ``ExperimentRecorder``
+    ligado por padrão e oferece resultado completo: planta 2D, vista
+    3D interativa, gráfico premium de histórico do EGO e bloco
+    unificado de downloads.
 """
 
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 from typing import Any, Dict, Sequence
 
 import matplotlib.patches as patches
@@ -25,78 +31,92 @@ import streamlit as st
 
 from core.api import OptimisationConfig, OptimisationResult, evaluate, optimize
 from core.domain import FundacaoProjeto, Sapata
-from core.io import read_projeto_from_excel, sapatas_to_dxf_bytes
-from frontend.components import render_footings_3d
+from core.io import read_projeto_from_excel
+from core.io.experiments import ExperimentRecorder, load_experiment
+from core.optimization.cache import SurrogateCache
+from frontend.components import (
+    CAMERA_PRESETS,
+    build_export_artifacts,
+    figure_to_html_bytes,
+    render_ego_history,
+    render_footings_3d,
+)
+from frontend.theme import apply_theme
+
+apply_theme()
+
+EXPERIMENTS_ROOT = Path("experiments")
 
 
 # =============================================================================
 # Plot helpers (Streamlit-specific; live here to keep core layers free of UI)
 # =============================================================================
 def _plot_layout(sapatas: Sequence[Sapata]):
-    """This function renders the in-plane layout of the optimised footings.
+    """Render the in-plane layout of the optimised footings (matplotlib).
+
+    Tuned to match the dark Streamlit theme — transparent canvas,
+    amber edges and grid, light annotations.
 
     :param sapatas: Sequence of optimised Sapata entities
 
     :return: Matplotlib figure ready to be passed to ``st.pyplot``
     """
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(10, 10), facecolor="none")
+    ax.set_facecolor("#0b1220")
     for sapata in sapatas:
         v_sw, _, _, _ = sapata.vertices
         ax.add_patch(
             patches.Rectangle(
-                v_sw,
-                sapata.h_x,
-                sapata.h_y,
-                linewidth=1,
-                edgecolor="blue",
-                facecolor="none",
+                v_sw, sapata.h_x, sapata.h_y,
+                linewidth=1.5, edgecolor="#f59e0b", facecolor="#f59e0b22",
             )
         )
-        ax.scatter(
-            sapata.pilar.xg,
-            sapata.pilar.yg,
-            color="red",
-            marker="+",
-            s=100,
-        )
+        ax.scatter(sapata.pilar.xg, sapata.pilar.yg,
+                   color="#fbbf24", marker="+", s=120, linewidths=2)
         ax.annotate(
             sapata.pilar.rotulo,
             (sapata.pilar.xg, sapata.pilar.yg),
-            textcoords="offset points",
-            xytext=(0, 10),
-            ha="center",
+            textcoords="offset points", xytext=(0, 12),
+            ha="center", color="#e5e7eb", fontsize=10, fontweight="bold",
         )
-    ax.set_xlabel("X (m)")
-    ax.set_ylabel("Y (m)")
-    ax.set_title("Posicionamento das sapatas")
-    ax.grid(True)
+    ax.set_xlabel("X (m)", color="#9aa3b2")
+    ax.set_ylabel("Y (m)", color="#9aa3b2")
+    ax.set_title("Posicionamento das sapatas", color="#e5e7eb")
+    ax.grid(True, color="#1f2a44", linewidth=0.6)
+    ax.tick_params(colors="#9aa3b2")
+    for spine in ax.spines.values():
+        spine.set_color("#1f2a44")
     ax.set_aspect("equal", adjustable="box")
     return fig
 
 
 def _result_to_dataframe(sapatas: Sequence[Sapata]) -> pd.DataFrame:
-    """This function turns the result sapatas into the historical results DataFrame.
+    """Turn the result sapatas into the historical results DataFrame.
 
     Mirrors the legacy ``Dimensoes_Finais`` sheet so that downstream
     consumers (notebooks, the orientador's spreadsheets) keep working.
 
     :param sapatas: Sequence of optimised Sapata entities
 
-    :return: DataFrame with columns ``h_x (m)``, ``h_y (m)``, ``h_z (m)``
+    :return: DataFrame with columns ``Elemento``, ``h_x (m)``,
+             ``h_y (m)``, ``h_z (m)``, ``Volume (m^3)``
     """
     return pd.DataFrame(
-        [{"h_x (m)": s.h_x, "h_y (m)": s.h_y, "h_z (m)": s.h_z} for s in sapatas]
+        [
+            {
+                "Elemento": s.pilar.rotulo,
+                "h_x (m)": s.h_x, "h_y (m)": s.h_y, "h_z (m)": s.h_z,
+                "Volume (m^3)": s.volume,
+            }
+            for s in sapatas
+        ]
     )
 
 
 def _build_results_xlsx(
     projeto: FundacaoProjeto, result: OptimisationResult
 ) -> bytes:
-    """This function builds the multi-sheet xlsx report shipped to the user.
-
-    Sheet ``Dimensoes_Finais`` carries the optimised footing dimensions.
-    Sheet ``Verificacoes_Detalhadas`` carries the per-element constraint
-    table produced by ``evaluate``.
+    """Build the multi-sheet xlsx report shipped to the user.
 
     :param projeto: Validated FundacaoProjeto
     :param result: OptimisationResult returned by ``optimize``
@@ -122,19 +142,19 @@ def _build_results_xlsx(
 # Localisation
 # =============================================================================
 def obter_textos() -> Dict[str, Dict[str, str]]:
-    """This function returns the page texts in the supported languages.
+    """Return the page texts in the supported languages.
 
     :return: Mapping ``lang -> {key -> text}`` covering both PT and EN
     """
     return {
         "pt": {
             "titulo_pagina": "🏗️ Dimensionamento Otimizado de Sapatas",
-            "upload_header": "Upload da planilha de dados",
+            "upload_header": "📥 Upload da planilha de dados",
             "upload_label": "Selecione o arquivo Excel",
             "upload_sucesso": "Arquivo carregado com sucesso!",
             "upload_aviso": "Por favor, selecione um arquivo Excel para continuar.",
             "preview_header": "Primeiras linhas da planilha de dados",
-            "params_header": "Parâmetros gerais de dimensionamento",
+            "params_header": "⚙️ Parâmetros gerais de dimensionamento",
             "n_comb": "Número de combinações",
             "fck": "fck do concreto (MPa)",
             "cob": "Cobrimento do concreto (cm)",
@@ -142,20 +162,20 @@ def obter_textos() -> Dict[str, Dict[str, str]]:
             "h_max": "Dimensão máxima da sapata (cm)",
             "n_gen": "Número de gerações da otimização",
             "n_pop": "Tamanho da população",
-            "btn_dimensionar": "Dimensionar",
+            "btn_dimensionar": "🚀 Dimensionar",
             "info_otim": "Otimizando o sistema...",
             "sucesso_otim": "✅ Otimização concluída com sucesso!",
-            "resultado_header": "📊 Resultados Detalhados",
+            "resultado_header": "📊 Resultados detalhados",
             "erro_proc": "Erro durante o processamento.",
         },
         "en": {
             "titulo_pagina": "🏗️ Optimized Footing Design",
-            "upload_header": "Data Spreadsheet Upload",
+            "upload_header": "📥 Data spreadsheet upload",
             "upload_label": "Select Excel file",
             "upload_sucesso": "File uploaded successfully!",
             "upload_aviso": "Please select an Excel file to continue.",
             "preview_header": "Data spreadsheet preview",
-            "params_header": "General design parameters",
+            "params_header": "⚙️ General design parameters",
             "n_comb": "Number of combinations",
             "fck": "Concrete fck (MPa)",
             "cob": "Concrete cover (cm)",
@@ -163,10 +183,10 @@ def obter_textos() -> Dict[str, Dict[str, str]]:
             "h_max": "Maximum footing dimension (cm)",
             "n_gen": "Number of optimization generations",
             "n_pop": "Population size",
-            "btn_dimensionar": "Design",
+            "btn_dimensionar": "🚀 Design",
             "info_otim": "Optimizing the system...",
             "sucesso_otim": "✅ Optimization completed successfully!",
-            "resultado_header": "📊 Detailed Results",
+            "resultado_header": "📊 Detailed results",
             "erro_proc": "Error during processing.",
         },
     }
@@ -183,6 +203,8 @@ st.title(t["titulo_pagina"])
 # Initialise persistent state
 if "calculo_realizado" not in st.session_state:
     st.session_state["calculo_realizado"] = False
+if "show_history" not in st.session_state:
+    st.session_state["show_history"] = False
 
 # --- Inputs --------------------------------------------------------------
 st.subheader(t["params_header"])
@@ -208,9 +230,6 @@ if uploaded_file is None:
     st.warning(t["upload_aviso"])
     st.stop()
 
-# Read the project from the spreadsheet through the IO layer.
-# Strict schema validation lives there; user-facing errors bubble up
-# unchanged so the orientador sees the exact problem.
 try:
     projeto = read_projeto_from_excel(
         uploaded_file,
@@ -224,10 +243,8 @@ except (ValueError, FileNotFoundError) as exc:
 
 st.success(t["upload_sucesso"])
 st.subheader(t["preview_header"])
-# The preview shows the raw spreadsheet contents (uploaded_file was already
-# consumed; pandas re-reads it for display only).
 uploaded_file.seek(0)
-st.dataframe(pd.read_excel(uploaded_file).head())
+st.dataframe(pd.read_excel(uploaded_file).head(), use_container_width=True)
 
 # --- Optimisation -------------------------------------------------------
 if st.button(t["btn_dimensionar"], type="primary"):
@@ -245,7 +262,15 @@ if st.button(t["btn_dimensionar"], type="primary"):
                 ga_pop_size=150,
                 penalty=None,
             )
-            result: OptimisationResult = optimize(projeto, config)
+
+            # Recorder switched on by default (writes under
+            # experiments/<run_id>/) so the "Ver histórico" button has
+            # the EGO history available immediately after this call.
+            recorder = ExperimentRecorder(root=EXPERIMENTS_ROOT)
+            cache = SurrogateCache(maxsize=128)
+            result: OptimisationResult = optimize(
+                projeto, config, recorder=recorder, cache=cache
+            )
 
             st.session_state["projeto"] = projeto
             st.session_state["result"] = result
@@ -253,6 +278,9 @@ if st.button(t["btn_dimensionar"], type="primary"):
             st.session_state["best_of_valor"] = result.best_of
             st.session_state["excel_buffer"] = _build_results_xlsx(projeto, result)
             st.session_state["calculo_realizado"] = True
+            st.session_state["run_dir"] = str(recorder.run_dir)
+            st.session_state["run_id"] = recorder.run_id
+            st.session_state["show_history"] = False   # collapsed by default
 
             st.success(t["sucesso_otim"])
             st.rerun()
@@ -265,63 +293,159 @@ if st.session_state.get("calculo_realizado"):
     st.divider()
     st.subheader(t["resultado_header"])
 
-    col_a, col_b = st.columns([2, 1])
+    result_state: OptimisationResult = st.session_state["result"]
 
-    with col_a:
-        st.dataframe(st.session_state["dados_final_df"], use_container_width=True)
+    # KPI strip ------------------------------------------------------------
+    kpi_a, kpi_b, kpi_c, kpi_d = st.columns(4)
+    kpi_a.metric("Volume total", f"{st.session_state['best_of_valor']:.4f} m³")
+    kpi_b.metric("Sapatas", f"{len(result_state.sapatas)}")
+    kpi_c.metric("Repetições (n_rep)", f"{len(result_state.per_rep_of)}")
+    if result_state.per_rep_of:
+        spread = max(result_state.per_rep_of) - min(result_state.per_rep_of)
+        kpi_d.metric("Spread entre reps", f"{spread:.4f} m³")
+    run_id = st.session_state.get("run_id")
+    if run_id:
+        st.markdown(
+            f"<span class='fundaia-chip fundaia-chip--accent'>run {run_id}</span>",
+            unsafe_allow_html=True,
+        )
 
-    with col_b:
-        st.metric("Volume Total", f"{st.session_state['best_of_valor']:.4f} m³")
+    st.write("")
 
+    table_col, viewer_col = st.columns([2, 3])
+
+    with table_col:
+        st.dataframe(
+            st.session_state["dados_final_df"],
+            use_container_width=True, hide_index=True,
+        )
         st.download_button(
-            label="📥 Baixar Resultados (Excel)",
+            label="📥 Resultados (Excel)",
             data=st.session_state["excel_buffer"],
             file_name="otimizacao_fundacao.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-        st.divider()
-        st.subheader("🗺️ Arranjo das Sapatas")
+    with viewer_col:
+        tab_2d, tab_3d = st.tabs(["🗺️ Planta 2D", "🧊 Vista 3D"])
+        with tab_2d:
+            fig2d = _plot_layout(result_state.sapatas)
+            st.pyplot(fig2d, use_container_width=True)
+        with tab_3d:
+            ctrl, scene = st.columns([1, 4])
+            with ctrl:
+                show_pillars = st.checkbox("Pilares", value=True)
+                show_ground = st.checkbox("Terreno", value=True)
+                colour_by = st.radio(
+                    "Cor",
+                    options=["label", "volume"], index=0,
+                    format_func=lambda x: "elemento" if x == "label" else "volume",
+                )
+                camera_preset = st.selectbox(
+                    "Câmera",
+                    options=list(CAMERA_PRESETS.keys()),
+                    index=list(CAMERA_PRESETS.keys()).index("isométrica"),
+                )
+                pillar_height = st.slider(
+                    "Altura visual do pilar (m)",
+                    min_value=0.5, max_value=4.0, value=1.5, step=0.1,
+                )
+                terrain_margin = st.slider(
+                    "Margem do terreno (m)",
+                    min_value=0.5, max_value=10.0, value=1.5, step=0.5,
+                )
+            with scene:
+                fig3d = render_footings_3d(
+                    result_state.sapatas,
+                    show_pillars=show_pillars,
+                    show_ground=show_ground,
+                    pillar_height_m=pillar_height,
+                    colour_by=colour_by,
+                    camera=camera_preset,
+                    terrain_margin_m=terrain_margin,
+                )
+                st.plotly_chart(fig3d, use_container_width=True,
+                                config={"displaylogo": False, "responsive": True})
 
+    st.divider()
+
+    # --- History --------------------------------------------------------
+    hist_btn_col, _spacer = st.columns([1, 5])
+    with hist_btn_col:
+        if st.button("📈 Ver histórico do EGO"):
+            st.session_state["show_history"] = not st.session_state["show_history"]
+
+    fig_history = None
+    if st.session_state.get("show_history") and st.session_state.get("run_dir"):
         try:
-            result_state: OptimisationResult = st.session_state["result"]
-            tab_2d, tab_3d = st.tabs(["🗺️ Planta 2D", "🧊 Vista 3D"])
-            with tab_2d:
-                fig = _plot_layout(result_state.sapatas)
-                st.pyplot(fig, use_container_width=True)
-            with tab_3d:
-                viewer_cols = st.columns([3, 1])
-                with viewer_cols[1]:
-                    show_pillars = st.checkbox("Exibir pilares", value=True)
-                    show_ground = st.checkbox("Exibir plano de solo", value=True)
-                    colour_by = st.radio(
-                        "Cor das sapatas",
-                        options=["label", "volume"],
-                        index=0,
-                        format_func=lambda x: "por elemento" if x == "label" else "por volume",
-                        horizontal=False,
+            run = load_experiment(st.session_state["run_dir"])
+            log_y = st.toggle("Escala log na OF", value=False, key="hist_log_y")
+            fig_history = render_ego_history(
+                run.history,
+                metrics=run.manifest.metrics,
+                title=None,
+                log_y=log_y,
+            )
+            st.plotly_chart(fig_history, use_container_width=True,
+                            config={"displaylogo": False, "responsive": True})
+            with st.expander("Resumo por repetição"):
+                if run.manifest.summary:
+                    st.dataframe(
+                        pd.DataFrame(run.manifest.summary),
+                        use_container_width=True, hide_index=True,
                     )
-                    pillar_height = st.slider(
-                        "Altura visual do pilar (m)",
-                        min_value=0.5, max_value=4.0, value=1.5, step=0.1,
-                    )
-                with viewer_cols[0]:
-                    fig3d = render_footings_3d(
-                        result_state.sapatas,
-                        show_pillars=show_pillars,
-                        show_ground=show_ground,
-                        pillar_height_m=pillar_height,
-                        colour_by=colour_by,
-                    )
-                    st.plotly_chart(fig3d, use_container_width=True)
+        except Exception as exc:   # pragma: no cover
+            st.warning("Não foi possível carregar o histórico desta run.")
+            st.exception(exc)
 
-            dxf_bytes = sapatas_to_dxf_bytes(result_state.sapatas)
+    # --- Unified export panel ------------------------------------------
+    st.divider()
+    st.subheader("📦 Exportar")
+    try:
+        artifacts = build_export_artifacts(
+            result_state,
+            fig_3d=fig3d,
+            fig_history=fig_history,
+            metrics=(
+                load_experiment(st.session_state["run_dir"]).manifest.metrics
+                if st.session_state.get("run_dir") else None
+            ),
+            run_id=run_id,
+        )
+        ex_a, ex_b, ex_c, ex_d, ex_e = st.columns(5)
+        with ex_a:
             st.download_button(
-                label="📥 Baixar Arranjo (DXF)",
-                data=dxf_bytes,
+                "📐 DXF (CAD)", data=artifacts["dxf"],
                 file_name="arranjo_sapatas.dxf",
                 mime="application/dxf",
             )
-        except Exception as exc:   # pragma: no cover
-            st.warning("Não foi possível gerar a plotagem/arquivo DXF com os dados atuais.")
-            st.exception(exc)
+        with ex_b:
+            st.download_button(
+                "🧾 JSON", data=artifacts["json"],
+                file_name=f"resultado_{run_id or 'fundaia'}.json",
+                mime="application/json",
+            )
+        with ex_c:
+            if "html_3d" in artifacts:
+                st.download_button(
+                    "🧊 HTML 3D", data=artifacts["html_3d"],
+                    file_name=f"viewer_3d_{run_id or 'fundaia'}.html",
+                    mime="text/html",
+                )
+        with ex_d:
+            if "html_history" in artifacts:
+                st.download_button(
+                    "📈 HTML histórico", data=artifacts["html_history"],
+                    file_name=f"ego_history_{run_id or 'fundaia'}.html",
+                    mime="text/html",
+                )
+        with ex_e:
+            if "png_history" in artifacts:
+                st.download_button(
+                    "🖼️ PNG histórico", data=artifacts["png_history"],
+                    file_name=f"ego_history_{run_id or 'fundaia'}.png",
+                    mime="image/png",
+                )
+    except Exception as exc:   # pragma: no cover
+        st.warning("Não foi possível montar o painel de exportação.")
+        st.exception(exc)

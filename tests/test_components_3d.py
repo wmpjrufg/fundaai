@@ -26,6 +26,7 @@ Locks the contract on:
 from __future__ import annotations
 
 import numpy as np
+import plotly.graph_objects as go
 import pytest
 
 from core.domain import Pilar, Sapata
@@ -108,10 +109,11 @@ class TestRenderFootings3D:
     """This class verifies the high-level figure builder."""
 
     def test_default_trace_count(self):
-        """N footings + N pillars + 1 ground plane = 2*N + 1 traces."""
+        """N footings + N pillars + 3 terrain traces (rect + grid + contour)."""
         sapatas = _make_sapatas(3)
         fig = render_footings_3d(sapatas)
-        assert len(fig.data) == 2 * len(sapatas) + 1
+        # 3 terrain traces (rectangle, grid, contour) when show_ground=True
+        assert len(fig.data) == 2 * len(sapatas) + 3
 
     def test_no_pillars_no_ground(self):
         """show_pillars=False, show_ground=False yields exactly N traces."""
@@ -137,11 +139,14 @@ class TestRenderFootings3D:
         assert len(colours) >= 2
 
     def test_pillar_height_is_propagated(self):
-        """pillar_height_m=2.5 -> tallest pillar trace reaches z = 2.5."""
+        """pillar_height_m=2.5 -> the tallest mesh trace reaches z = 2.5."""
         fig = render_footings_3d(_make_sapatas(1), pillar_height_m=2.5)
-        # The pillar trace is the second one (after the ground plane).
-        pillar_trace = fig.data[2]
-        assert max(pillar_trace.z) == pytest.approx(2.5)
+        # Iterate over Mesh3d traces (skip terrain Scatter3d for grid/contour).
+        pillar_zs = [
+            max(t.z) for t in fig.data
+            if isinstance(t, go.Mesh3d) and t.name and "pillar" in t.name
+        ]
+        assert pillar_zs and max(pillar_zs) == pytest.approx(2.5)
 
     def test_empty_sapatas_raises(self):
         """Empty input is a programmer error (do not silently produce an empty figure)."""
@@ -156,5 +161,32 @@ class TestRenderFootings3D:
     def test_default_pillar_height_constant_is_used_when_omitted(self):
         """Omitting pillar_height_m falls back to DEFAULT_PILLAR_HEIGHT_M."""
         fig = render_footings_3d(_make_sapatas(1))
-        pillar_trace = fig.data[2]
-        assert max(pillar_trace.z) == pytest.approx(DEFAULT_PILLAR_HEIGHT_M)
+        pillar_zs = [
+            max(t.z) for t in fig.data
+            if isinstance(t, go.Mesh3d) and t.name and "pillar" in t.name
+        ]
+        assert pillar_zs
+        assert max(pillar_zs) == pytest.approx(DEFAULT_PILLAR_HEIGHT_M)
+
+    def test_camera_preset_applied(self):
+        """camera='topo' positions the camera looking straight down at +z."""
+        fig = render_footings_3d(_make_sapatas(2), camera="topo")
+        cam = fig.layout.scene.camera
+        assert cam.eye.x == pytest.approx(0.0)
+        assert cam.eye.y == pytest.approx(0.0)
+        assert cam.eye.z == pytest.approx(2.5)
+
+    def test_unknown_camera_preset_raises(self):
+        """Unknown preset names raise rather than silently picking a default."""
+        with pytest.raises(ValueError, match="camera preset"):
+            render_footings_3d(_make_sapatas(1), camera="nope")
+
+    def test_terrain_margin_propagates_to_ground_extent(self):
+        """A larger terrain_margin_m widens the ground rectangle."""
+        sapatas = _make_sapatas(1)
+        small = render_footings_3d(sapatas, terrain_margin_m=0.5)
+        large = render_footings_3d(sapatas, terrain_margin_m=5.0)
+        # The terrain Mesh3d is the first ground trace in both figures.
+        small_extent = max(small.data[0].x) - min(small.data[0].x)
+        large_extent = max(large.data[0].x) - min(large.data[0].x)
+        assert large_extent > small_extent

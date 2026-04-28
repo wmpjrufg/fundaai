@@ -1,6 +1,11 @@
 import streamlit as st
 from pathlib import Path
 
+from frontend.theme import apply_theme
+
+apply_theme()
+
+
 # 1. Função para gerenciar a troca de idioma
 def mudar_idioma():
     st.session_state["lang"] = "pt" if st.session_state.lang_selector == "Português" else "en"

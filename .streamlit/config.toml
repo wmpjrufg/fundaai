@@ -1,0 +1,29 @@
+# FundaIA — Streamlit theme (dark, premium-feel)
+#
+# Paleta:
+#   primaryColor       — accent quente (âmbar) usado por widgets ativos,
+#                        sliders, foco de input e linha do "best-so-far"
+#                        no gráfico de histórico do EGO.
+#   backgroundColor    — fundo principal (azul-petróleo profundo).
+#   secondaryBackgroundColor — superfícies elevadas (sidebar, cards,
+#                              tabs). Um pouco mais clara que o fundo.
+#   textColor          — texto principal (cinza-claro com contraste
+#                        WCAG AA contra o fundo).
+#
+# A intenção é dark sem ser preto puro: melhor contraste para Plotly
+# 3D meshes, gráficos do EGO e overlays do mapa de sapatas.
+
+[theme]
+base = "dark"
+primaryColor = "#f59e0b"
+backgroundColor = "#0b1220"
+secondaryBackgroundColor = "#111a2e"
+textColor = "#e5e7eb"
+font = "sans serif"
+
+[server]
+# Headless por padrão em produção; ignorado em desenvolvimento local.
+headless = false
+
+[browser]
+gatherUsageStats = false
