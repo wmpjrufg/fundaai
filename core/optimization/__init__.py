@@ -28,3 +28,9 @@ from .benchmark import *   # noqa: F401, F403
 from .genetic_algorithm import *   # noqa: F401, F403
 from .grey_wolf import *   # noqa: F401, F403
 from .ego import *   # noqa: F401, F403
+from .cache import (  # noqa: F401  (explicit re-export)
+    SurrogateCache,
+    fingerprint,
+    fit_or_get_cached,
+    pipeline_signature,
+)

@@ -12,9 +12,10 @@ import scipy as sc
 import mealpy as mp
 
 from core.optimization import funcs
+from core.optimization.cache import SurrogateCache, fit_or_get_cached
 
 
-def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_lower: list, x_upper: list, params_opt: dict, params_kernel: Optional[dict] = None, args: Optional[tuple] = None, seed: Optional[int] = None) -> tuple[list, float, pd.DataFrame]:
+def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_lower: list, x_upper: list, params_opt: dict, params_kernel: Optional[dict] = None, args: Optional[tuple] = None, seed: Optional[int] = None, cache: Optional[SurrogateCache] = None) -> tuple[list, float, pd.DataFrame]:
     """This function performs the hybrid Efficient Global Optimization (EGO) loop.
 
     Em cada iteração ajusta um modelo substituto Gaussian Process Regressor
@@ -32,6 +33,7 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
     :param params_kernel: Kernel configuration for the Gaussian Process Regressor (optional). Defaults to RBF when None
     :param args: Extra arguments forwarded to the objective function (optional)
     :param seed: Random seed propagated to the GPR (`random_state`), to NumPy (initial points of SciPy minimizers) and to mealpy via `seed=seed`. Default `None` keeps the historical behaviour (`random_state=42` in the GPR; non-deterministic SciPy x0)
+    :param cache: Optional :class:`core.optimization.cache.SurrogateCache`. When provided, the GPR is fit through :func:`fit_or_get_cached` so identical (X, y, pipeline) tuples are reused across replications, notebook re-runs and batch experiments instead of being refit from scratch. Default `None` keeps the historical behaviour (always refit)
 
     :return: [0] = Best solution found, list with shape (d,) [best_x]
              [1] = Best objective function value [best_of]
@@ -146,10 +148,13 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
 
     # Iterations
     for t in range(1, n_gen + 1):
-        # Training the surrogate model
+        # Training the surrogate model. When `cache` is provided, identical
+        # (X, y, pipeline) tuples short-circuit the kernel-hyperparameter
+        # optimisation (the dominant cost of `fit`); otherwise behaviour is
+        # the historical "always refit".
         x_train = df[x_cols]
         y_train = df[['OF']]
-        model = pipe.fit(x_train, y_train)
+        model = fit_or_get_cached(pipe, x_train, y_train, cache)
 
         # Acquisition function: maximise Expected Improvement (EI)
         argss = (model, df['OF'].min())
