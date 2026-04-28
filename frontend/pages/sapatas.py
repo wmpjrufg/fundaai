@@ -26,6 +26,7 @@ import streamlit as st
 from core.api import OptimisationConfig, OptimisationResult, evaluate, optimize
 from core.domain import FundacaoProjeto, Sapata
 from core.io import read_projeto_from_excel, sapatas_to_dxf_bytes
+from frontend.components import render_footings_3d
 
 
 # =============================================================================
@@ -284,8 +285,35 @@ if st.session_state.get("calculo_realizado"):
 
         try:
             result_state: OptimisationResult = st.session_state["result"]
-            fig = _plot_layout(result_state.sapatas)
-            st.pyplot(fig, use_container_width=True)
+            tab_2d, tab_3d = st.tabs(["🗺️ Planta 2D", "🧊 Vista 3D"])
+            with tab_2d:
+                fig = _plot_layout(result_state.sapatas)
+                st.pyplot(fig, use_container_width=True)
+            with tab_3d:
+                viewer_cols = st.columns([3, 1])
+                with viewer_cols[1]:
+                    show_pillars = st.checkbox("Exibir pilares", value=True)
+                    show_ground = st.checkbox("Exibir plano de solo", value=True)
+                    colour_by = st.radio(
+                        "Cor das sapatas",
+                        options=["label", "volume"],
+                        index=0,
+                        format_func=lambda x: "por elemento" if x == "label" else "por volume",
+                        horizontal=False,
+                    )
+                    pillar_height = st.slider(
+                        "Altura visual do pilar (m)",
+                        min_value=0.5, max_value=4.0, value=1.5, step=0.1,
+                    )
+                with viewer_cols[0]:
+                    fig3d = render_footings_3d(
+                        result_state.sapatas,
+                        show_pillars=show_pillars,
+                        show_ground=show_ground,
+                        pillar_height_m=pillar_height,
+                        colour_by=colour_by,
+                    )
+                    st.plotly_chart(fig3d, use_container_width=True)
 
             dxf_bytes = sapatas_to_dxf_bytes(result_state.sapatas)
             st.download_button(

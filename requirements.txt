@@ -21,6 +21,10 @@ mealpy==3.0.3
 
 # --- Interface web (Streamlit) -----------------------------------------------
 streamlit==1.52.1
+# Plotly powers the interactive 3D footings viewer (frontend/components/
+# footings_3d.py); rendered via st.plotly_chart so the user can rotate,
+# zoom and toggle traces in the browser.
+plotly>=5,<7
 
 # --- I/O ----------------------------------------------------------------------
 openpyxl==3.1.5
