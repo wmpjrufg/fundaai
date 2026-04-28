@@ -1,14 +1,29 @@
 """API layer — high-level entry points consumed by UI, CLI and notebooks.
 
-This subpackage will expose stable, framework-free functions that
-orchestrate domain, engineering, optimisation and I/O layers. The
-flagship function ``optimize(project, config) -> OptimisationResult``
-will replace the inline orchestration currently embedded in
-``pages/sapatas.py``.
+Exposes two stable, framework-free functions:
+
+    * ``evaluate(projeto, sapatas)`` — runs the pseudo-objective for a
+      fixed design and returns the per-element constraint table.
+    * ``optimize(projeto, config)`` — runs EGO+GPR+GA with best-of-N
+      independent repetitions and returns the winning design.
+
+Plus the typed structures (``OptimisationConfig``, ``OptimisationResult``,
+``EvaluationResult``) that travel between this layer and its callers.
 
 Resumo em português:
-    Camada de API. Funções de alto nível (sem dependência de
-    Streamlit/CLI) que orquestram domínio, engenharia, otimização e
-    I/O. ``optimize(project, config)`` será a porta de entrada
-    principal, substituindo a lógica embutida em ``pages/sapatas.py``.
+    Camada de API. ``optimize`` e ``evaluate`` são as portas de saída
+    da lógica do projeto; tudo acima (UI, notebooks, CLI) deve passar
+    por aqui.
 """
+
+from .evaluate import evaluate
+from .optimize import optimize
+from .types import EvaluationResult, OptimisationConfig, OptimisationResult
+
+__all__ = [
+    "EvaluationResult",
+    "OptimisationConfig",
+    "OptimisationResult",
+    "evaluate",
+    "optimize",
+]
