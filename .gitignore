@@ -10,3 +10,10 @@ myenv/
 .vscode/
 .idea/
 .DS_Store
+
+# --- Material pessoal de trabalho (nao versionado) ---------------------------
+# `docs/` contem artigos baixados, plano de IC, relatorio parcial, TCC do
+# grupo em construcao e o artigo da IC em LaTeX. `obsidian_vault/` contem o
+# vault Obsidian com mapa de orientacao
+/docs/
+/obsidian_vault/

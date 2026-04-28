@@ -223,12 +223,20 @@ parametrização via `args[4]` ou via argumento `penalty` direto.
 
 
 def _unpack_args(args):
-    """Extrai (df, n_comb, f_ck, cob_m, penalty) de `args`.
+    """This helper extracts the configuration tuple consumed by `_avaliar_projeto`.
 
-    Aceita tanto 4 quanto 5 elementos (retrocompatibilidade com notebooks
-    que sempre passaram um quinto valor de penalidade silenciosamente
-    ignorado pela versão antiga). Quando o quinto elemento está ausente,
-    usa `_PENALTY_DEFAULT`.
+    Aceita tanto 4 quanto 5 elementos para retrocompatibilidade com os
+    notebooks que sempre passaram um quinto valor de penalidade
+    silenciosamente ignorado pela versão antiga. Quando o quinto elemento
+    está ausente, aplica `_PENALTY_DEFAULT`.
+
+    :param args: Tupla `(df, n_comb, f_ck, cob_m)` ou `(df, n_comb, f_ck, cob_m, penalty)`
+
+    :return: [0] = DataFrame de entrada das fundações [df]
+             [1] = Número de combinações de carregamento [n_comb]
+             [2] = Resistência característica do concreto em kPa [f_ck]
+             [3] = Cobrimento da armadura em metros [cob_m]
+             [4] = Fator de penalidade aplicado às restrições violadas [penalty]
     """
     df, n_comb, f_ck, cob_m = args[0], args[1], args[2], args[3]
     penalty = args[4] if len(args) >= 5 else _PENALTY_DEFAULT
@@ -236,22 +244,24 @@ def _unpack_args(args):
 
 
 def _avaliar_projeto(x, args, *, penalty=None):
-    """Avalia a função pseudo-objetivo penalizada para o vetor de projeto `x`.
+    """This function evaluates the penalised pseudo-objective for a candidate solution `x`.
 
-    É o núcleo computacional compartilhado por `obj_felipe_lucas` (que
-    devolve apenas o valor escalar de OF) e por `obj_teste` (que devolve
-    o par `(of, df)` com a tabela completa de verificações). A separação
-    elimina a duplicação histórica entre as duas funções.
+    Núcleo computacional compartilhado por `obj_felipe_lucas` e por
+    `obj_teste`. A separação elimina a duplicação histórica entre as duas
+    funções e centraliza o cálculo do volume bruto, das restrições
+    normativas (NBR 6118 e NBR 6122) e da penalização exterior.
 
-    :param x: vetor com `3 * N_fun` variáveis de projeto
-              `[hx_0, hy_0, hz_0, ..., hx_{N-1}, hy_{N-1}, hz_{N-1}]`.
-    :param args: tupla `(df, n_comb, f_ck, cob_m[, penalty])`.
-    :param penalty: fator de penalidade. Se `None`, usa o valor presente em
-                    `args[4]` ou `_PENALTY_DEFAULT`. Permite override
-                    explícito por chamadores que não usam a tupla `args`.
+    :param x: Vetor com `3 * N_fun` variáveis de projeto, organizado como
+              `[hx_0, hy_0, hz_0, ..., hx_{N-1}, hy_{N-1}, hz_{N-1}]`
+    :param args: Tupla `(df, n_comb, f_ck, cob_m[, penalty])` (ver `_unpack_args`)
+    :param penalty: Fator de penalidade explícito. Se `None`, usa o valor
+                    presente em `args[4]` ou `_PENALTY_DEFAULT`. Permite
+                    override por chamadores que não usam a tupla `args`
 
-    :return: tupla `(of_total, df_anotado)` com o volume final penalizado
-             e o DataFrame anotado com todas as restrições.
+    :return: [0] = Valor escalar do volume final penalizado [of_total]
+             [1] = DataFrame anotado com volume, vértices, sobreposição,
+                   tensões, restrições e razão solicitação/resistência
+                   por combinação de carregamento [df_anotado]
     """
     df, n_comb, f_ck, cob_m, penalty_args = _unpack_args(args)
     penalty = penalty_args if penalty is None else penalty
@@ -365,26 +375,39 @@ def _avaliar_projeto(x, args, *, penalty=None):
 
 
 def obj_felipe_lucas(x, args):
-    """Função objetivo escalar para uso direto no laço de otimização.
+    """This function returns the scalar pseudo-objective used by the optimisation loop.
 
-    Wrapper fino sobre `_avaliar_projeto`: descarta o DataFrame e devolve
-    apenas o volume final penalizado.
+    Wrapper fino sobre `_avaliar_projeto`: descarta o DataFrame anotado e
+    devolve apenas o valor de volume final penalizado. Mantém o
+    comportamento histórico (penalty = 10) quando o quinto valor de
+    `args` não é fornecido.
 
-    Aceita `args` com 4 elementos `(df, n_comb, f_ck, cob_m)` ou 5
-    elementos `(df, n_comb, f_ck, cob_m, penalty)`. Mantém o
-    comportamento histórico (penalty = 10) quando o quinto valor não é
-    fornecido.
+    :param x: Vetor com `3 * N_fun` variáveis de projeto
+              `[hx_0, hy_0, hz_0, ..., hx_{N-1}, hy_{N-1}, hz_{N-1}]`
+    :param args: Tupla `(df, n_comb, f_ck, cob_m)` ou
+                 `(df, n_comb, f_ck, cob_m, penalty)`
+
+    :return: Valor escalar do volume final penalizado [of_total]
     """
     of_total, _ = _avaliar_projeto(x, args)
     return of_total
 
 
 def obj_teste(x, args):
-    """Função objetivo para inspeção, devolve `(of, df_anotado)`.
+    """This function evaluates the pseudo-objective and returns the annotated DataFrame.
 
     Wrapper fino sobre `_avaliar_projeto`. Útil em notebooks e na rotina
     de pós-processamento da UI, onde além do escalar são necessários os
-    valores das restrições e das tensões para diagnóstico.
+    valores das restrições e das tensões para diagnóstico das soluções.
+
+    :param x: Vetor com `3 * N_fun` variáveis de projeto
+              `[hx_0, hy_0, hz_0, ..., hx_{N-1}, hy_{N-1}, hz_{N-1}]`
+    :param args: Tupla `(df, n_comb, f_ck, cob_m)` ou
+                 `(df, n_comb, f_ck, cob_m, penalty)`
+
+    :return: [0] = Valor escalar do volume final penalizado [of_total]
+             [1] = DataFrame anotado com restrições, tensões e razão
+                   solicitação/resistência [df_anotado]
     """
     return _avaliar_projeto(x, args)
 
