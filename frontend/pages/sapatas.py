@@ -563,12 +563,42 @@ if st.session_state.get("calculo_realizado"):
             format_func=lambda x: "por elemento" if x == "label" else "por volume",
         )
         st.markdown("**Câmera**")
-        camera_preset = st.selectbox(
-            "Preset",
-            options=list(CAMERA_PRESETS.keys()),
-            index=list(CAMERA_PRESETS.keys()).index("isométrica"),
-            label_visibility="collapsed",
+        # Default mode: orbit-only (no elevation drag). The user
+        # controls the orbit via an azimuth slider; vertical drag is
+        # disabled so the world never flips. A checkbox unlocks free
+        # rotation (Plotly turntable) for users who want it.
+        free_rotation = st.toggle(
+            "🔓 Rotação livre (mouse)",
+            value=False,
+            help=(
+                "Desligado (default): você gira em torno do eixo "
+                "vertical via slider; o horizonte fica sempre nivelado. "
+                "Ligado: arraste o mouse no gráfico para rotacionar e "
+                "inclinar livremente (modo turntable do Plotly)."
+            ),
         )
+        if free_rotation:
+            camera_preset = st.selectbox(
+                "Preset (ponto de partida)",
+                options=list(CAMERA_PRESETS.keys()),
+                index=list(CAMERA_PRESETS.keys()).index("isométrica"),
+            )
+            azimuth_deg = 45.0
+            elevation_deg = 30.0
+            axis_lock_mode = "none"
+        else:
+            azimuth_deg = st.slider(
+                "Azimuth (°)",
+                min_value=0, max_value=360, value=45, step=5,
+                help="Gira a câmera em torno do eixo vertical (Z).",
+            )
+            elevation_deg = st.slider(
+                "Elevação (°)",
+                min_value=10, max_value=80, value=30, step=5,
+                help="Inclinação da câmera acima do plano de solo.",
+            )
+            camera_preset = None
+            axis_lock_mode = "elevation"
         st.markdown("**Geometria**")
         pillar_height = st.slider(
             "Altura visual do pilar (m)",
@@ -588,6 +618,9 @@ if st.session_state.get("calculo_realizado"):
             camera=camera_preset,
             terrain_margin_m=terrain_margin,
             height=760,
+            axis_lock=axis_lock_mode,
+            azimuth_deg=azimuth_deg,
+            elevation_deg=elevation_deg,
         )
         st.plotly_chart(
             fig3d,
