@@ -212,27 +212,64 @@ def sobreposicao_sapatas(x1_i: float, y1_i: float, x2_i: float, y2_i: float, x3_
     return area
 
 
-def obj_felipe_lucas(x, args):
+_PENALTY_DEFAULT = 1e1
+"""Fator de penalidade padrão para `_avaliar_projeto`.
 
-    # Argumentos
-    df = args[0].copy()
-    n_comb = args[1]
-    f_ck = args[2]
-    cob_m = args[3]
+Reproduz exatamente o valor `1E1` que estava hardcoded nas duas funções
+originais (`obj_felipe_lucas` e `obj_teste`). Manter este valor como default
+preserva o comportamento histórico ao mesmo tempo em que permite
+parametrização via `args[4]` ou via argumento `penalty` direto.
+"""
+
+
+def _unpack_args(args):
+    """Extrai (df, n_comb, f_ck, cob_m, penalty) de `args`.
+
+    Aceita tanto 4 quanto 5 elementos (retrocompatibilidade com notebooks
+    que sempre passaram um quinto valor de penalidade silenciosamente
+    ignorado pela versão antiga). Quando o quinto elemento está ausente,
+    usa `_PENALTY_DEFAULT`.
+    """
+    df, n_comb, f_ck, cob_m = args[0], args[1], args[2], args[3]
+    penalty = args[4] if len(args) >= 5 else _PENALTY_DEFAULT
+    return df, n_comb, f_ck, cob_m, penalty
+
+
+def _avaliar_projeto(x, args, *, penalty=None):
+    """Avalia a função pseudo-objetivo penalizada para o vetor de projeto `x`.
+
+    É o núcleo computacional compartilhado por `obj_felipe_lucas` (que
+    devolve apenas o valor escalar de OF) e por `obj_teste` (que devolve
+    o par `(of, df)` com a tabela completa de verificações). A separação
+    elimina a duplicação histórica entre as duas funções.
+
+    :param x: vetor com `3 * N_fun` variáveis de projeto
+              `[hx_0, hy_0, hz_0, ..., hx_{N-1}, hy_{N-1}, hz_{N-1}]`.
+    :param args: tupla `(df, n_comb, f_ck, cob_m[, penalty])`.
+    :param penalty: fator de penalidade. Se `None`, usa o valor presente em
+                    `args[4]` ou `_PENALTY_DEFAULT`. Permite override
+                    explícito por chamadores que não usam a tupla `args`.
+
+    :return: tupla `(of_total, df_anotado)` com o volume final penalizado
+             e o DataFrame anotado com todas as restrições.
+    """
+    df, n_comb, f_ck, cob_m, penalty_args = _unpack_args(args)
+    penalty = penalty_args if penalty is None else penalty
+
+    df = df.copy()
     n_fun = df.shape[0]
 
-    # Correção formato
+    # Correção de formato
     df['spt'] = df['spt'].astype(float)
 
-    # Variáveis de projeto
+    # Variáveis de projeto e volume bruto
     x_arr = np.asarray(x).reshape(n_fun, 3)
-    df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
-    df[['h_x (m)', 'h_y (m)', 'h_z (m)']] = df_aux_aux[['h_x (m)', 'h_y (m)', 'h_z (m)']]
-
-    # Volume
+    df[['h_x (m)', 'h_y (m)', 'h_z (m)']] = pd.DataFrame(
+        x_arr, columns=['h_x (m)', 'h_y (m)', 'h_z (m)']
+    )
     df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
 
-    # Cálculo das coordenadas completas dos vértices das sapatas
+    # Vértices da sapata em planta
     df['x1'] = df['xg (m)'] - df['h_x (m)'] / 2
     df['y1'] = df['yg (m)'] - df['h_y (m)'] / 2
     df['x2'] = df['xg (m)'] + df['h_x (m)'] / 2
@@ -242,144 +279,114 @@ def obj_felipe_lucas(x, args):
     df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2
     df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2
 
+    # Sobreposição entre sapatas (g_sob por sapata, soma sobre vizinhas)
     if n_fun == 1:
         df['g sobreposicao'] = 0.0
     else:
-        # Deteriminar sobreposição
         for idx, row in df.iterrows():
             aux = 0
-            x1_i, y1_i = row['x1'], row['y1']
-            x2_i, y2_i = row['x2'], row['y2']
-            x3_i, y3_i = row['x3'], row['y3']
-            x4_i, y4_i = row['x4'], row['y4']
+            xi = (row['x1'], row['y1'], row['x2'], row['y2'],
+                  row['x3'], row['y3'], row['x4'], row['y4'])
             for jdx, row_j in df.iterrows():
-                if jdx != idx:
-                    x1_j, y1_j = row_j['x1'], row_j['y1']
-                    x2_j, y2_j = row_j['x2'], row_j['y2']
-                    x3_j, y3_j = row_j['x3'], row_j['y3']
-                    x4_j, y4_j = row_j['x4'], row_j['y4']
-                    area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
-                    aux += area_overlap
-            df.loc[idx, 'g sobreposicao'] = aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
+                if jdx == idx:
+                    continue
+                xj = (row_j['x1'], row_j['y1'], row_j['x2'], row_j['y2'],
+                      row_j['x3'], row_j['y3'], row_j['x4'], row_j['y4'])
+                aux += sobreposicao_sapatas(*xi, *xj)
+            df.loc[idx, 'g sobreposicao'] = (
+                aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
+            )
 
     # Tensão admissível do solo
-    df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
+    df['tensao adm. (kPa)'] = df.apply(
+        lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1
+    )
 
-    # Rótulo das combinações
+    # Rótulos das combinações de carregamento
     labels_comb = [f'c{i}' for i in range(1, n_comb + 1)]
 
-    # Checagem punção
+    # Checagem à punção (seção crítica C) por combinação
     for i in labels_comb:
-        aux = f'{i}'
-        df[[f'tau_sd2 - {aux}', f'tau_rd2 - {aux}', f'u_rd2 - {aux}', f'g_rd2 - {aux}']] = df.apply(lambda row: verificacao_puncao_sapata(row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'], row[f'Fz-{aux}'], cob=cob_m), axis=1, result_type='expand')
+        df[[f'tau_sd2 - {i}', f'tau_rd2 - {i}',
+            f'u_rd2 - {i}', f'g_rd2 - {i}']] = df.apply(
+            lambda row, k=i: verificacao_puncao_sapata(
+                row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'],
+                row[f'Fz-{k}'], cob=cob_m
+            ),
+            axis=1, result_type='expand',
+        )
     df['g punção secao C'] = df[[f'g_rd2 - {i}' for i in labels_comb]].max(axis=1)
-    # df['g escala punção'] = df[[f'g_ed - {i}' for i in labels_comb]].max(axis=1)
-    # df['g punção secao Clinha'] = df[[f'g_rd1 - {i}' for i in labels_comb]].max(axis=1)
 
-    # Checagem tensao max e min
+    # Checagem das tensões máxima e mínima por combinação
     for i in labels_comb:
-        aux = f'{i}'
-        df[[f'tensao max. (kPa) - {aux}', f'tensao min. (kPa) - {aux}']] = df.apply(lambda row: calcular_sigma_max_min(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], row['h_x (m)'], row['h_y (m)']), axis=1, result_type='expand')
-        df[f'g tensao max. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao max. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
-        df[f'g tensao min. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao min. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
-        df[f'g tensao - {aux}'] = df[[f'g tensao max. - {aux}', f'g tensao min. - {aux}']].max(axis=1)
+        df[[f'tensao max. (kPa) - {i}',
+            f'tensao min. (kPa) - {i}']] = df.apply(
+            lambda row, k=i: calcular_sigma_max_min(
+                row[f'Fz-{k}'], row[f'Mx-{k}'], row[f'My-{k}'],
+                row['h_x (m)'], row['h_y (m)']
+            ),
+            axis=1, result_type='expand',
+        )
+        df[f'g tensao max. - {i}'] = df.apply(
+            lambda row, k=i: checagem_tensao_max_min(
+                row[f'tensao max. (kPa) - {k}'], row['tensao adm. (kPa)']
+            ),
+            axis=1,
+        )
+        df[f'g tensao min. - {i}'] = df.apply(
+            lambda row, k=i: checagem_tensao_max_min(
+                row[f'tensao min. (kPa) - {k}'], row['tensao adm. (kPa)']
+            ),
+            axis=1,
+        )
+        df[f'g tensao - {i}'] = df[[f'g tensao max. - {i}',
+                                    f'g tensao min. - {i}']].max(axis=1)
     df['g tensao'] = df[[f'g tensao - {i}' for i in labels_comb]].max(axis=1)
-    
-    # Checagem geometria
-    df['g geometria x'] = df.apply(lambda row: checagem_geometria(row['h_x (m)'], row['ap (m)']), axis=1)
-    df['g geometria y'] = df.apply(lambda row: checagem_geometria(row['h_y (m)'], row['bp (m)']), axis=1)
-    df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
-    
-    # Volume final com penalizações
-    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E1 + df['g punção secao C'].clip(lower=0) * 1E1 + df['g tensao'].clip(lower=0) * 1E1 + df['g geometria'].clip(lower=0) * 1E1
-    of = df['volume final (m3)'].sum()
 
-    return of
+    # Checagem geométrica (balanço mínimo pilar-sapata)
+    df['g geometria x'] = df.apply(
+        lambda row: checagem_geometria(row['h_x (m)'], row['ap (m)']), axis=1
+    )
+    df['g geometria y'] = df.apply(
+        lambda row: checagem_geometria(row['h_y (m)'], row['bp (m)']), axis=1
+    )
+    df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
+
+    # Função pseudo-objetivo: volume + penalização exterior linear
+    df['volume final (m3)'] = (
+        df['volume (m3)']
+        + df['g sobreposicao'].clip(lower=0) * penalty
+        + df['g punção secao C'].clip(lower=0) * penalty
+        + df['g tensao'].clip(lower=0) * penalty
+        + df['g geometria'].clip(lower=0) * penalty
+    )
+    of_total = df['volume final (m3)'].sum()
+    return of_total, df
+
+
+def obj_felipe_lucas(x, args):
+    """Função objetivo escalar para uso direto no laço de otimização.
+
+    Wrapper fino sobre `_avaliar_projeto`: descarta o DataFrame e devolve
+    apenas o volume final penalizado.
+
+    Aceita `args` com 4 elementos `(df, n_comb, f_ck, cob_m)` ou 5
+    elementos `(df, n_comb, f_ck, cob_m, penalty)`. Mantém o
+    comportamento histórico (penalty = 10) quando o quinto valor não é
+    fornecido.
+    """
+    of_total, _ = _avaliar_projeto(x, args)
+    return of_total
 
 
 def obj_teste(x, args):
+    """Função objetivo para inspeção, devolve `(of, df_anotado)`.
 
-    # Argumentos
-    df = args[0].copy()
-    n_comb = args[1]
-    f_ck = args[2]
-    cob_m = args[3]
-    n_fun = df.shape[0]
-
-    # Correção formato
-    df['spt'] = df['spt'].astype(float)
-
-    # Variáveis de projeto
-    x_arr = np.asarray(x).reshape(n_fun, 3)
-    df_aux_aux = pd.DataFrame(x_arr, columns=["h_x (m)", "h_y (m)", "h_z (m)"])
-    df[['h_x (m)', 'h_y (m)', 'h_z (m)']] = df_aux_aux[['h_x (m)', 'h_y (m)', 'h_z (m)']]
-
-    # Volume
-    df['volume (m3)'] = df['h_x (m)'] * df['h_y (m)'] * df['h_z (m)']
-
-    # Cálculo das coordenadas completas dos vértices das sapatas
-    df['x1'] = df['xg (m)'] - df['h_x (m)'] / 2
-    df['y1'] = df['yg (m)'] - df['h_y (m)'] / 2
-    df['x2'] = df['xg (m)'] + df['h_x (m)'] / 2
-    df['y2'] = df['yg (m)'] - df['h_y (m)'] / 2
-    df['x3'] = df['xg (m)'] + df['h_x (m)'] / 2
-    df['y3'] = df['yg (m)'] + df['h_y (m)'] / 2
-    df['x4'] = df['xg (m)'] - df['h_x (m)'] / 2
-    df['y4'] = df['yg (m)'] + df['h_y (m)'] / 2
-
-    if n_fun == 1:
-        df['g sobreposicao'] = 0.0
-    else:
-        # Deteriminar sobreposição
-        for idx, row in df.iterrows():
-            aux = 0
-            x1_i, y1_i = row['x1'], row['y1']
-            x2_i, y2_i = row['x2'], row['y2']
-            x3_i, y3_i = row['x3'], row['y3']
-            x4_i, y4_i = row['x4'], row['y4']
-            for jdx, row_j in df.iterrows():
-                if jdx != idx:
-                    x1_j, y1_j = row_j['x1'], row_j['y1']
-                    x2_j, y2_j = row_j['x2'], row_j['y2']
-                    x3_j, y3_j = row_j['x3'], row_j['y3']
-                    x4_j, y4_j = row_j['x4'], row_j['y4']
-                    area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
-                    aux += area_overlap
-            df.loc[idx, 'g sobreposicao'] = aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
-
-    # Tensão admissível do solo
-    df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
-
-    # Rótulo das combinações
-    labels_comb = [f'c{i}' for i in range(1, n_comb + 1)]
-
-    # Checagem punção
-    for i in labels_comb:
-        aux = f'{i}'
-        df[[f'tau_sd2 - {aux}', f'tau_rd2 - {aux}', f'u_rd2 - {aux}', f'g_rd2 - {aux}']] = df.apply(lambda row: verificacao_puncao_sapata(row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'], row[f'Fz-{aux}'], cob=cob_m), axis=1, result_type='expand')
-    df['g punção secao C'] = df[[f'g_rd2 - {i}' for i in labels_comb]].max(axis=1)
-    # df['g escala punção'] = df[[f'g_ed - {i}' for i in labels_comb]].max(axis=1)
-    # df['g punção secao Clinha'] = df[[f'g_rd1 - {i}' for i in labels_comb]].max(axis=1)
-
-    # Checagem tensao max e min
-    for i in labels_comb:
-        aux = f'{i}'
-        df[[f'tensao max. (kPa) - {aux}', f'tensao min. (kPa) - {aux}']] = df.apply(lambda row: calcular_sigma_max_min(row[f'Fz-{aux}'], row[f'Mx-{aux}'], row[f'My-{aux}'], row['h_x (m)'], row['h_y (m)']), axis=1, result_type='expand')
-        df[f'g tensao max. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao max. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
-        df[f'g tensao min. - {aux}'] = df.apply(lambda row: checagem_tensao_max_min(row[f'tensao min. (kPa) - {aux}'], row['tensao adm. (kPa)']), axis=1)
-        df[f'g tensao - {aux}'] = df[[f'g tensao max. - {aux}', f'g tensao min. - {aux}']].max(axis=1)
-    df['g tensao'] = df[[f'g tensao - {i}' for i in labels_comb]].max(axis=1)
-    
-    # Checagem geometria
-    df['g geometria x'] = df.apply(lambda row: checagem_geometria(row['h_x (m)'], row['ap (m)']), axis=1)
-    df['g geometria y'] = df.apply(lambda row: checagem_geometria(row['h_y (m)'], row['bp (m)']), axis=1)
-    df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
-    
-    # Volume final com penalizações
-    df['volume final (m3)'] = df['volume (m3)'] + df['g sobreposicao'].clip(lower=0) * 1E1 + df['g punção secao C'].clip(lower=0) * 1E1 + df['g tensao'].clip(lower=0) * 1E1 + df['g geometria'].clip(lower=0) * 1E1
-    of = df['volume final (m3)'].sum()
-
-    return of, df
+    Wrapper fino sobre `_avaliar_projeto`. Útil em notebooks e na rotina
+    de pós-processamento da UI, onde além do escalar são necessários os
+    valores das restrições e das tensões para diagnóstico.
+    """
+    return _avaliar_projeto(x, args)
 
 
 def constroi_kernel(ls0: float = 1.0) -> list:
