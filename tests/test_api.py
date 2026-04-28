@@ -54,10 +54,10 @@ class TestAdapter:
         :return: None (internal asserts)
         """
         proj = read_projeto_from_excel(
-            assets_dir / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
+            assets_dir / "data" / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
         )
         df = projeto_to_dataframe(proj)
-        df_excel = pd.read_excel(assets_dir / "problema_fund_três.xlsx")
+        df_excel = pd.read_excel(assets_dir / "data" / "problema_fund_três.xlsx")
         assert list(df.columns) == list(df_excel.columns)
         assert df.shape == df_excel.shape
 
@@ -67,7 +67,7 @@ class TestAdapter:
         :return: None (internal asserts)
         """
         proj = read_projeto_from_excel(
-            assets_dir / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
+            assets_dir / "data" / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
         )
         sapatas = [Sapata(p, h_x=2.0, h_y=1.5, h_z=0.6) for p in proj.pilares]
         vec = sapatas_to_design_vector(sapatas)
@@ -83,7 +83,7 @@ class TestAdapter:
         :return: None (internal asserts)
         """
         proj = read_projeto_from_excel(
-            assets_dir / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
+            assets_dir / "data" / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
         )
         with pytest.raises(ValueError, match="design vector"):
             design_vector_to_sapatas([0.0, 0.0], proj)
@@ -226,7 +226,7 @@ class TestEvaluate:
         :return: None (internal asserts)
         """
         proj = read_projeto_from_excel(
-            assets_dir / "problema_fund_três.xlsx",
+            assets_dir / "data" / "problema_fund_três.xlsx",
             f_ck_kpa=25_000.0,
             cobrimento_m=0.04,
         )
@@ -241,7 +241,7 @@ class TestEvaluate:
         :return: None (internal asserts)
         """
         proj = read_projeto_from_excel(
-            assets_dir / "problema_fund_três.xlsx",
+            assets_dir / "data" / "problema_fund_três.xlsx",
             f_ck_kpa=25_000.0,
             cobrimento_m=0.04,
         )
@@ -257,7 +257,7 @@ class TestEvaluate:
         :return: None (internal asserts)
         """
         proj = read_projeto_from_excel(
-            assets_dir / "problema_fund_três.xlsx",
+            assets_dir / "data" / "problema_fund_três.xlsx",
             f_ck_kpa=25_000.0,
             cobrimento_m=0.04,
         )
@@ -272,7 +272,7 @@ class TestEvaluate:
         :return: None (internal asserts)
         """
         proj = read_projeto_from_excel(
-            assets_dir / "problema_fund_três.xlsx",
+            assets_dir / "data" / "problema_fund_três.xlsx",
             f_ck_kpa=25_000.0,
             cobrimento_m=0.04,
         )
@@ -321,7 +321,7 @@ class TestOptimize:
         :return: None (internal asserts)
         """
         proj = read_projeto_from_excel(
-            assets_dir / "problema_fund_um.xlsx",
+            assets_dir / "data" / "problema_fund_um.xlsx",
             f_ck_kpa=25_000.0,
             cobrimento_m=0.04,
         )
@@ -340,7 +340,7 @@ class TestOptimize:
         :return: None (internal asserts)
         """
         proj = read_projeto_from_excel(
-            assets_dir / "problema_fund_um.xlsx",
+            assets_dir / "data" / "problema_fund_um.xlsx",
             f_ck_kpa=25_000.0,
             cobrimento_m=0.04,
         )
@@ -357,7 +357,7 @@ class TestOptimize:
         :return: None (internal asserts)
         """
         proj = read_projeto_from_excel(
-            assets_dir / "problema_fund_um.xlsx",
+            assets_dir / "data" / "problema_fund_um.xlsx",
             f_ck_kpa=25_000.0,
             cobrimento_m=0.04,
         )

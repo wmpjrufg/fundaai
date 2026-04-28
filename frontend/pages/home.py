@@ -67,7 +67,7 @@ st.divider()
 st.markdown(L["texto_completo"])
 
 # 5. Download
-path = Path("assets/problema_fund_três.xlsx")
+path = Path("assets/data/problema_fund_três.xlsx")
 if path.exists():
     with open(path, "rb") as file:
         st.download_button(label=L['btn'], data=file, file_name="modelo_fundaIA.xlsx")

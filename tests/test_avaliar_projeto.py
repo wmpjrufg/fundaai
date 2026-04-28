@@ -12,7 +12,7 @@ trava o comportamento dessa funcao em tres frentes:
     3. **Wrappers concordam**: `obj_felipe_lucas` (escalar) e `obj_teste`
        (tupla) devem produzir o mesmo `of`.
 
-Os testes pressupõem o caso `assets/problema_fund_três.xlsx` (3 fundacoes,
+Os testes pressupõem o caso `assets/data/problema_fund_três.xlsx` (3 fundacoes,
 3 combinacoes) carregado pela fixture `df_problema_tres` em `conftest.py`.
 """
 

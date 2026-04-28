@@ -52,7 +52,7 @@ def df_problema_um(assets_dir: Path) -> pd.DataFrame:
 
     :return: DataFrame com 1 fundacao e 3 combinacoes de carregamento
     """
-    return pd.read_excel(assets_dir / "problema_fund_um.xlsx")
+    return pd.read_excel(assets_dir / "data" / "problema_fund_um.xlsx")
 
 
 @pytest.fixture(scope="session")
@@ -68,7 +68,7 @@ def df_problema_tres(assets_dir: Path) -> pd.DataFrame:
 
     :return: DataFrame com 3 fundacoes e 3 combinacoes de carregamento
     """
-    return pd.read_excel(assets_dir / "problema_fund_três.xlsx")
+    return pd.read_excel(assets_dir / "data" / "problema_fund_três.xlsx")
 
 
 @pytest.fixture(scope="session")

@@ -170,7 +170,7 @@ class TestComputeMetrics:
 def projeto_tres(assets_dir: Path) -> FundacaoProjeto:
     """This fixture loads the canonical three-foundation project."""
     return read_projeto_from_excel(
-        assets_dir / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
+        assets_dir / "data" / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
     )
 
 
@@ -366,7 +366,7 @@ class TestOptimizeIntegration:
         # We need a project to call optimize; build the smallest possible one.
         from core.io import read_projeto_from_excel
         proj = read_projeto_from_excel(
-            Path(__file__).resolve().parent.parent / "assets" / "problema_fund_um.xlsx",
+            Path(__file__).resolve().parent.parent / "assets" / "data" / "problema_fund_um.xlsx",
             f_ck_kpa=25_000.0, cobrimento_m=0.04,
         )
         with pytest.raises(RuntimeError):

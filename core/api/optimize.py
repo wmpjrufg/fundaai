@@ -34,8 +34,8 @@ from core.api.types import OptimisationConfig, OptimisationResult
 from core.domain import FundacaoProjeto
 from core.io.experiments import ExperimentRecorder
 from core.optimization.cache import SurrogateCache
+from core.optimization import ego_01_architecture, initial_population_01
 from fundacao import constroi_kernel, obj_felipe_lucas
-from metapy_toolbox import ego_01_architecture, initial_population_01
 
 
 def optimize(

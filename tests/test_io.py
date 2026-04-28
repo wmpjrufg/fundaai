@@ -52,7 +52,7 @@ def test_round_trip_official_templates(
     :return: None (internal asserts)
     """
     proj = read_projeto_from_excel(
-        assets_dir / filename, f_ck_kpa=25_000.0, cobrimento_m=0.04
+        assets_dir / "data" / filename, f_ck_kpa=25_000.0, cobrimento_m=0.04
     )
     assert isinstance(proj, FundacaoProjeto)
     assert proj.n_fund == n_fund
@@ -75,7 +75,7 @@ def test_global_parameters_attached(assets_dir: Path):
     :return: None (internal asserts)
     """
     proj = read_projeto_from_excel(
-        assets_dir / "problema_fund_um.xlsx", f_ck_kpa=30_000.0, cobrimento_m=0.05
+        assets_dir / "data" / "problema_fund_um.xlsx", f_ck_kpa=30_000.0, cobrimento_m=0.05
     )
     assert proj.f_ck_kpa == 30_000.0
     assert proj.cobrimento_m == 0.05
@@ -92,7 +92,7 @@ def test_accepts_in_memory_buffer(assets_dir: Path):
 
     :return: None (internal asserts)
     """
-    buf = BytesIO((assets_dir / "problema_fund_três.xlsx").read_bytes())
+    buf = BytesIO((assets_dir / "data" / "problema_fund_três.xlsx").read_bytes())
     proj = read_projeto_from_excel(buf, f_ck_kpa=25_000.0, cobrimento_m=0.04)
     assert proj.n_fund == 3
 
@@ -244,11 +244,11 @@ def test_invalid_global_parameters_raise(assets_dir: Path):
     """
     with pytest.raises(ValueError):
         read_projeto_from_excel(
-            assets_dir / "problema_fund_um.xlsx", f_ck_kpa=0.0, cobrimento_m=0.04
+            assets_dir / "data" / "problema_fund_um.xlsx", f_ck_kpa=0.0, cobrimento_m=0.04
         )
     with pytest.raises(ValueError):
         read_projeto_from_excel(
-            assets_dir / "problema_fund_um.xlsx", f_ck_kpa=25_000.0, cobrimento_m=-0.01
+            assets_dir / "data" / "problema_fund_um.xlsx", f_ck_kpa=25_000.0, cobrimento_m=-0.01
         )
 
 
@@ -300,7 +300,7 @@ def test_dxf_bytes_have_dxf_header(assets_dir: Path):
     :return: None (internal asserts)
     """
     proj = read_projeto_from_excel(
-        assets_dir / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
+        assets_dir / "data" / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
     )
     payload = sapatas_to_dxf_bytes(_build_sapatas(proj))
     assert isinstance(payload, bytes)
@@ -314,7 +314,7 @@ def test_dxf_includes_one_label_per_pillar(assets_dir: Path):
     :return: None (internal asserts)
     """
     proj = read_projeto_from_excel(
-        assets_dir / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
+        assets_dir / "data" / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
     )
     payload = sapatas_to_dxf_bytes(_build_sapatas(proj)).decode(
         "cp1252", errors="replace"
@@ -335,7 +335,7 @@ def test_dxf_writer_is_semantically_stable(assets_dir: Path):
     :return: None (internal asserts)
     """
     proj = read_projeto_from_excel(
-        assets_dir / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
+        assets_dir / "data" / "problema_fund_três.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
     )
     sapatas = _build_sapatas(proj)
     a = sapatas_to_dxf_bytes(sapatas)
@@ -368,7 +368,7 @@ def test_dxf_writer_has_no_tempfile_side_effect(assets_dir: Path, tmp_path: Path
     """
     import os
     proj = read_projeto_from_excel(
-        assets_dir / "problema_fund_um.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
+        assets_dir / "data" / "problema_fund_um.xlsx", f_ck_kpa=25_000.0, cobrimento_m=0.04
     )
     sapatas = _build_sapatas(proj)
 

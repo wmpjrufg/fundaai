@@ -27,3 +27,14 @@ myenv/
 # Manter no historico do repo seria pesado e desnecessario.
 /models/
 *.pkl
+
+# --- Experimentos persistidos (nao versionado) -------------------------------
+# Pastas geradas pelo ExperimentRecorder (Sprint 4.2): manifest.json,
+# config.json, env.json, project.json, history/*.parquet, summary.csv,
+# metrics.json, artifacts/. Cada run e identificada por timestamp + uuid.
+/experiments/
+
+# --- Notebooks scratch (nao versionado) --------------------------------------
+# Subpasta livre para esboços e exploração rápida; conteúdo "abençoado"
+# vai direto em notebooks/.
+/notebooks/scratch/

@@ -49,13 +49,16 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, Optional
 
 import numpy as np
 import pandas as pd
 
-from core.api.types import OptimisationConfig
 from core.domain import FundacaoProjeto
+
+if TYPE_CHECKING:  # imported for type hints only — breaks the
+                   # core.io <-> core.api circular import cycle.
+    from core.api.types import OptimisationConfig
 
 # numpy>=2.0 renamed np.trapz to np.trapezoid; keep working under both.
 _trapezoid = getattr(np, "trapezoid", None) or getattr(np, "trapz")
@@ -480,7 +483,7 @@ class ExperimentRecorder:
         return self._run_dir / "manifest.json"
 
     # ------------------------------------------------------------------ begin
-    def begin(self, config: OptimisationConfig, projeto: FundacaoProjeto) -> None:
+    def begin(self, config: "OptimisationConfig", projeto: FundacaoProjeto) -> None:
         """This method writes the initial manifest, config, env and project files.
 
         Must be called exactly once before any ``record_rep`` /

@@ -16,8 +16,8 @@ titulos_nav = {
                 }
 
 # 4. Definição das páginas
-home_page = st.Page("pages/home.py", title=titulos_nav[lang]["home"], icon="🏠", default=True)
-sapatas_page = st.Page("pages/sapatas.py", title=titulos_nav[lang]["sapatas"], icon="🏗️")
+home_page = st.Page("frontend/pages/home.py", title=titulos_nav[lang]["home"], icon="🏠", default=True)
+sapatas_page = st.Page("frontend/pages/sapatas.py", title=titulos_nav[lang]["sapatas"], icon="🏗️")
 
 # 5. Navegação (Sidebar limpa, apenas links)
 pg = st.navigation([home_page, sapatas_page])

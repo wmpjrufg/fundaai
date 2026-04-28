@@ -23,7 +23,7 @@ import pytest
 
 from mealpy import GA
 
-from metapy_toolbox import (
+from core.optimization import (
     ego_01_architecture,
     initial_population_01,
     sphere,

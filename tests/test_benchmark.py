@@ -21,7 +21,7 @@ import math
 import numpy as np
 import pytest
 
-from metapy_toolbox import (
+from core.optimization import (
     ackley,
     dixon_price,
     easom,
