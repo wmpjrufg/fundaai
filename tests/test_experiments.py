@@ -344,6 +344,53 @@ class TestOptimizeIntegration:
         assert manifest["status"] == "completed"
         assert manifest["metrics"]["best_of"] == pytest.approx(result.best_of, rel=1e-12)
 
+    def test_progress_callback_receives_named_events(self, tmp_path: Path, projeto_tres):
+        """A progress callback gets start/rep/iter/end events with required keys.
+
+        Real optimisation, tiny config: n_pop=4, n_gen=1, n_rep=1. The
+        callback must receive at least optimize.start, optimize.rep_start,
+        ego.iter, optimize.rep_end and optimize.end, each one carrying
+        the contextual keys the UI relies on.
+        """
+        from core.api import OptimisationConfig, optimize
+
+        events: list[dict] = []
+        cfg = OptimisationConfig(
+            h_min_m=0.6, h_max_m=3.0,
+            n_pop=4, n_gen=1, n_rep=1,
+            ga_epoch=5, ga_pop_size=10,
+        )
+        rec = ExperimentRecorder(root=tmp_path, run_id="prog-1")
+        optimize(projeto_tres, cfg, recorder=rec,
+                 progress=lambda ev: events.append(ev))
+
+        seen = {e["event"] for e in events}
+        assert {"optimize.start", "optimize.rep_start", "ego.iter",
+                "optimize.rep_end", "optimize.end"}.issubset(seen)
+
+        ego_evs = [e for e in events if e["event"] == "ego.iter"]
+        assert ego_evs and all(
+            {"iter", "n_gen", "of_min", "n_train", "rep"}.issubset(e)
+            for e in ego_evs
+        )
+
+    def test_progress_callback_errors_do_not_abort_run(self, tmp_path: Path, projeto_tres):
+        """A buggy progress callback must not crash the optimisation."""
+        from core.api import OptimisationConfig, optimize
+
+        def boom(_ev):
+            raise RuntimeError("ui hook bug")
+
+        cfg = OptimisationConfig(
+            h_min_m=0.6, h_max_m=3.0,
+            n_pop=4, n_gen=1, n_rep=1,
+            ga_epoch=5, ga_pop_size=10,
+        )
+        rec = ExperimentRecorder(root=tmp_path, run_id="prog-2")
+        # Should complete normally despite the always-raising callback
+        result = optimize(projeto_tres, cfg, recorder=rec, progress=boom)
+        assert result.best_of < float("inf")
+
     def test_optimize_failure_marks_run_failed(self, tmp_path: Path, monkeypatch):
         """This test ensures an exception during optimize flips the run to 'failed'.
 

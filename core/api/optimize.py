@@ -21,7 +21,7 @@ Resumo em português:
 from __future__ import annotations
 
 import time
-from typing import Optional
+from typing import Any, Callable, Mapping, Optional
 
 import numpy as np
 from mealpy import GA
@@ -47,6 +47,7 @@ def optimize(
     *,
     recorder: Optional[ExperimentRecorder] = None,
     cache: Optional[SurrogateCache] = None,
+    progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
 ) -> OptimisationResult:
     """This function runs the EGO+GPR+GA pipeline with independent repetitions.
 
@@ -71,6 +72,16 @@ def optimize(
                   When provided, the GPR fits are looked up by content hash
                   so identical (X, y, pipeline) tuples are not re-fit. ``None``
                   reproduces the historical "always refit" behaviour
+    :param progress: Optional callable invoked at every milestone of the
+                     pipeline with a dict carrying ``event``
+                     (``"optimize.start"``, ``"optimize.rep_start"``,
+                     ``"ego.iter"``, ``"optimize.rep_end"``,
+                     ``"optimize.end"``, ``"optimize.failed"``) plus
+                     contextual fields (``rep``, ``seed``, ``iter``,
+                     ``n_gen``, ``n_rep``, ``of_min``, ``of_rep``,
+                     ``best_of`` …). Errors raised by the callback are
+                     swallowed so a buggy UI hook never aborts the
+                     optimisation. ``None`` disables the hook
 
     :return: OptimisationResult with the winning sapatas, the best
              objective, the seed that produced it and the per-rep
@@ -108,6 +119,15 @@ def optimize(
     if recorder is not None:
         recorder.begin(config, projeto)
 
+    def _emit(payload: Mapping[str, Any]) -> None:
+        """Forward a progress payload to the user callback, if any."""
+        if progress is None:
+            return
+        try:
+            progress(dict(payload))
+        except Exception:   # pragma: no cover  (UI hook must not abort)
+            pass
+
     run_id = recorder.run_id if recorder is not None else None
     with run_context(run_id):
         _log.info("optimize start",
@@ -115,10 +135,17 @@ def optimize(
                          "n_pop": int(config.n_pop), "n_gen": int(config.n_gen),
                          "n_fund": int(n_fund),
                          "base_seed": int(config.base_seed)})
+        _emit({"event": "optimize.start",
+               "n_rep": int(config.n_rep), "n_gen": int(config.n_gen),
+               "n_pop": int(config.n_pop), "n_fund": int(n_fund),
+               "base_seed": int(config.base_seed)})
         t_start = time.perf_counter()
         try:
             for rep in range(config.n_rep):
                 rep_seed = config.base_seed + rep
+                _emit({"event": "optimize.rep_start", "rep": int(rep),
+                       "seed": int(rep_seed),
+                       "n_rep": int(config.n_rep), "n_gen": int(config.n_gen)})
                 x_ini = initial_population_01(
                     config.n_pop, dim, x_lower, x_upper, seed=rep_seed, use_lhs=True
                 )
@@ -127,6 +154,13 @@ def optimize(
                           extra={"event": "optimize.rep_start",
                                  "rep": int(rep), "seed": int(rep_seed)})
                 t0 = time.perf_counter()
+
+                # Forward EGO-iter events with rep context attached.
+                def _iter_progress(payload: Mapping[str, Any], _rep=rep,
+                                   _seed=rep_seed) -> None:
+                    _emit({**payload, "rep": int(_rep), "seed": int(_seed),
+                           "n_rep": int(config.n_rep)})
+
                 x_new, of_rep, history_df = ego_01_architecture(
                     obj_felipe_lucas,
                     config.n_gen,
@@ -138,6 +172,7 @@ def optimize(
                     args=args_obj,
                     seed=rep_seed,
                     cache=cache,
+                    progress=_iter_progress,
                 )
                 wall_time_s = time.perf_counter() - t0
                 per_rep_of.append(float(of_rep))
@@ -146,6 +181,11 @@ def optimize(
                                  "rep": int(rep), "seed": int(rep_seed),
                                  "of_rep": float(of_rep),
                                  "wall_time_s": wall_time_s})
+                _emit({"event": "optimize.rep_end",
+                       "rep": int(rep), "seed": int(rep_seed),
+                       "of_rep": float(of_rep),
+                       "wall_time_s": float(wall_time_s),
+                       "n_rep": int(config.n_rep)})
 
                 if recorder is not None:
                     recorder.record_rep(
@@ -175,6 +215,8 @@ def optimize(
                        extra={"event": "optimize.failed",
                               "error": repr(exc),
                               "wall_time_s": time.perf_counter() - t_start})
+            _emit({"event": "optimize.failed", "error": repr(exc),
+                   "wall_time_s": time.perf_counter() - t_start})
             if recorder is not None:
                 recorder.cancel(repr(exc))
             raise
@@ -186,4 +228,7 @@ def optimize(
                          "best_of": float(best_of),
                          "best_seed": int(best_seed),
                          "wall_time_s": time.perf_counter() - t_start})
+        _emit({"event": "optimize.end", "best_of": float(best_of),
+               "best_seed": int(best_seed),
+               "wall_time_s": time.perf_counter() - t_start})
         return result

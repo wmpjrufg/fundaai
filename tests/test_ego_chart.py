@@ -89,3 +89,18 @@ class TestRenderEgoHistory:
     def test_empty_input_raises(self):
         with pytest.raises(ValueError):
             render_ego_history({})
+
+    def test_hover_is_per_trace_not_unified(self):
+        """hovermode must be 'closest' so the tooltip stays near the cursor.
+
+        With hovermode='x unified' the EGO chart used to show a tall
+        ribbon that blocked the rest of the page when the cursor was
+        over it; the polish sprint switched it to 'closest'.
+        """
+        fig = render_ego_history(self._two_runs())
+        assert fig.layout.hovermode == "closest"
+
+    def test_figure_has_explicit_height(self):
+        """Default figure height must be tall enough for both subplots."""
+        fig = render_ego_history(self._two_runs())
+        assert fig.layout.height and fig.layout.height >= 600

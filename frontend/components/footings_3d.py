@@ -107,8 +107,12 @@ def _box_mesh(
     return x, y, z, i, j, k
 
 
+# Lighting tuned for steady appearance on small camera moves.
+# Higher ambient + lower specular/fresnel removes the flicker the
+# user reported when hovering near edges (Plotly recomputes specular
+# highlights on every pointer event when fresnel is high).
 _LIGHTING = dict(
-    ambient=0.55, diffuse=0.85, specular=0.25, roughness=0.55, fresnel=0.10,
+    ambient=0.75, diffuse=0.55, specular=0.05, roughness=0.85, fresnel=0.0,
 )
 _LIGHT_POSITION = dict(x=120, y=-120, z=160)
 
@@ -229,8 +233,9 @@ def _ground_plane(
         x=rect_x, y=rect_y, z=rect_z,
         i=np.array([0, 0]), j=np.array([1, 2]), k=np.array([2, 3]),
         color=PALETTE["surface"], opacity=0.55, flatshading=True,
-        lighting=dict(ambient=0.9), name="terreno", showlegend=True,
-        hoverinfo="skip",
+        lighting=dict(ambient=0.95, diffuse=0.05),
+        name="terreno", showlegend=True,
+        hoverinfo="skip", hovertemplate=None,
     )
 
     # Grid spacing: ~10 lines on the longer side
@@ -257,6 +262,9 @@ def _ground_plane(
         opacity=0.7,
         hoverinfo="skip", showlegend=False, name="grid",
     )
+    # Make grid/contour completely inert under the cursor so the
+    # hover does not bounce between them and the footings.
+    grid.update(hovertemplate=None)
 
     # Lot contour
     contour = go.Scatter3d(
@@ -268,6 +276,7 @@ def _ground_plane(
         name="contorno do terreno",
         hoverinfo="skip", showlegend=False,
     )
+    contour.update(hovertemplate=None)
     return [rect, grid, contour]
 
 
@@ -281,6 +290,7 @@ def render_footings_3d(
     colour_by: str = "label",
     camera: str | dict | None = None,
     terrain_margin_m: float = 1.0,
+    height: int = 720,
 ) -> go.Figure:
     """Build a 3D Plotly figure showing the optimised footings + pillars.
 
@@ -367,17 +377,37 @@ def render_footings_3d(
     else:
         camera_dict = dict(camera)
 
-    # Equal-aspect 3D layout with informative axis titles
+    # Equal-aspect 3D layout with informative axis titles. The
+    # hover is "closest" + a stable hoverlabel so the user can keep
+    # the tooltip visible while inspecting a footing without it
+    # blinking between near-coplanar surfaces (the previous flicker
+    # issue reported in Sprint 4.7).
+    # Compute z extent so the z axis range is locked (no panning into
+    # underground territory beyond the deepest sapata).
+    z_min = min((-s.h_z for s in sapatas), default=-1.0)
+    z_max = max(0.0, pillar_height_m if show_pillars else 0.5)
     fig.update_layout(
         title=title,
         scene=dict(
             xaxis=dict(title="x [m]"),
             yaxis=dict(title="y [m]"),
-            zaxis=dict(title="z [m]"),
+            zaxis=dict(title="z [m]",
+                       range=[float(z_min) - 0.2,
+                              float(z_max) + 0.2]),
             aspectmode="data",
             camera=camera_dict,
+            hovermode="closest",
+            dragmode="orbit",
         ),
+        height=int(height),
         margin=dict(l=0, r=0, t=40 if title else 10, b=0),
-        legend=dict(itemsizing="constant"),
+        legend=dict(itemsizing="constant",
+                    yanchor="top", y=1.0,
+                    xanchor="left", x=1.02),
+        hoverlabel=dict(
+            bgcolor=PALETTE["surface"],
+            bordercolor=PALETTE["border"],
+            font=dict(color=PALETTE["text"], size=12),
+        ),
     )
     return fig

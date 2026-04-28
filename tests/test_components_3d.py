@@ -190,3 +190,13 @@ class TestRenderFootings3D:
         small_extent = max(small.data[0].x) - min(small.data[0].x)
         large_extent = max(large.data[0].x) - min(large.data[0].x)
         assert large_extent > small_extent
+
+    def test_height_parameter_is_propagated(self):
+        """Setting height=900 sets the figure height to 900 px."""
+        fig = render_footings_3d(_make_sapatas(1), height=900)
+        assert fig.layout.height == 900
+
+    def test_scene_uses_closest_hovermode(self):
+        """Scene hovermode must be 'closest' to avoid border-flicker."""
+        fig = render_footings_3d(_make_sapatas(1))
+        assert fig.layout.scene.hovermode == "closest"

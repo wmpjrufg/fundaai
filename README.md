@@ -23,6 +23,7 @@
 - [Setup do ambiente](#setup-do-ambiente)
 - [Como rodar a aplicação](#como-rodar-a-aplicação)
 - [Como rodar uma otimização programaticamente](#como-rodar-uma-otimização-programaticamente)
+- [Progresso ao vivo (callback)](#progresso-ao-vivo-callback)
 - [Persistência de experimentos](#persistência-de-experimentos)
 - [Cache do surrogate](#cache-do-surrogate)
 - [Suite de testes](#suite-de-testes)
@@ -56,10 +57,14 @@ atua como surrogate da função objetivo cara, e um **AG**
 ([Mealpy](https://mealpy.readthedocs.io/)) maximiza a função de
 aquisição *Expected Improvement* a cada iteração.
 
-A interface web é construída em **Streamlit** e permite que o usuário
-forneça os dados de projeto via planilha Excel, parametrize o método,
-execute a otimização e exporte o resultado tanto em Excel quanto em
-DXF para integração direta com o fluxo tradicional de CAD.
+A interface web é construída em **Streamlit** com tema dark
+profissional e permite que o usuário forneça os dados de projeto via
+planilha Excel, acompanhe o progresso da otimização **ao vivo**
+(repetição corrente, iteração, melhor OF até agora), explore o
+arranjo otimizado em **planta 2D**, em **vista 3D interativa** com
+presets de câmera, e estude a **convergência do EGO** em um gráfico
+zoomable. O resultado pode ser exportado em Excel, DXF (CAD), JSON
+estruturado, HTML 3D stand-alone e PNG do gráfico de histórico.
 
 A pesquisa associada é desenvolvida no contexto de uma Iniciação
 Científica em andamento.
@@ -305,6 +310,32 @@ A interface abre no navegador (em geral
 
 ---
 
+### Estrutura da otimização (o que está rodando "por baixo")
+
+Cada chamada a **Dimensionar** dispara o pipeline abaixo:
+
+```
+n_rep    × ( n_pop avaliações reais (LHS, iter 0)
+              + n_gen iterações do EGO )
+
+  por iteração do EGO:
+     1. Treina um GPR no histórico atual (n_pop + iters anteriores)
+     2. Maximiza Expected Improvement com um GA interno (mealpy)
+     3. Avalia o candidato com a função objetivo real
+     4. Atualiza o histórico
+```
+
+Default da UI: `n_rep = 5`, `n_pop = 250`, `n_gen = 20`. Com isso o
+modelo substituto é treinado **5 × 20 = 100 vezes**, e a OF real é
+avaliada **5 × (250 + 20) = 1.350 vezes** no total. O run completo
+fica gravado em `experiments/<run_id>/` (ver
+[Persistência de experimentos](#persistência-de-experimentos)).
+
+A barra de progresso na página mostra a iteração corrente
+`{rep}/{n_rep} · iter {t}/{n_gen}` e o melhor OF encontrado até o
+momento — atualizada **ao vivo** via callback (ver
+[Progresso ao vivo](#progresso-ao-vivo-callback)).
+
 ## Como rodar uma otimização programaticamente
 
 Sem precisar do Streamlit, a partir de um notebook ou script:
@@ -331,6 +362,35 @@ for s in result.sapatas:
 ```
 
 ---
+
+## Progresso ao vivo (callback)
+
+Tanto `core.api.optimize` quanto `core.optimization.ego_01_architecture`
+aceitam um callback `progress=...` opcional que é chamado em cada
+milestone do pipeline. A página Streamlit usa esse hook para
+atualizar o `st.progress` e o `st.status` em tempo real; em scripts
+ou notebooks você pode plugar qualquer função compatível:
+
+```python
+from core.api import OptimisationConfig, optimize
+from core.io import read_projeto_from_excel
+
+def log_progress(ev):
+    if ev["event"] == "ego.iter":
+        print(f"rep {ev['rep']+1}/{ev['n_rep']}  "
+              f"iter {ev['iter']}/{ev['n_gen']}  "
+              f"of_min={ev['of_min']:.6f}")
+
+projeto = read_projeto_from_excel("assets/data/problema_fund_três.xlsx",
+                                  f_ck_kpa=25_000.0, cobrimento_m=0.04)
+optimize(projeto, OptimisationConfig(n_rep=2, n_gen=5),
+         progress=log_progress)
+```
+
+Eventos emitidos: `optimize.start`, `optimize.rep_start`, `ego.iter`,
+`optimize.rep_end`, `optimize.end`, `optimize.failed`. Excepções
+levantadas pelo callback são silenciadamente ignoradas — um hook
+de UI bugado nunca aborta a otimização.
 
 ## Persistência de experimentos
 
@@ -472,6 +532,24 @@ Marcos das sprints concluídas (detalhe completo em
   (`frontend/`, `scripts/`, `notebooks/`, `archive/`,
   `assets/data/`), remoção do shim `metapy_toolbox`, atualização
   de `README.md` e `ARCHITECTURE.md`.
+- ✅ **Sprint 4.4** — logging estruturado JSON-line
+  (`core/observability/`) com `run_context` e eventos nomeados
+  em `optimize` / `ego` / `cache` / `experiments`.
+- ✅ **Sprint 4.5** — visualizador 3D Plotly em
+  `frontend/components/footings_3d.py` (sapatas enterradas,
+  pilares acima, hover, presets de câmera).
+- ✅ **Sprint 4.6** — UI premium: tema dark
+  (`.streamlit/config.toml` + `frontend/theme/`), gráfico
+  premium do histórico do EGO, painel unificado de
+  exportação (DXF, JSON, HTML 3D, PNG), recorder + cache
+  ligados por padrão na UI.
+- ✅ **Sprint 4.7** — polish de UX: progresso ao vivo via
+  callback (`progress=`), gráficos com hover por trace
+  (não mais ribbon que bloqueia scroll), 3D em seção
+  full-width separada, eixos travados em `>=0`, input
+  `n_rep` exposto na UI, default `n_gen` subido para 20,
+  flicker do 3D corrigido (lighting reduzido + hover
+  desabilitado em grid/contorno do terreno).
 
 ---
 

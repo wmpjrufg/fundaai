@@ -164,14 +164,24 @@ def render_ego_history(
     band_max = np.nanmax(aligned, axis=0)
     band_median = np.nanmedian(aligned, axis=0)
 
-    # Build the figure
+    # Build the figure. Two stacked subplots with generous vertical
+    # spacing so the legend, axis labels and time bars never collide
+    # with the convergence curves above. shared_xaxes=False so each
+    # plot has its own ticks/zoom; the user often wants to zoom into
+    # the long tail of the OF curve without losing the time x-axis.
     fig = make_subplots(
-        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
-        row_heights=[0.72, 0.28],
-        subplot_titles=("OF best-so-far por iteração", "Tempo por iteração [s]"),
+        rows=2, cols=1, shared_xaxes=False, vertical_spacing=0.22,
+        row_heights=[0.66, 0.34],
+        subplot_titles=("Curva de convergência (OF best-so-far)",
+                        "Tempo computacional por iteração [s]"),
     )
 
     # --- Top row: band + per-rep curves + median + markers
+    # Hover on this chart uses "closest" (per-trace tooltip near the
+    # cursor) instead of "x unified" (a tall ribbon that historically
+    # blocked the cursor and prevented vertical scrolling on long
+    # legends). The legend itself is grouped into "convergência" /
+    # "envelope" / "avaliações" so users can collapse the noise.
     band_x = np.concatenate([grid, grid[::-1]])
     band_y = np.concatenate([band_max, band_min[::-1]])
     fig.add_trace(
@@ -179,7 +189,8 @@ def render_ego_history(
             x=band_x, y=band_y, fill="toself",
             fillcolor="rgba(245,158,11,0.10)",
             line=dict(width=0),
-            name="min–max entre reps",
+            name="envelope min–max",
+            legendgroup="envelope",
             hoverinfo="skip", showlegend=True,
         ),
         row=1, col=1,
@@ -190,14 +201,20 @@ def render_ego_history(
         color = palette[n % len(palette)]
         fig.add_trace(
             go.Scatter(
-                x=x, y=y, mode="lines",
-                line=dict(color=color, width=2),
+                x=x, y=y, mode="lines+markers",
+                line=dict(color=color, width=2, shape="hv"),
+                marker=dict(size=8, color=color,
+                            line=dict(color=PALETTE["bg"], width=1.5)),
                 name=f"rep {rep_id}",
+                legendgroup="convergencia",
+                legendgrouptitle_text="Convergência" if n == 0 else None,
                 hovertemplate=(
-                    "rep " + str(rep_id) +
-                    "<br>iter %{x}<br>OF best-so-far %{y:.6f}<extra></extra>"
+                    "<b>rep " + str(rep_id) + "</b>"
+                    "<br>iteração: %{x}"
+                    "<br>OF best-so-far: %{y:.6f} m³"
+                    "<extra></extra>"
                 ),
-                opacity=0.85,
+                opacity=0.9,
             ),
             row=1, col=1,
         )
@@ -206,8 +223,13 @@ def render_ego_history(
         go.Scatter(
             x=grid, y=band_median, mode="lines",
             line=dict(color=PALETTE["best_so_far"], width=3.5, dash="solid"),
-            name="mediana",
-            hovertemplate="iter %{x}<br>mediana OF %{y:.6f}<extra></extra>",
+            name="mediana entre reps",
+            legendgroup="convergencia",
+            hovertemplate=(
+                "<b>mediana</b>"
+                "<br>iteração: %{x}"
+                "<br>OF: %{y:.6f} m³<extra></extra>"
+            ),
         ),
         row=1, col=1,
     )
@@ -223,10 +245,14 @@ def render_ego_history(
                     marker=dict(size=5, color=color, opacity=0.45,
                                 line=dict(width=0)),
                     name=f"avals rep {rep_id}",
-                    showlegend=False,
+                    legendgroup="avaliacoes",
+                    legendgrouptitle_text="Avaliações" if n == 0 else None,
+                    showlegend=True,
+                    visible="legendonly",
                     hovertemplate=(
-                        "rep " + str(rep_id) +
-                        "<br>iter %{x}<br>OF avaliada %{y:.6f}"
+                        "<b>aval. rep " + str(rep_id) + "</b>"
+                        "<br>iteração: %{x}"
+                        "<br>OF: %{y:.6f} m³"
                         "<extra></extra>"
                     ),
                 ),
@@ -243,30 +269,80 @@ def render_ego_history(
             go.Bar(
                 x=x, y=y, name=f"t rep {rep_id}",
                 marker=dict(color=color, line=dict(width=0)),
-                opacity=0.6,
+                opacity=0.7,
                 hovertemplate=(
-                    "rep " + str(rep_id) +
-                    "<br>iter %{x}<br>tempo %{y:.3f} s<extra></extra>"
+                    "<b>rep " + str(rep_id) + "</b>"
+                    "<br>iteração: %{x}"
+                    "<br>tempo: %{y:.3f} s"
+                    "<extra></extra>"
                 ),
-                showlegend=False,
+                legendgroup="tempo", showlegend=False,
             ),
             row=2, col=1,
         )
 
     # --- Layout
-    fig.update_xaxes(title_text="iteração do EGO", row=2, col=1)
-    fig.update_yaxes(title_text="OF (volume penalizado) [m³]", row=1, col=1)
+    # Lock the x-axis at 0 and clamp drag-zoom so the user cannot pan
+    # into negative iteration territory (no such thing as iter < 0).
+    # Use integer ticks so n_gen as small as 2 still reads clearly:
+    # iter 0 = "LHS inicial", iter 1..n_gen = EGO iterations.
+    x_axis_kwargs = dict(
+        rangemode="nonnegative",
+        range=[-0.2, max(max_iter, 1) + 0.2],
+        constrain="domain",
+        tick0=0,
+        dtick=1 if max_iter <= 12 else None,
+        showspikes=True,
+        spikecolor=PALETTE["accent"],
+        spikethickness=1,
+        spikemode="across",
+        spikedash="dot",
+        spikesnap="cursor",
+    )
+    fig.update_xaxes(title_text="iteração do EGO", row=1, col=1,
+                     **x_axis_kwargs)
+    fig.update_xaxes(
+        title_text="iteração do EGO", row=2, col=1,
+        rangemode="nonnegative",
+        range=[0.5, max(max_iter, 1) + 0.5],
+        tick0=1, dtick=1 if max_iter <= 12 else None,
+    )
+    fig.update_yaxes(title_text="OF (volume penalizado) [m³]", row=1, col=1,
+                     showspikes=True, spikecolor=PALETTE["accent"],
+                     spikethickness=1, spikedash="dot",
+                     rangemode="tozero" if not log_y else "normal")
     if log_y:
         fig.update_yaxes(type="log", row=1, col=1)
-    fig.update_yaxes(title_text="tempo [s]", row=2, col=1)
+    fig.update_yaxes(title_text="tempo [s]", row=2, col=1, rangemode="tozero")
+
+    # Comfortable height even on small viewports — the user can still
+    # zoom further (Plotly modebar) but the default fits the gestalt.
     fig.update_layout(
         title=title,
         barmode="group",
-        hovermode="x unified",
-        margin=dict(l=20, r=20, t=60 if title else 30, b=40),
+        hovermode="closest",
+        height=720,
+        margin=dict(l=30, r=30, t=80 if title else 60, b=50),
+        legend=dict(
+            orientation="v",
+            yanchor="top", y=1.0,
+            xanchor="left", x=1.02,
+            groupclick="toggleitem",
+        ),
+        # Drag-to-zoom is the primary interaction; double-click resets.
+        dragmode="zoom",
     )
 
     # --- Optional metrics annotation
+    # Helpful annotation: iteration 0 = LHS initial population.
+    fig.add_annotation(
+        xref="x1", yref="paper", x=0, y=1.0,
+        xanchor="left", yanchor="bottom",
+        text="iter 0 = pop. inicial (LHS)",
+        showarrow=False,
+        font=dict(color=PALETTE["text_muted"], size=11, style="italic"),
+    )
+
     if metrics:
         parts: list[str] = []
         if "best_of" in metrics:
@@ -278,13 +354,15 @@ def render_ego_history(
         if auc is not None:
             parts.append(f"⌀ AUC: <b>{auc:.3f}</b>")
         if parts:
+            # Anchored above the top subplot, on the left, so it never
+            # collides with the right-side legend.
             fig.add_annotation(
-                xref="paper", yref="paper", x=1.0, y=1.08,
-                xanchor="right", yanchor="bottom",
+                xref="paper", yref="paper", x=0.0, y=1.06,
+                xanchor="left", yanchor="bottom",
                 text=" &nbsp;·&nbsp; ".join(parts),
                 showarrow=False,
                 bordercolor=PALETTE["border"], borderwidth=1,
-                borderpad=6,
+                borderpad=8,
                 bgcolor="rgba(17,26,46,0.85)",
                 font=dict(color=PALETTE["text"], size=12),
             )

@@ -1,5 +1,5 @@
 """Efficient Global Optimization (EGO) related functions."""
-from typing import Callable, Optional
+from typing import Any, Callable, Mapping, Optional
 from functools import partial
 
 import numpy as np
@@ -18,7 +18,7 @@ from core.optimization.cache import SurrogateCache, fit_or_get_cached
 _log = get_logger("ego")
 
 
-def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_lower: list, x_upper: list, params_opt: dict, params_kernel: Optional[dict] = None, args: Optional[tuple] = None, seed: Optional[int] = None, cache: Optional[SurrogateCache] = None) -> tuple[list, float, pd.DataFrame]:
+def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_lower: list, x_upper: list, params_opt: dict, params_kernel: Optional[dict] = None, args: Optional[tuple] = None, seed: Optional[int] = None, cache: Optional[SurrogateCache] = None, progress: Optional[Callable[[Mapping[str, Any]], None]] = None) -> tuple[list, float, pd.DataFrame]:
     """This function performs the hybrid Efficient Global Optimization (EGO) loop.
 
     Em cada iteração ajusta um modelo substituto Gaussian Process Regressor
@@ -37,6 +37,7 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
     :param args: Extra arguments forwarded to the objective function (optional)
     :param seed: Random seed propagated to the GPR (`random_state`), to NumPy (initial points of SciPy minimizers) and to mealpy via `seed=seed`. Default `None` keeps the historical behaviour (`random_state=42` in the GPR; non-deterministic SciPy x0)
     :param cache: Optional :class:`core.optimization.cache.SurrogateCache`. When provided, the GPR is fit through :func:`fit_or_get_cached` so identical (X, y, pipeline) tuples are reused across replications, notebook re-runs and batch experiments instead of being refit from scratch. Default `None` keeps the historical behaviour (always refit)
+    :param progress: Optional callable invoked once per EGO iteration with a dict ``{"event": "ego.iter", "iter": t, "n_gen": n_gen, "of_min": current_min, "n_train": n}``. Errors raised by the callback are intentionally swallowed so a buggy UI hook does not abort the optimisation. Default ``None`` disables the hook
 
     :return: [0] = Best solution found, list with shape (d,) [best_x]
              [1] = Best objective function value [best_of]
@@ -158,12 +159,24 @@ def ego_01_architecture(obj: Callable, n_gen: int, initial_population: list, x_l
         x_train = df[x_cols]
         y_train = df[['OF']]
         model = fit_or_get_cached(pipe, x_train, y_train, cache)
+        of_min_now = float(df["OF"].min())
+        n_train_now = int(len(df))
         _log.debug(
             "ego iteration",
             extra={"event": "ego.iter", "iter": int(t),
-                   "of_min": float(df["OF"].min()),
-                   "n_train": int(len(df))},
+                   "of_min": of_min_now, "n_train": n_train_now},
         )
+        if progress is not None:
+            try:
+                progress({
+                    "event": "ego.iter",
+                    "iter": int(t),
+                    "n_gen": int(n_gen),
+                    "of_min": of_min_now,
+                    "n_train": n_train_now,
+                })
+            except Exception:   # pragma: no cover  (UI hook must not abort)
+                pass
 
         # Acquisition function: maximise Expected Improvement (EI)
         argss = (model, df['OF'].min())

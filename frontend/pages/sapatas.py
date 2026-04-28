@@ -160,8 +160,9 @@ def obter_textos() -> Dict[str, Dict[str, str]]:
             "cob": "Cobrimento do concreto (cm)",
             "h_min": "Dimensão mínima da sapata (cm)",
             "h_max": "Dimensão máxima da sapata (cm)",
-            "n_gen": "Número de gerações da otimização",
-            "n_pop": "Tamanho da população",
+            "n_gen": "Iterações do EGO por repetição",
+            "n_pop": "Tamanho da população (LHS inicial)",
+            "n_rep": "Repetições independentes (n_rep)",
             "btn_dimensionar": "🚀 Dimensionar",
             "info_otim": "Otimizando o sistema...",
             "sucesso_otim": "✅ Otimização concluída com sucesso!",
@@ -181,8 +182,9 @@ def obter_textos() -> Dict[str, Dict[str, str]]:
             "cob": "Concrete cover (cm)",
             "h_min": "Minimum footing dimension (cm)",
             "h_max": "Maximum footing dimension (cm)",
-            "n_gen": "Number of optimization generations",
-            "n_pop": "Population size",
+            "n_gen": "EGO iterations per repetition",
+            "n_pop": "Population size (LHS init)",
+            "n_rep": "Independent repetitions (n_rep)",
             "btn_dimensionar": "🚀 Design",
             "info_otim": "Optimizing the system...",
             "sucesso_otim": "✅ Optimization completed successfully!",
@@ -218,8 +220,15 @@ with col1:
 with col2:
     h_min_cm = st.number_input(t["h_min"], min_value=60.0, step=0.5, value=60.0)
     h_max_cm = st.number_input(t["h_max"], min_value=60.0, step=0.5, value=150.0)
-    n_gen_ui = st.number_input(t["n_gen"], min_value=2, max_value=200, step=1, value=2)
-    n_pop_ui = st.number_input(t["n_pop"], min_value=200, max_value=2000, step=5, value=250)
+    n_gen_ui = st.number_input(t["n_gen"], min_value=2, max_value=200, step=1, value=20,
+                                help="Cada iteração re-treina o GPR e seleciona o próximo "
+                                     "ponto via Expected Improvement.")
+    n_pop_ui = st.number_input(t["n_pop"], min_value=10, max_value=2000, step=10, value=250,
+                                help="Tamanho da amostragem Latin Hypercube inicial; "
+                                     "todas avaliadas com a função objetivo real (iter 0).")
+    n_rep_ui = st.number_input(t["n_rep"], min_value=1, max_value=20, step=1, value=5,
+                                help="Número de execuções independentes do EGO com seeds "
+                                     "diferentes; o melhor entre todas vence.")
 
 st.divider()
 
@@ -249,41 +258,143 @@ st.dataframe(pd.read_excel(uploaded_file).head(), use_container_width=True)
 # --- Optimisation -------------------------------------------------------
 if st.button(t["btn_dimensionar"], type="primary"):
     try:
-        with st.spinner(t["info_otim"]):
-            config = OptimisationConfig(
-                h_min_m=float(h_min_cm) / 100.0,
-                h_max_m=float(h_max_cm) / 100.0,
-                n_gen=int(n_gen_ui),
-                n_pop=int(n_pop_ui),
-                n_rep=5,
-                base_seed=42,
-                kernel_index=-1,
-                ga_epoch=50,
-                ga_pop_size=150,
-                penalty=None,
-            )
+        config = OptimisationConfig(
+            h_min_m=float(h_min_cm) / 100.0,
+            h_max_m=float(h_max_cm) / 100.0,
+            n_gen=int(n_gen_ui),
+            n_pop=int(n_pop_ui),
+            n_rep=int(n_rep_ui),
+            base_seed=42,
+            kernel_index=-1,
+            ga_epoch=50,
+            ga_pop_size=150,
+            penalty=None,
+        )
 
+        # ── Live progress UI: a status block (collapses on completion)
+        #     plus a deterministic progress bar. Every milestone of the
+        #     pipeline updates these widgets through the `progress=`
+        #     callback wired below. The total work unit is
+        #     n_rep * n_gen ego iterations; each rep_start/end shifts
+        #     the pointer. The displayed status carries the running
+        #     best OF so the user has immediate signal.
+        total_units = int(config.n_rep) * int(config.n_gen)
+        progress_bar = st.progress(0, text="Preparando...")
+        status_box = st.status("⏳ Otimização em andamento...",
+                               state="running", expanded=True)
+        info_line = status_box.empty()
+        sub_line = status_box.empty()
+
+        progress_state = {"unit": 0, "best": float("inf"),
+                          "rep": 0, "iter": 0}
+
+        def _on_progress(ev: dict) -> None:
+            """Translate optimisation events into Streamlit widgets.
+
+            Streamlit renders mid-script updates synchronously, so
+            calling ``progress_bar.progress(...)`` and
+            ``info_line.write(...)`` from here is enough to surface
+            the percentage and the running best OF.
+            """
+            kind = ev.get("event")
+            if kind == "optimize.start":
+                info_line.markdown(
+                    f"**Configuração:** "
+                    f"`n_rep={ev['n_rep']}` · `n_gen={ev['n_gen']}` · "
+                    f"`n_pop={ev['n_pop']}` · `n_fund={ev['n_fund']}`"
+                )
+                sub_line.markdown(
+                    "Iniciando população inicial via Latin Hypercube..."
+                )
+                progress_bar.progress(0, text="Iniciando...")
+                return
+
+            if kind == "optimize.rep_start":
+                rep = ev["rep"]; seed = ev["seed"]
+                progress_state["rep"] = rep
+                progress_state["iter"] = 0
+                sub_line.markdown(
+                    f"🔁 **Repetição {rep + 1}/{ev['n_rep']}** "
+                    f"(seed `{seed}`) — amostrando LHS e treinando GPR..."
+                )
+                return
+
+            if kind == "ego.iter":
+                rep = ev.get("rep", progress_state["rep"])
+                it = ev["iter"]
+                n_gen = ev["n_gen"]
+                of_min = ev["of_min"]
+                progress_state["unit"] += 1
+                progress_state["best"] = min(progress_state["best"], of_min)
+                pct = min(progress_state["unit"] / max(total_units, 1), 1.0)
+                running_best = progress_state["best"]
+                progress_bar.progress(
+                    pct,
+                    text=(f"Repetição {rep + 1}/{ev.get('n_rep', '?')} · "
+                          f"iter {it}/{n_gen} · "
+                          f"melhor OF até agora: {running_best:.4f} m³"),
+                )
+                sub_line.markdown(
+                    f"🧠 Treinando GPR · iteração `{it}/{n_gen}` · "
+                    f"OF da rep: `{of_min:.6f} m³`"
+                )
+                return
+
+            if kind == "optimize.rep_end":
+                rep = ev["rep"]
+                of_rep = ev["of_rep"]
+                wall = ev["wall_time_s"]
+                sub_line.markdown(
+                    f"✅ Repetição {rep + 1} concluída — "
+                    f"OF: `{of_rep:.6f} m³` · "
+                    f"tempo: `{wall:.2f} s`"
+                )
+                return
+
+            if kind == "optimize.end":
+                progress_bar.progress(
+                    1.0,
+                    text=f"✅ Concluído · best OF: {ev['best_of']:.4f} m³",
+                )
+                return
+
+            if kind == "optimize.failed":
+                sub_line.markdown(f"❌ Falhou: `{ev['error']}`")
+                return
+
+        try:
             # Recorder switched on by default (writes under
             # experiments/<run_id>/) so the "Ver histórico" button has
             # the EGO history available immediately after this call.
             recorder = ExperimentRecorder(root=EXPERIMENTS_ROOT)
             cache = SurrogateCache(maxsize=128)
             result: OptimisationResult = optimize(
-                projeto, config, recorder=recorder, cache=cache
+                projeto, config,
+                recorder=recorder, cache=cache,
+                progress=_on_progress,
             )
+        except Exception:
+            status_box.update(label="❌ Otimização interrompida",
+                              state="error", expanded=True)
+            raise
 
-            st.session_state["projeto"] = projeto
-            st.session_state["result"] = result
-            st.session_state["dados_final_df"] = _result_to_dataframe(result.sapatas)
-            st.session_state["best_of_valor"] = result.best_of
-            st.session_state["excel_buffer"] = _build_results_xlsx(projeto, result)
-            st.session_state["calculo_realizado"] = True
-            st.session_state["run_dir"] = str(recorder.run_dir)
-            st.session_state["run_id"] = recorder.run_id
-            st.session_state["show_history"] = False   # collapsed by default
+        status_box.update(
+            label=f"✅ Otimização concluída em {len(result.per_rep_of)} repetições",
+            state="complete", expanded=False,
+        )
 
-            st.success(t["sucesso_otim"])
-            st.rerun()
+        st.session_state["projeto"] = projeto
+        st.session_state["result"] = result
+        st.session_state["dados_final_df"] = _result_to_dataframe(result.sapatas)
+        st.session_state["best_of_valor"] = result.best_of
+        st.session_state["excel_buffer"] = _build_results_xlsx(projeto, result)
+        st.session_state["calculo_realizado"] = True
+        st.session_state["run_dir"] = str(recorder.run_dir)
+        st.session_state["run_id"] = recorder.run_id
+        st.session_state["show_history"] = False   # collapsed by default
+
+        st.success(t["sucesso_otim"])
+        st.rerun()
     except Exception as exc:   # pragma: no cover
         st.error(t["erro_proc"])
         st.exception(exc)
@@ -312,9 +423,11 @@ if st.session_state.get("calculo_realizado"):
 
     st.write("")
 
-    table_col, viewer_col = st.columns([2, 3])
-
+    # ── Section 1 — Tabela + planta 2D lado a lado (compactos, 2D não
+    #                precisa de muito espaço; tabela é a referência primária).
+    table_col, plan2d_col = st.columns([3, 4])
     with table_col:
+        st.markdown("##### 📋 Dimensões finais")
         st.dataframe(
             st.session_state["dados_final_df"],
             use_container_width=True, hide_index=True,
@@ -325,69 +438,112 @@ if st.session_state.get("calculo_realizado"):
             file_name="otimizacao_fundacao.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-
-    with viewer_col:
-        tab_2d, tab_3d = st.tabs(["🗺️ Planta 2D", "🧊 Vista 3D"])
-        with tab_2d:
-            fig2d = _plot_layout(result_state.sapatas)
-            st.pyplot(fig2d, use_container_width=True)
-        with tab_3d:
-            ctrl, scene = st.columns([1, 4])
-            with ctrl:
-                show_pillars = st.checkbox("Pilares", value=True)
-                show_ground = st.checkbox("Terreno", value=True)
-                colour_by = st.radio(
-                    "Cor",
-                    options=["label", "volume"], index=0,
-                    format_func=lambda x: "elemento" if x == "label" else "volume",
-                )
-                camera_preset = st.selectbox(
-                    "Câmera",
-                    options=list(CAMERA_PRESETS.keys()),
-                    index=list(CAMERA_PRESETS.keys()).index("isométrica"),
-                )
-                pillar_height = st.slider(
-                    "Altura visual do pilar (m)",
-                    min_value=0.5, max_value=4.0, value=1.5, step=0.1,
-                )
-                terrain_margin = st.slider(
-                    "Margem do terreno (m)",
-                    min_value=0.5, max_value=10.0, value=1.5, step=0.5,
-                )
-            with scene:
-                fig3d = render_footings_3d(
-                    result_state.sapatas,
-                    show_pillars=show_pillars,
-                    show_ground=show_ground,
-                    pillar_height_m=pillar_height,
-                    colour_by=colour_by,
-                    camera=camera_preset,
-                    terrain_margin_m=terrain_margin,
-                )
-                st.plotly_chart(fig3d, use_container_width=True,
-                                config={"displaylogo": False, "responsive": True})
+    with plan2d_col:
+        st.markdown("##### 🗺️ Planta 2D")
+        fig2d = _plot_layout(result_state.sapatas)
+        st.pyplot(fig2d, use_container_width=True)
 
     st.divider()
 
-    # --- History --------------------------------------------------------
-    hist_btn_col, _spacer = st.columns([1, 5])
+    # ── Section 2 — Vista 3D (full-width, espaço próprio).
+    st.markdown("### 🧊 Vista 3D do arranjo")
+    st.caption(
+        "Arraste para rotacionar · Roda do mouse para zoom · "
+        "Duplo-clique reseta a câmera"
+    )
+
+    ctrl3d, scene3d = st.columns([1, 5], gap="large")
+    with ctrl3d:
+        st.markdown("**Visualização**")
+        show_pillars = st.checkbox("Pilares", value=True)
+        show_ground = st.checkbox("Terreno", value=True)
+        colour_by = st.radio(
+            "Cor das sapatas",
+            options=["label", "volume"], index=0,
+            format_func=lambda x: "por elemento" if x == "label" else "por volume",
+        )
+        st.markdown("**Câmera**")
+        camera_preset = st.selectbox(
+            "Preset",
+            options=list(CAMERA_PRESETS.keys()),
+            index=list(CAMERA_PRESETS.keys()).index("isométrica"),
+            label_visibility="collapsed",
+        )
+        st.markdown("**Geometria**")
+        pillar_height = st.slider(
+            "Altura visual do pilar (m)",
+            min_value=0.5, max_value=4.0, value=1.5, step=0.1,
+        )
+        terrain_margin = st.slider(
+            "Margem do terreno (m)",
+            min_value=0.5, max_value=10.0, value=1.5, step=0.5,
+        )
+    with scene3d:
+        fig3d = render_footings_3d(
+            result_state.sapatas,
+            show_pillars=show_pillars,
+            show_ground=show_ground,
+            pillar_height_m=pillar_height,
+            colour_by=colour_by,
+            camera=camera_preset,
+            terrain_margin_m=terrain_margin,
+            height=760,
+        )
+        st.plotly_chart(
+            fig3d,
+            use_container_width=True,
+            config={
+                "displaylogo": False, "responsive": True,
+                "scrollZoom": True,   # roda do mouse = zoom direto
+                "modeBarButtonsToRemove": ["resetCameraLastSave3d"],
+            },
+        )
+
+    st.divider()
+
+    # ── Section 3 — Histórico do EGO (full-width, dois subgráficos
+    #               com hover por trace; scrollZoom permite aproximar
+    #               regiões da curva sem perder a visão geral).
+    st.markdown("### 📈 Histórico do EGO")
+    hist_btn_col, hist_log_col = st.columns([1, 5])
     with hist_btn_col:
-        if st.button("📈 Ver histórico do EGO"):
+        if st.button(
+            "Mostrar histórico" if not st.session_state["show_history"]
+            else "Ocultar histórico",
+            type="secondary",
+        ):
             st.session_state["show_history"] = not st.session_state["show_history"]
 
     fig_history = None
     if st.session_state.get("show_history") and st.session_state.get("run_dir"):
         try:
             run = load_experiment(st.session_state["run_dir"])
-            log_y = st.toggle("Escala log na OF", value=False, key="hist_log_y")
+            with hist_log_col:
+                log_y = st.toggle(
+                    "Eixo OF em escala logarítmica",
+                    value=False, key="hist_log_y",
+                )
+            st.caption(
+                "Arraste no gráfico para dar zoom em uma faixa · "
+                "Duplo-clique reseta · Use a barra de ferramentas no "
+                "canto superior direito (pan, zoom, autoescala, "
+                "exportar PNG)."
+            )
             fig_history = render_ego_history(
                 run.history,
                 metrics=run.manifest.metrics,
                 title=None,
                 log_y=log_y,
             )
-            st.plotly_chart(fig_history, use_container_width=True,
-                            config={"displaylogo": False, "responsive": True})
+            st.plotly_chart(
+                fig_history,
+                use_container_width=True,
+                config={
+                    "displaylogo": False, "responsive": True,
+                    "scrollZoom": True,
+                    "doubleClick": "reset",
+                },
+            )
             with st.expander("Resumo por repetição"):
                 if run.manifest.summary:
                     st.dataframe(
