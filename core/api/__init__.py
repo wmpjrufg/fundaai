@@ -16,15 +16,29 @@ Resumo em português:
     por aqui.
 """
 
+from .benchmark import (
+    ALGORITHM_LABELS,
+    ALL_ALGORITHMS,
+    Algorithm,
+    BenchmarkConfig,
+    BenchmarkResult,
+    run_benchmark,
+)
 from .evaluate import evaluate
 from .optimize import OptimisationCancelled, optimize
 from .types import EvaluationResult, OptimisationConfig, OptimisationResult
 
 __all__ = [
+    "ALGORITHM_LABELS",
+    "ALL_ALGORITHMS",
+    "Algorithm",
+    "BenchmarkConfig",
+    "BenchmarkResult",
     "EvaluationResult",
     "OptimisationCancelled",
     "OptimisationConfig",
     "OptimisationResult",
     "evaluate",
     "optimize",
+    "run_benchmark",
 ]

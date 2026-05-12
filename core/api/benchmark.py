@@ -1,0 +1,650 @@
+"""Benchmark entry point — head-to-head comparison between EGO and pure metaheuristics.
+
+This is the experiment bench consumed by the Streamlit ``Experimentos``
+page (and by future notebook/CLI clients). It encapsulates the
+orchestration required to compare ``EGO+GPR`` against pure ``GA``,
+``PSO`` and ``GWO`` on the *same* objective function, under a *common
+evaluation budget*, with seeds controlled per repetition.
+
+Design notes
+------------
+The metric of merit is the **best objective per number of real
+objective evaluations**, not wall-clock time. This is the honest
+argument for EGO when the objective is cheap (as it is today): a
+surrogate-assisted method should converge in fewer real evaluations
+than its pure-metaheuristic counterparts, even if each surrogate
+iteration costs more than one objective evaluation. Wall-clock time
+is reported as a secondary metric for completeness.
+
+Every algorithm sees the same wrapped objective ``TracedObjective``
+that (a) counts evaluations, (b) records the per-evaluation trace
+``(eval_idx, of_value, of_best_so_far, time_eval_s, time_total_s)``
+and (c) raises ``_BudgetExhausted`` (a ``BaseException`` subclass, so
+it bypasses generic ``except Exception`` blocks inside ``mealpy``/
+``scipy``) the moment the budget is hit.
+
+Resumo em português:
+    ``run_benchmark`` executa um conjunto de algoritmos (EGO, GA, PSO,
+    GWO) sobre o mesmo projeto, com o **mesmo orçamento de avaliações
+    reais** e ``n_rep`` repetições com seeds controladas. Devolve um
+    ``BenchmarkResult`` tipado com histórico unificado (linha por
+    avaliação real) e tabela-resumo pronta para o artigo.
+"""
+
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field
+from typing import Any, Callable, Literal, Mapping, Optional, Sequence
+
+import numpy as np
+import pandas as pd
+from mealpy import FloatVar, GA, GWO, PSO
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from core.api._adapter import projeto_to_dataframe
+from core.api.types import OptimisationConfig
+from core.domain import FundacaoProjeto
+from core.observability import get_logger, run_context
+from core.optimization import ego_01_architecture, initial_population_01
+from fundacao import constroi_kernel, obj_felipe_lucas
+
+_log = get_logger("benchmark")
+
+
+Algorithm = Literal["ego", "ga", "pso", "gwo"]
+ALL_ALGORITHMS: tuple[Algorithm, ...] = ("ego", "ga", "pso", "gwo")
+
+ALGORITHM_LABELS: dict[str, str] = {
+    "ego": "EGO + GPR",
+    "ga":  "GA puro",
+    "pso": "PSO puro",
+    "gwo": "GWO puro",
+}
+
+
+# =============================================================================
+# Internal sentinels
+# =============================================================================
+class _BudgetExhausted(BaseException):
+    """Sentinel raised by :class:`TracedObjective` when the evaluation budget is hit.
+
+    Inherits from ``BaseException`` (not ``Exception``) so it bypasses
+    blanket ``except Exception`` clauses inside the inner optimisers
+    (mealpy ``solve``, scipy minimisers, scikit-learn GPR fitting),
+    exactly like ``core.optimization.ego._CancelSentinel`` does for
+    cooperative cancellation.
+    """
+
+
+# =============================================================================
+# Configuration
+# =============================================================================
+class BenchmarkConfig(BaseModel):
+    """Public configuration for :func:`run_benchmark`.
+
+    Built on Pydantic v2 to mirror the validation style of
+    :class:`core.api.OptimisationConfig`. Every algorithm in
+    ``algorithms`` runs ``n_rep`` independent repetitions, each
+    capped at ``budget_evals`` real objective evaluations. The
+    repetition seed is ``base_seed + rep``, so two ``run_benchmark``
+    calls with the same configuration produce the same per-rep
+    trajectories.
+
+    :param algorithms: Tuple with the algorithms to compare. Must
+                       contain at least one entry. Order is preserved
+                       in the output history
+    :param budget_evals: Maximum number of real objective evaluations
+                         per repetition (shared by every algorithm)
+    :param n_rep: Number of independent repetitions per algorithm
+    :param base_seed: Seed used to derive ``rep_seed = base_seed + rep``
+    :param h_min_m: Lower bound for ``h_x, h_y, h_z`` [m]
+    :param h_max_m: Upper bound for ``h_x, h_y, h_z`` [m]
+    :param lhs_n_pop: LHS initial population size used by EGO. Must be
+                      ``<= budget_evals`` so EGO has room for at least
+                      one surrogate iteration
+    :param meta_pop_size: Population size used by GA / PSO / GWO
+    :param kernel_index: Index in ``constroi_kernel()`` for the EGO GPR
+    :param ga_pop_size: Population of the GA that maximises EI **inside**
+                        EGO (does **not** touch the real objective —
+                        only the surrogate). Independent from
+                        ``meta_pop_size`` so the EI optimiser can be
+                        tuned separately from the pure metaheuristics
+    :param ga_epoch: Number of epochs of the GA that maximises EI
+                     inside EGO
+    :param penalty: Penalty factor applied to constraint violations
+                    (positive when set; ``None`` falls back to the
+                    engineering default)
+    """
+
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    algorithms: tuple[Algorithm, ...] = Field(
+        default=ALL_ALGORITHMS,
+        min_length=1,
+        description="Algorithms to compare (subset of EGO / GA / PSO / GWO)",
+    )
+    budget_evals: int = Field(default=200, ge=10, description="Real evaluations per repetition")
+    n_rep: int = Field(default=10, ge=1, description="Independent repetitions per algorithm")
+    base_seed: int = Field(default=42, description="rep_seed = base_seed + rep")
+    h_min_m: float = Field(default=0.60, gt=0.0, description="Lower bound for h_x, h_y, h_z [m]")
+    h_max_m: float = Field(default=1.50, gt=0.0, description="Upper bound for h_x, h_y, h_z [m]")
+    lhs_n_pop: int = Field(default=50, ge=2, description="EGO LHS initial population")
+    meta_pop_size: int = Field(default=30, ge=2, description="GA/PSO/GWO population size")
+    kernel_index: int = Field(default=-1, description="Index in constroi_kernel(); -1 = last kernel")
+    ga_pop_size: int = Field(default=150, ge=2, description="Inner-EI GA population (surrogate only)")
+    ga_epoch: int = Field(default=50, ge=1, description="Inner-EI GA epochs (surrogate only)")
+    penalty: float | None = Field(default=None, gt=0.0, description="Penalty for constraint violations")
+
+    @model_validator(mode="after")
+    def _check_invariants(self) -> "BenchmarkConfig":
+        if self.h_min_m >= self.h_max_m:
+            raise ValueError(
+                f"h_min_m must be strictly less than h_max_m; "
+                f"got h_min_m={self.h_min_m}, h_max_m={self.h_max_m}."
+            )
+        if self.lhs_n_pop >= self.budget_evals:
+            raise ValueError(
+                f"lhs_n_pop ({self.lhs_n_pop}) must be strictly less than "
+                f"budget_evals ({self.budget_evals}); EGO needs room for at "
+                f"least one surrogate iteration."
+            )
+        seen: set[str] = set()
+        for alg in self.algorithms:
+            if alg in seen:
+                raise ValueError(f"algorithm {alg!r} repeated in `algorithms`.")
+            seen.add(alg)
+        return self
+
+
+# =============================================================================
+# Result types
+# =============================================================================
+@dataclass(frozen=True, slots=True)
+class BenchmarkResult:
+    """Structured answer produced by :func:`run_benchmark`.
+
+    :param history: Long-format DataFrame with one row per real
+                    objective evaluation. Columns:
+                    ``algorithm`` (str), ``rep`` (int), ``seed`` (int),
+                    ``eval_idx`` (int, 1-based), ``of_value`` (float),
+                    ``of_best_so_far`` (float), ``time_eval_s`` (float),
+                    ``time_total_s`` (float)
+    :param summary: Wide-format DataFrame with one row per algorithm.
+                    Columns: ``algorithm``, ``label``, ``n_rep``,
+                    ``best``, ``mean``, ``std``, ``median``,
+                    ``auc_mean``, ``auc_std``, ``conv_eval_mean``,
+                    ``conv_eval_std``, ``wall_time_mean_s``,
+                    ``wall_time_std_s``
+    :param pvalues: Pairwise Mann–Whitney U two-sided p-values on the
+                    per-rep best (one row + column per algorithm).
+                    Diagonal is ``NaN``
+    :param config: Echo of the :class:`BenchmarkConfig` that produced
+                   this result
+    """
+
+    history: pd.DataFrame
+    summary: pd.DataFrame
+    pvalues: pd.DataFrame
+    config: BenchmarkConfig = field()
+
+
+# =============================================================================
+# Traced objective
+# =============================================================================
+class TracedObjective:
+    """Callable that wraps the real objective with budget control + tracing.
+
+    Accepts both the EGO call style (``obj(x, args=args)``, kwarg) and
+    the mealpy call style (``obj(x)``, positional only). The fixed
+    project arguments are captured at construction time so the inner
+    optimisers do not need to be aware of them.
+    """
+
+    def __init__(
+        self,
+        base_obj: Callable,
+        base_args: tuple,
+        budget: int,
+        algorithm: str,
+        rep: int,
+        seed: int,
+    ) -> None:
+        self._obj = base_obj
+        self._args = base_args
+        self._budget = int(budget)
+        self.algorithm = str(algorithm)
+        self.rep = int(rep)
+        self.seed = int(seed)
+        self._best: float = float("inf")
+        self._records: list[dict[str, Any]] = []
+        self._t_start = time.perf_counter()
+
+    # ------------------------------------------------------------------
+    @property
+    def n_evals(self) -> int:
+        return len(self._records)
+
+    @property
+    def best(self) -> float:
+        return self._best
+
+    @property
+    def records(self) -> list[dict[str, Any]]:
+        return self._records
+
+    def history_dataframe(self) -> pd.DataFrame:
+        if not self._records:
+            return pd.DataFrame(
+                columns=["algorithm", "rep", "seed", "eval_idx",
+                         "of_value", "of_best_so_far",
+                         "time_eval_s", "time_total_s"]
+            )
+        df = pd.DataFrame(self._records)
+        df.insert(0, "algorithm", self.algorithm)
+        df.insert(1, "rep", self.rep)
+        df.insert(2, "seed", self.seed)
+        return df
+
+    # ------------------------------------------------------------------
+    def __call__(self, x, args=None):   # noqa: D401  (callable, not docstring sentence)
+        if len(self._records) >= self._budget:
+            raise _BudgetExhausted()
+        t0 = time.perf_counter()
+        # Always evaluate against the fixed project args, ignoring whatever
+        # the inner optimiser tries to pass in.
+        of = float(self._obj(list(x), self._args))
+        dt = time.perf_counter() - t0
+        if of < self._best:
+            self._best = of
+        self._records.append({
+            "eval_idx": len(self._records) + 1,
+            "of_value": of,
+            "of_best_so_far": self._best,
+            "time_eval_s": float(dt),
+            "time_total_s": float(time.perf_counter() - self._t_start),
+        })
+        return of
+
+
+# =============================================================================
+# Per-algorithm runners
+# =============================================================================
+def _run_ego(
+    traced: TracedObjective,
+    *,
+    dim: int,
+    config: BenchmarkConfig,
+    rep_seed: int,
+) -> None:
+    """Run EGO until either ``n_gen_cap`` surrogate iterations are spent
+    or the budget is exhausted (whichever happens first).
+
+    EGO's internals do not care about budget — they raise ``BudgetExhausted``
+    on the first call to the traced objective after the cap is reached.
+    """
+    x_lower = [config.h_min_m] * dim
+    x_upper = [config.h_max_m] * dim
+    x_ini = initial_population_01(
+        config.lhs_n_pop, dim, x_lower, x_upper,
+        seed=rep_seed, use_lhs=True,
+    )
+    paras_opt = {
+        "optimizer algorithm": GA.BaseGA(
+            epoch=config.ga_epoch, pop_size=config.ga_pop_size,
+        )
+    }
+    kernel_pool = constroi_kernel()
+    paras_kernel = {"kernel": kernel_pool[config.kernel_index]}
+
+    # The cap below is just a safety upper bound: BudgetExhausted will
+    # almost always fire first.
+    n_gen_cap = max(1, config.budget_evals - config.lhs_n_pop)
+    try:
+        ego_01_architecture(
+            traced, n_gen_cap, x_ini, x_lower, x_upper,
+            paras_opt, paras_kernel,
+            args=None,
+            seed=rep_seed,
+        )
+    except _BudgetExhausted:
+        pass
+
+
+def _meta_optimizer(alg: str, *, pop_size: int, epoch: int):
+    """Instantiate a fresh mealpy optimiser for one repetition.
+
+    Pop size is shared across algorithms (``meta_pop_size``); epoch is
+    set high enough that the budget cuts it off first.
+    """
+    if alg == "ga":
+        return GA.BaseGA(epoch=epoch, pop_size=pop_size)
+    if alg == "pso":
+        return PSO.OriginalPSO(epoch=epoch, pop_size=pop_size)
+    if alg == "gwo":
+        return GWO.OriginalGWO(epoch=epoch, pop_size=pop_size)
+    raise ValueError(f"unknown metaheuristic: {alg!r}")
+
+
+def _run_metaheuristic(
+    traced: TracedObjective,
+    alg: str,
+    *,
+    dim: int,
+    config: BenchmarkConfig,
+    rep_seed: int,
+) -> None:
+    """Run a pure metaheuristic until the budget is exhausted.
+
+    Mealpy's ``solve`` is given an ``epoch`` count that intentionally
+    overshoots the budget — the ``BudgetExhausted`` sentinel cuts the
+    loop at the exact evaluation count.
+    """
+    x_lower = [config.h_min_m] * dim
+    x_upper = [config.h_max_m] * dim
+
+    # epoch chosen so that pop_size * (epoch + 1) > budget by a healthy
+    # margin. The exact count never matters because the budget fires first.
+    epoch_cap = max(
+        2,
+        int(np.ceil(config.budget_evals / max(config.meta_pop_size, 1))) + 5,
+    )
+    optimizer = _meta_optimizer(alg, pop_size=config.meta_pop_size, epoch=epoch_cap)
+    problem = {
+        "obj_func": traced,
+        "bounds": FloatVar(lb=x_lower, ub=x_upper),
+        "minmax": "min",
+        "log_to": None,
+    }
+    try:
+        try:
+            optimizer.solve(problem, seed=int(rep_seed))
+        except TypeError:   # pragma: no cover  (older mealpy without seed kwarg)
+            optimizer.solve(problem)
+    except _BudgetExhausted:
+        pass
+
+
+# =============================================================================
+# Public entry point
+# =============================================================================
+def run_benchmark(
+    projeto: FundacaoProjeto,
+    config: BenchmarkConfig,
+    *,
+    progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
+    should_stop: Optional[Callable[[], bool]] = None,
+) -> BenchmarkResult:
+    """Run the head-to-head benchmark and return a typed result.
+
+    For every (algorithm, repetition) pair the function:
+
+    1. Builds a fresh :class:`TracedObjective` capped at
+       ``config.budget_evals`` real evaluations.
+    2. Delegates to the appropriate runner (``_run_ego`` or
+       ``_run_metaheuristic``) with ``rep_seed = base_seed + rep``.
+    3. Appends the recorded history to the global history table and
+       collects the per-rep best and wall time for the summary.
+
+    :param projeto: Validated FundacaoProjeto root aggregator
+    :param config: Validated BenchmarkConfig
+    :param progress: Optional callable invoked at every milestone with
+                     a dict carrying ``event`` (``"benchmark.start"``,
+                     ``"benchmark.rep_start"``, ``"benchmark.rep_end"``,
+                     ``"benchmark.end"``, ``"benchmark.cancelled"``) plus
+                     contextual fields. Errors raised by the callback
+                     are swallowed so a buggy UI hook never aborts the
+                     benchmark. ``None`` disables the hook
+    :param should_stop: Optional zero-argument callable that returns
+                        ``True`` when the user has requested
+                        cancellation. Polled between repetitions
+
+    :return: :class:`BenchmarkResult` with the unified history, the
+             per-algorithm summary and the p-value matrix
+
+    :raises RuntimeError: If no repetition completed successfully (e.g.
+                          cancelled before any algorithm ran)
+    """
+    df_input = projeto_to_dataframe(projeto)
+    dim = 3 * projeto.n_fund
+
+    args_obj: tuple = (
+        df_input,
+        projeto.n_comb,
+        projeto.f_ck_kpa,
+        projeto.cobrimento_m,
+    )
+    if config.penalty is not None:
+        args_obj = args_obj + (config.penalty,)
+
+    def _emit(payload: Mapping[str, Any]) -> None:
+        if progress is None:
+            return
+        try:
+            progress(dict(payload))
+        except Exception:   # pragma: no cover (UI hook must not abort)
+            pass
+
+    histories: list[pd.DataFrame] = []
+    per_rep_records: list[dict[str, Any]] = []
+
+    total_units = len(config.algorithms) * config.n_rep
+    units_done = 0
+
+    with run_context(None):
+        _log.info("benchmark start",
+                  extra={"event": "benchmark.start",
+                         "algorithms": list(config.algorithms),
+                         "n_rep": int(config.n_rep),
+                         "budget_evals": int(config.budget_evals)})
+        _emit({"event": "benchmark.start",
+               "algorithms": list(config.algorithms),
+               "n_rep": int(config.n_rep),
+               "budget_evals": int(config.budget_evals),
+               "total_units": int(total_units)})
+
+        cancelled = False
+        for alg in config.algorithms:
+            if cancelled:
+                break
+            for rep in range(config.n_rep):
+                if should_stop is not None and should_stop():
+                    cancelled = True
+                    break
+                rep_seed = int(config.base_seed) + rep
+                traced = TracedObjective(
+                    obj_felipe_lucas, args_obj,
+                    budget=config.budget_evals,
+                    algorithm=alg, rep=rep, seed=rep_seed,
+                )
+                _emit({"event": "benchmark.rep_start",
+                       "algorithm": alg, "rep": int(rep),
+                       "seed": int(rep_seed),
+                       "n_rep": int(config.n_rep),
+                       "units_done": int(units_done),
+                       "total_units": int(total_units)})
+                t0 = time.perf_counter()
+                try:
+                    if alg == "ego":
+                        _run_ego(traced, dim=dim, config=config, rep_seed=rep_seed)
+                    else:
+                        _run_metaheuristic(traced, alg, dim=dim, config=config,
+                                           rep_seed=rep_seed)
+                except _BudgetExhausted:
+                    # Defensive — runners already swallow this internally,
+                    # but if any inner layer re-raises we still finish
+                    # the rep gracefully with whatever was recorded.
+                    pass
+                wall = time.perf_counter() - t0
+                hist = traced.history_dataframe()
+                if not hist.empty:
+                    histories.append(hist)
+                per_rep_records.append({
+                    "algorithm": alg,
+                    "rep": int(rep),
+                    "seed": int(rep_seed),
+                    "best": float(traced.best),
+                    "n_evals": int(traced.n_evals),
+                    "wall_time_s": float(wall),
+                })
+                units_done += 1
+                _emit({"event": "benchmark.rep_end",
+                       "algorithm": alg, "rep": int(rep),
+                       "seed": int(rep_seed),
+                       "best": float(traced.best),
+                       "n_evals": int(traced.n_evals),
+                       "wall_time_s": float(wall),
+                       "n_rep": int(config.n_rep),
+                       "units_done": int(units_done),
+                       "total_units": int(total_units)})
+
+        if cancelled:
+            _emit({"event": "benchmark.cancelled",
+                   "units_done": int(units_done),
+                   "total_units": int(total_units)})
+
+    if not histories:
+        raise RuntimeError(
+            "run_benchmark produced no history "
+            "(every repetition was cancelled before its first evaluation)."
+        )
+
+    history_df = pd.concat(histories, ignore_index=True)
+    per_rep_df = pd.DataFrame(per_rep_records)
+    summary_df = _build_summary(history_df, per_rep_df, config)
+    pvalues_df = _build_pvalues(per_rep_df, config.algorithms)
+
+    _emit({"event": "benchmark.end",
+           "n_rows": int(len(history_df)),
+           "n_algorithms": int(per_rep_df["algorithm"].nunique())})
+
+    return BenchmarkResult(
+        history=history_df,
+        summary=summary_df,
+        pvalues=pvalues_df,
+        config=config,
+    )
+
+
+# =============================================================================
+# Summary / statistics
+# =============================================================================
+def _convergence_eval(group: pd.DataFrame, target: float, tol: float = 1e-3) -> float:
+    """First evaluation index where ``of_best_so_far <= target * (1 + tol)``.
+
+    Returns the rep's ``n_evals`` when the target was never reached, so
+    a non-converged run hurts the mean rather than being silently
+    dropped.
+    """
+    g = group.sort_values("eval_idx")
+    cutoff = target * (1.0 + tol) if target > 0 else target + tol
+    reached = g[g["of_best_so_far"] <= cutoff]
+    if reached.empty:
+        return float(g["eval_idx"].max())
+    return float(reached["eval_idx"].iloc[0])
+
+
+def _auc_per_rep(group: pd.DataFrame) -> float:
+    """Trapezoidal AUC of the ``of_best_so_far`` curve on eval index.
+
+    Lower is better (the curve is monotonically non-increasing). The
+    AUC is normalised by the eval span so different budgets remain
+    comparable.
+    """
+    g = group.sort_values("eval_idx")
+    x = g["eval_idx"].to_numpy(dtype=float)
+    y = g["of_best_so_far"].to_numpy(dtype=float)
+    if x.size < 2:
+        return float(y[0]) if y.size else float("nan")
+    return float(np.trapz(y, x) / (x[-1] - x[0]))
+
+
+def _build_summary(
+    history_df: pd.DataFrame,
+    per_rep_df: pd.DataFrame,
+    config: BenchmarkConfig,
+) -> pd.DataFrame:
+    """Aggregate per-algorithm statistics for the report table."""
+    # Reference target = global best across every rep (so every algorithm
+    # is judged against the same target).
+    global_best = float(per_rep_df["best"].min())
+
+    rows: list[dict[str, Any]] = []
+    for alg in config.algorithms:
+        per_rep = per_rep_df[per_rep_df["algorithm"] == alg]
+        if per_rep.empty:
+            continue
+        bests = per_rep["best"].to_numpy(dtype=float)
+        walls = per_rep["wall_time_s"].to_numpy(dtype=float)
+
+        alg_hist = history_df[history_df["algorithm"] == alg]
+        aucs: list[float] = []
+        conv_evals: list[float] = []
+        for rep_id, group in alg_hist.groupby("rep", sort=True):
+            aucs.append(_auc_per_rep(group))
+            conv_evals.append(_convergence_eval(group, target=global_best))
+        aucs_arr = np.array(aucs, dtype=float) if aucs else np.array([np.nan])
+        conv_arr = np.array(conv_evals, dtype=float) if conv_evals else np.array([np.nan])
+
+        rows.append({
+            "algorithm":         alg,
+            "label":             ALGORITHM_LABELS.get(alg, alg),
+            "n_rep":             int(len(per_rep)),
+            "best":              float(np.min(bests)),
+            "mean":              float(np.mean(bests)),
+            "std":               float(np.std(bests, ddof=1)) if bests.size > 1 else 0.0,
+            "median":            float(np.median(bests)),
+            "auc_mean":          float(np.nanmean(aucs_arr)),
+            "auc_std":           float(np.nanstd(aucs_arr, ddof=1)) if aucs_arr.size > 1 else 0.0,
+            "conv_eval_mean":    float(np.nanmean(conv_arr)),
+            "conv_eval_std":     float(np.nanstd(conv_arr, ddof=1)) if conv_arr.size > 1 else 0.0,
+            "wall_time_mean_s":  float(np.mean(walls)),
+            "wall_time_std_s":   float(np.std(walls, ddof=1)) if walls.size > 1 else 0.0,
+        })
+    return pd.DataFrame(rows)
+
+
+def _build_pvalues(per_rep_df: pd.DataFrame, algorithms: Sequence[str]) -> pd.DataFrame:
+    """Pairwise Mann–Whitney U two-sided p-values on per-rep best.
+
+    Uses ``scipy.stats.mannwhitneyu`` so the test is non-parametric and
+    handles tied ranks. Diagonal is ``NaN`` (an algorithm is not
+    compared against itself). When fewer than two reps are available
+    for a pair, the corresponding cell is ``NaN``.
+    """
+    from scipy.stats import mannwhitneyu
+
+    algs = list(algorithms)
+    out = pd.DataFrame(
+        np.nan, index=algs, columns=algs, dtype=float,
+    )
+    for a in algs:
+        a_vals = per_rep_df.loc[per_rep_df["algorithm"] == a, "best"].to_numpy()
+        for b in algs:
+            if a == b:
+                continue
+            b_vals = per_rep_df.loc[per_rep_df["algorithm"] == b, "best"].to_numpy()
+            if a_vals.size < 2 or b_vals.size < 2:
+                continue
+            try:
+                _, p = mannwhitneyu(a_vals, b_vals, alternative="two-sided")
+                out.loc[a, b] = float(p)
+            except ValueError:
+                # Identical samples — p is undefined but effectively 1.
+                out.loc[a, b] = 1.0
+    return out
+
+
+__all__ = [
+    "ALL_ALGORITHMS",
+    "ALGORITHM_LABELS",
+    "Algorithm",
+    "BenchmarkConfig",
+    "BenchmarkResult",
+    "TracedObjective",
+    "run_benchmark",
+]

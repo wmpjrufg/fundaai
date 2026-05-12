@@ -17,6 +17,8 @@ myenv/
 # vault Obsidian com mapa de orientacao
 /docs/
 /obsidian_vault/
+/exports/
+
 
 # --- Configuracao local do Claude Code (nao versionado) ----------------------
 # Settings locais por maquina; nao deve entrar no historico publico.

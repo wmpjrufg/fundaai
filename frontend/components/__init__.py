@@ -30,6 +30,7 @@ from .footings_3d import (
     pillar_box,
     render_footings_3d,
 )
+from .convergence_chart import best_so_far_by_eval, render_convergence_chart
 from .ego_chart import best_so_far_curves, render_ego_history
 from .result_export import (
     build_export_artifacts,
@@ -41,12 +42,14 @@ from .result_export import (
 __all__ = [
     "CAMERA_PRESETS",
     "DEFAULT_PILLAR_HEIGHT_M",
+    "best_so_far_by_eval",
     "best_so_far_curves",
     "build_export_artifacts",
     "figure_to_html_bytes",
     "figure_to_png_bytes",
     "footing_box",
     "pillar_box",
+    "render_convergence_chart",
     "render_ego_history",
     "render_footings_3d",
     "result_to_json_bytes",

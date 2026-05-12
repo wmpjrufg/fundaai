@@ -234,9 +234,12 @@ with col2:
     n_gen_ui = st.number_input(t["n_gen"], min_value=2, max_value=200, step=1, value=20,
                                 help="Cada iteração re-treina o GPR e seleciona o próximo "
                                      "ponto via Expected Improvement.")
-    n_pop_ui = st.number_input(t["n_pop"], min_value=10, max_value=2000, step=10, value=250,
+    n_pop_ui = st.number_input(t["n_pop"], min_value=10, max_value=2000, step=10, value=100,
                                 help="Tamanho da amostragem Latin Hypercube inicial; "
-                                     "todas avaliadas com a função objetivo real (iter 0).")
+                                     "todas avaliadas com a função objetivo real (iter 0). "
+                                     "Valores mais altos dão amostragem inicial mais densa "
+                                     "ao custo de tempo de execução — 100 já é uma boa base "
+                                     "para problemas com até 10 pilares.")
     n_rep_ui = st.number_input(t["n_rep"], min_value=1, max_value=20, step=1, value=5,
                                 help="Número de execuções independentes do EGO com seeds "
                                      "diferentes; o melhor entre todas vence.")
@@ -327,8 +330,8 @@ if st.button(t["btn_dimensionar"], type="primary",
         n_rep=int(n_rep_ui),
         base_seed=42,
         kernel_index=-1,
-        ga_epoch=50,
-        ga_pop_size=150,
+        ga_epoch=30,
+        ga_pop_size=50,
         penalty=None,
     )
     st.session_state["run"] = _spawn_optimisation_thread(
