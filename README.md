@@ -23,6 +23,7 @@
 - [Setup do ambiente](#setup-do-ambiente)
 - [Como rodar a aplicação](#como-rodar-a-aplicação)
 - [Como rodar uma otimização programaticamente](#como-rodar-uma-otimização-programaticamente)
+- [Bancada de experimentos (EGO vs metaheurísticas)](#bancada-de-experimentos-ego-vs-metaheurísticas)
 - [Progresso ao vivo (callback)](#progresso-ao-vivo-callback)
 - [Persistência de experimentos](#persistência-de-experimentos)
 - [Cache do surrogate](#cache-do-surrogate)
@@ -58,13 +59,22 @@ atua como surrogate da função objetivo cara, e um **AG**
 aquisição *Expected Improvement* a cada iteração.
 
 A interface web é construída em **Streamlit** com tema dark
-profissional e permite que o usuário forneça os dados de projeto via
-planilha Excel, acompanhe o progresso da otimização **ao vivo**
-(repetição corrente, iteração, melhor OF até agora), explore o
-arranjo otimizado em **planta 2D**, em **vista 3D interativa** com
-presets de câmera, e estude a **convergência do EGO** em um gráfico
-zoomable. O resultado pode ser exportado em Excel, DXF (CAD), JSON
-estruturado, HTML 3D stand-alone e PNG do gráfico de histórico.
+profissional e organiza-se em três páginas:
+
+- **Início** — apresentação e download do template Excel.
+- **Projeto de Sapatas** — ferramenta de projeto: o usuário fornece os
+  dados via planilha, acompanha o progresso da otimização **ao vivo**
+  (repetição corrente, iteração, melhor OF até agora), explora o
+  arranjo otimizado em **planta 2D** e em **vista 3D interativa** com
+  rotação livre em torno do eixo vertical, estuda a **convergência do
+  EGO** em um gráfico zoomable e exporta resultado em Excel, DXF (CAD),
+  JSON estruturado, HTML 3D stand-alone e PNG do gráfico de histórico.
+- **Experimentos** — bancada científica de comparativos: roda EGO+GPR
+  contra metaheurísticas puras (GA, PSO, GWO) sobre o mesmo problema,
+  com o mesmo orçamento de avaliações reais e seeds reprodutíveis;
+  entrega curva de convergência multi-algoritmo, tabela-resumo
+  (best, mean ± std, AUC, avaliações até o ótimo, tempo) e matriz de
+  p-valores Mann–Whitney prontas para o relatório científico.
 
 A pesquisa associada é desenvolvida no contexto de uma Iniciação
 Científica em andamento.
@@ -185,16 +195,19 @@ fundaIA/
 │   └── api/                     # fachada pública (Sprint 3.5 + Pydantic 3.7)
 │       ├── evaluate.py
 │       ├── optimize.py
+│       ├── benchmark.py         # run_benchmark + BenchmarkConfig/Result (Sprint 4.12)
 │       ├── types.py
 │       └── _adapter.py
 │
 ├── frontend/                    # camada Streamlit (Sprint 4.3+)
 │   ├── pages/
 │   │   ├── home.py              # página inicial PT/EN + download do template
-│   │   └── sapatas.py           # página de dimensionamento (shell fino)
-│   ├── components/              # widgets reutilizáveis (Sprints 4.5–4.7)
+│   │   ├── sapatas.py           # página de dimensionamento (shell fino)
+│   │   └── experimentos.py      # bancada de comparativos EGO vs GA/PSO/GWO (Sprint 4.12)
+│   ├── components/              # widgets reutilizáveis (Sprints 4.5–4.12)
 │   │   ├── footings_3d.py       # visualizador 3D (Plotly + presets/lighting)
 │   │   ├── ego_chart.py         # gráfico premium do histórico do EGO
+│   │   ├── convergence_chart.py # gráfico comparativo multi-algoritmo (Sprint 4.12)
 │   │   └── result_export.py     # bundle DXF/JSON/HTML/PNG
 │   ├── theme/                   # paleta + Plotly template + CSS (Sprint 4.6)
 │   └── i18n/                    # dicionários PT/EN centralizados (planned)
@@ -202,12 +215,13 @@ fundaIA/
 ├── fundacao.py                  # compat shim (núcleo de FO + helpers GPR)
 │                                # — track de deprecação descrito em ARCHITECTURE.md
 │
-├── tests/                       # suite pytest (219 testes, ~8 s)
+├── tests/                       # suite pytest (242 testes, ~25 s)
 │   ├── conftest.py
 │   ├── test_engenharia.py
 │   ├── test_avaliar_projeto.py
 │   ├── test_domain.py
 │   ├── test_api.py
+│   ├── test_benchmark_api.py
 │   ├── test_io.py
 │   ├── test_cache.py
 │   ├── test_experiments.py
@@ -294,7 +308,10 @@ streamlit run app.py
 ```
 
 A interface abre no navegador (em geral
-`http://localhost:8501`). Fluxo de uso:
+`http://localhost:8501`) com três páginas na sidebar:
+**Início**, **Projeto de Sapatas** e **Experimentos**.
+
+Fluxo principal (página **Projeto de Sapatas**):
 
 1. Definir parâmetros gerais (`fck`, cobrimento, dimensões mínima e
    máxima da sapata, número de gerações, tamanho da população).
@@ -302,8 +319,11 @@ A interface abre no navegador (em geral
    para download na página inicial).
 3. Clicar em **Dimensionar** — o método EGO+GPR+AG é executado em
    `n_rep = 5` repetições com seeds independentes (`base_seed + rep`).
-4. Visualizar o arranjo otimizado em planta e exportar os resultados
-   em Excel ou DXF.
+4. Visualizar o arranjo otimizado em planta e em 3D, e exportar os
+   resultados em Excel, DXF, JSON, HTML 3D ou PNG do histórico.
+
+Para o comparativo científico EGO vs metaheurísticas puras, ver
+[Bancada de experimentos](#bancada-de-experimentos-ego-vs-metaheurísticas).
 
 ### Schema da planilha de entrada
 
@@ -334,10 +354,12 @@ n_rep    × ( n_pop avaliações reais (LHS, iter 0)
      4. Atualiza o histórico
 ```
 
-Default da UI: `n_rep = 5`, `n_pop = 250`, `n_gen = 20`. Com isso o
-modelo substituto é treinado **5 × 20 = 100 vezes**, e a OF real é
-avaliada **5 × (250 + 20) = 1.350 vezes** no total. O run completo
-fica gravado em `experiments/<run_id>/` (ver
+Default da UI (rebalanceado na Sprint 4.12 para ~5× mais rápido sem
+regredir a baseline): `n_rep = 5`, `n_pop = 100`, `n_gen = 20`,
+`ga_pop_size = 50`, `ga_epoch = 30`. Com isso o modelo substituto é
+treinado **5 × 20 = 100 vezes**, e a OF real é avaliada
+**5 × (100 + 20) = 600 vezes** no total. O run completo fica gravado
+em `experiments/<run_id>/` (ver
 [Persistência de experimentos](#persistência-de-experimentos)).
 
 A barra de progresso na página mostra a iteração corrente
@@ -369,6 +391,61 @@ print(result.best_of, result.per_rep_of)
 for s in result.sapatas:
     print(f"{s.pilar.rotulo}: h_x={s.h_x:.3f} h_y={s.h_y:.3f} h_z={s.h_z:.3f}")
 ```
+
+---
+
+## Bancada de experimentos (EGO vs metaheurísticas)
+
+A página **Experimentos** (e a função `core.api.run_benchmark`) rodam
+o mesmo projeto contra vários algoritmos — EGO+GPR, GA puro, PSO puro
+e GWO puro — sob o **mesmo orçamento de avaliações reais** e seeds
+controladas, produzindo material direto para o relatório científico.
+
+```python
+from core.api import BenchmarkConfig, run_benchmark
+from core.io import read_projeto_from_excel
+
+projeto = read_projeto_from_excel(
+    "assets/data/problema_fund_três.xlsx",
+    f_ck_kpa=25_000.0, cobrimento_m=0.04,
+)
+config = BenchmarkConfig(
+    algorithms=("ego", "ga", "pso", "gwo"),
+    budget_evals=150,    # avaliações reais por repetição (compartilhado)
+    n_rep=5,             # repetições independentes por algoritmo
+    base_seed=42,
+    lhs_n_pop=20,        # EGO: LHS inicial
+    meta_pop_size=40,    # GA/PSO/GWO: tamanho da população
+    ga_pop_size=50,      # EGO: GA interno que maximiza EI (surrogate)
+    ga_epoch=30,
+)
+result = run_benchmark(projeto, config)
+
+print(result.summary)        # mean ± std, AUC, conv_eval, tempo por algoritmo
+print(result.pvalues)        # matriz Mann–Whitney bilateral
+print(result.history.head()) # uma linha por avaliação real
+```
+
+Cada algoritmo enxerga o **mesmo** objetivo via `TracedObjective`, um
+wrapper que conta evaluações, registra o trace `(eval_idx, of_value,
+of_best_so_far, time_eval_s, time_total_s)` e dispara um sentinela
+`_BudgetExhausted` (derivado de `BaseException`, para atravessar
+`except Exception` internos do `mealpy`/`scipy`) na avaliação
+exatamente igual a `budget_evals`. Isso garante que a comparação seja
+**estritamente justa em nº de avaliações reais**.
+
+A página gera ainda o **bundle de download** (zip) com:
+`history.parquet`, `history.csv`, `summary.csv`, `pvalues.csv`,
+`metadata.json` (com round-trip do `BenchmarkConfig`),
+`convergence.html` e `convergence.png` — prontos para inclusão direta
+no manuscrito.
+
+> **Por que comparar EGO com metaheurísticas se a função objetivo
+> atual é barata?** O argumento metodológico do EGO é convergir em
+> **poucas avaliações reais**, não em pouco tempo de parede. Quando a
+> função objetivo for cara (recalque/ISE via FEM, próximas frentes do
+> projeto), o ganho passa a ser também em tempo. A bancada valida o
+> método no regime barato antes da migração para o regime caro.
 
 ---
 
@@ -470,7 +547,7 @@ o comportamento numérico atual e para o contrato de cada camada,
 viabilizando refatorações sem regressão silenciosa.
 
 ```bash
-# Toda a suite (219 testes em ~8 segundos)
+# Toda a suite (242 testes em ~25 segundos)
 pytest
 
 # Por marker
@@ -480,26 +557,27 @@ pytest -m optimization  # contrato EGO/GPR + cache + recorder
 pytest -m benchmark     # funções clássicas (sphere, rosenbrock, ...)
 ```
 
-Distribuição (pós-Sprint 4.8):
+Distribuição (pós-Sprint 4.12):
 
 | Arquivo                          | Testes |
 |----------------------------------|-------:|
 | `tests/test_engenharia.py`       | 37     |
 | `tests/test_domain.py`           | 16     |
 | `tests/test_api.py`              | 26     |
+| `tests/test_benchmark_api.py`    | 18     |
 | `tests/test_io.py`               | 21     |
 | `tests/test_cache.py`            | 23     |
-| `tests/test_experiments.py`      | 19     |
+| `tests/test_experiments.py`      | 21     |
 | `tests/test_ego_historico.py`    |  8     |
 | `tests/test_benchmark.py`        | 15     |
 | `tests/test_avaliar_projeto.py`  |  6     |
 | `tests/test_observability.py`    |  9     |
-| `tests/test_components_3d.py`    | 17     |
+| `tests/test_components_3d.py`    | 18     |
 | `tests/test_ego_chart.py`        |  9     |
 | `tests/test_result_export.py`    |  7     |
 | `tests/test_theme.py`            |  5     |
 | `tests/test_funcs.py`            |  3     |
-| **Total**                        | **221**|
+| **Total**                        | **242**|
 
 A regressão `of = 19,70604234767181` para o caso
 `assets/data/problema_fund_três.xlsx` com seed canônica é travada
@@ -571,28 +649,50 @@ Marcos das sprints concluídas (detalhe completo em
   helpers de engenharia, input morto `n_comb` removido,
   pendências de documentação purgadas, `env_setup.py`
   alinhado com `.venv`.
+- ✅ **Sprint 4.9** — barra de progresso coerente (LHS + EGO em
+  uma só métrica), botão de cancelamento cooperativo
+  (`should_stop` propagado até o EGO via `_CancelSentinel`),
+  travamento opcional da rotação 3D no eixo Z.
+- ✅ **Sprints 4.10 → 4.11** — iteração de UX no viewer 3D:
+  4.10 travou a elevação por padrão; 4.11 reverteu para
+  restaurar a rotação livre do mouse, mantendo o slider de
+  câmera como controle complementar.
+- ✅ **Sprint 4.12** — bancada de experimentos `Experimentos`:
+  `core.api.run_benchmark` compara EGO+GPR contra GA / PSO /
+  GWO puros sob mesmo orçamento de avaliações, com
+  `TracedObjective` cooperativo (`_BudgetExhausted`),
+  componente `convergence_chart` (mediana + ±1σ + envelope),
+  tabela-resumo, matriz Mann–Whitney e bundle zip
+  (parquet + csv + html + png). Defaults do EGO interno
+  rebalanceados (`ga_pop_size 150→50`, `ga_epoch 50→30`,
+  `n_pop 250→100`) — pipeline ~5× mais rápido sem regredir a
+  baseline numérica `of = 19.70604234767181`.
 
 ---
 
 ## Próximos passos
 
-1. **Sprint 4.4 — Logging estruturado**: emitir eventos JSON em
-   paralelo às escritas do `ExperimentRecorder` para acompanhamento
-   ao vivo (alinha com Fase 1 das sub-sprints "em paralelo" do
-   roadmap).
-2. **Frontend (Streamlit)** — popular `frontend/components/` com
-   visualizadores 3D dos resultados de sapatas, gráfico
-   *best-so-far* por iteração do EGO consumindo `ExperimentRun.history`,
-   e diagnóstico de hiperparâmetros do GPR.
-3. **Sprint 5.x — retire `fundacao.py`**: migrar `_avaliar_projeto`,
+1. **Sprint 5.x — retirar `fundacao.py`**: migrar `_avaliar_projeto`,
    `obj_*`, `constroi_kernel`, `gpr_pipelines`,
    `aprendizado_maquina_paralelo` e `treino_teste_para_processo_paralelo`
-   para os módulos definitivos em `core/`.
-4. **Frente de pesquisa principal** — incorporação do problema de
-   **empacotamento (packing 2D)** ao processo de otimização,
-   tratando as posições `(xg, yg)` como variáveis de projeto
-   adicionais sob restrições rígidas de não sobreposição e fronteira
-   do lote (sizing + layout acoplados).
+   para os módulos definitivos em `core/`, eliminando o último vestígio
+   da arquitetura monolítica pré-Sprint 3.
+2. **Diagnóstico do GPR no frontend** — componente
+   `gpr_diagnostics` em `frontend/components/` (paired plots:
+   resíduos, banda de desvio, traços dos hiperparâmetros do kernel).
+3. **Função objetivo cara (recalque por elemento / ISE)** — quando o
+   custo de avaliação subir do regime barato atual (microssegundos)
+   para o regime de centenas de ms a segundos por configuração,
+   o EGO+GPR passa a vencer também em tempo de parede. A bancada de
+   experimentos (Sprint 4.12) já está dimensionada para registrar
+   essa transição. Frente conectada ao item 4.
+4. **Frente de pesquisa principal — empacotamento + layout** —
+   incorporação do problema de **packing 2D** ao processo de
+   otimização, tratando as posições `(xg, yg)` como variáveis de
+   projeto adicionais sob restrições rígidas de não sobreposição e
+   fronteira do lote (sizing + layout acoplados). Aqui a função
+   objetivo se torna naturalmente cara e o EGO passa a ser a
+   escolha metodológica natural.
 
 Para questões técnicas ou colaborações, abrir uma *issue* neste
 repositório.
