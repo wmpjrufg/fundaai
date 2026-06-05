@@ -65,8 +65,8 @@ def _plot_layout_2d(sapatas):
     fig, ax = plt.subplots(figsize=(8, 8), facecolor="none")
     ax.set_facecolor("#111827")
     for s in sapatas:
-        xg = s.pilar.x_g
-        yg = s.pilar.y_g
+        xg = s.pilar.xg
+        yg = s.pilar.yg
         rect = patches.Rectangle(
             (xg - s.h_x / 2, yg - s.h_y / 2),
             s.h_x, s.h_y,
@@ -714,8 +714,8 @@ if result.best_sapatas is not None:
                 "hy (cm)": f"{s.h_y * 100:.1f}",
                 "hz (cm)": f"{s.h_z * 100:.1f}",
                 "Vol. (m³)": f"{s.h_x * s.h_y * s.h_z:.4f}",
-                "xg (m)": f"{s.pilar.x_g:.3f}",
-                "yg (m)": f"{s.pilar.y_g:.3f}",
+                "xg (m)": f"{s.pilar.xg:.3f}",
+                "yg (m)": f"{s.pilar.yg:.3f}",
             })
         st.dataframe(rows, use_container_width=True, hide_index=True)
 
