@@ -561,6 +561,31 @@ kpi_b.metric("Algoritmos avaliados", f"{len(summary)}")
 kpi_c.metric("Avaliações reais totais", f"{total_evals:,}")
 kpi_d.metric("Tempo total acumulado", f"{total_time:.1f} s")
 
+# Pre-compute formatted summary (used both in config card and stats section)
+fmt_summary = summary.assign(
+    best=lambda d: d["best"].map(lambda v: f"{v:.6f}"),
+    mean=lambda d: d.apply(lambda r: f"{r['mean']:.6f} ± {r['std']:.6f}", axis=1),
+    median=lambda d: d["median"].map(lambda v: f"{v:.6f}"),
+    auc=lambda d: d.apply(lambda r: f"{r['auc_mean']:.4f} ± {r['auc_std']:.4f}", axis=1),
+    conv_eval=lambda d: d.apply(
+        lambda r: f"{r['conv_eval_mean']:.1f} ± {r['conv_eval_std']:.1f}", axis=1,
+    ),
+    wall_time=lambda d: d.apply(
+        lambda r: f"{r['wall_time_mean_s']:.2f} ± {r['wall_time_std_s']:.2f}", axis=1,
+    ),
+)[
+    ["label", "n_rep", "best", "mean", "median", "auc", "conv_eval", "wall_time"]
+].rename(columns={
+    "label": "Algoritmo",
+    "n_rep": "n_rep",
+    "best": "best OF [m³]",
+    "mean": "média ± desvio [m³]",
+    "median": "mediana [m³]",
+    "auc": "AUC normalizada",
+    "conv_eval": "aval. até best global",
+    "wall_time": "tempo [s]",
+})
+
 
 # Config summary card -------------------------------------------------------
 with st.expander("📋 Resumo do experimento — parâmetros e contexto", expanded=True):
@@ -569,6 +594,9 @@ with st.expander("📋 Resumo do experimento — parâmetros e contexto", expand
         st.markdown(f"**{secao}**")
         subset = summary_df_cfg[summary_df_cfg["Seção"] == secao][["Parâmetro", "Valor"]].reset_index(drop=True)
         st.dataframe(subset, use_container_width=True, hide_index=True)
+
+    st.markdown("**Estatísticas por algoritmo**")
+    st.dataframe(fmt_summary, use_container_width=True, hide_index=True)
 
 # Convergence chart --------------------------------------------------------
 st.markdown("### 📈 Curva de convergência (best-so-far por nº de avaliações)")
@@ -600,29 +628,6 @@ st.caption(
 
 # Summary table ------------------------------------------------------------
 st.markdown("### 📋 Estatísticas por algoritmo")
-fmt_summary = summary.assign(
-    best=lambda d: d["best"].map(lambda v: f"{v:.6f}"),
-    mean=lambda d: d.apply(lambda r: f"{r['mean']:.6f} ± {r['std']:.6f}", axis=1),
-    median=lambda d: d["median"].map(lambda v: f"{v:.6f}"),
-    auc=lambda d: d.apply(lambda r: f"{r['auc_mean']:.4f} ± {r['auc_std']:.4f}", axis=1),
-    conv_eval=lambda d: d.apply(
-        lambda r: f"{r['conv_eval_mean']:.1f} ± {r['conv_eval_std']:.1f}", axis=1,
-    ),
-    wall_time=lambda d: d.apply(
-        lambda r: f"{r['wall_time_mean_s']:.2f} ± {r['wall_time_std_s']:.2f}", axis=1,
-    ),
-)[
-    ["label", "n_rep", "best", "mean", "median", "auc", "conv_eval", "wall_time"]
-].rename(columns={
-    "label": "Algoritmo",
-    "n_rep": "n_rep",
-    "best": "best OF [m³]",
-    "mean": "média ± desvio [m³]",
-    "median": "mediana [m³]",
-    "auc": "AUC normalizada",
-    "conv_eval": "aval. até best global",
-    "wall_time": "tempo [s]",
-})
 st.dataframe(fmt_summary, use_container_width=True, hide_index=True)
 st.caption(
     "**AUC normalizada**: área sob a curva ``of_best_so_far`` dividida "
