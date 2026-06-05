@@ -47,7 +47,9 @@ from core.api.types import OptimisationConfig
 from core.domain import FundacaoProjeto
 from core.observability import get_logger, run_context
 from core.optimization import ego_01_architecture, initial_population_01
-from fundacao import constroi_kernel, obj_felipe_lucas
+from core.api.objective import avaliar_projeto_fast, avaliar_projeto_legacy
+from core.api._adapter import design_vector_to_sapatas
+from fundacao import constroi_kernel  # moved to core.optimization in Sprint 5.x
 
 _log = get_logger("benchmark")
 
@@ -101,8 +103,13 @@ class BenchmarkConfig(BaseModel):
     :param h_min_m: Lower bound for ``h_x, h_y, h_z`` [m]
     :param h_max_m: Upper bound for ``h_x, h_y, h_z`` [m]
     :param lhs_n_pop: LHS initial population size used by EGO. Must be
-                      ``<= budget_evals`` so EGO has room for at least
+                      ``< ego_budget_evals`` so EGO has room for at least
                       one surrogate iteration
+    :param ego_budget_evals: Maximum number of real objective evaluations
+                             per repetition **for EGO only**. Independent
+                             from ``budget_evals`` (used by GA/PSO/GWO).
+                             Typical values: 100–300 (EGO is efficient;
+                             it does not need thousands of evaluations)
     :param meta_pop_size: Population size used by GA / PSO / GWO
     :param kernel_index: Index in ``constroi_kernel()`` for the EGO GPR
     :param ga_pop_size: Population of the GA that maximises EI **inside**
@@ -128,7 +135,15 @@ class BenchmarkConfig(BaseModel):
         min_length=1,
         description="Algorithms to compare (subset of EGO / GA / PSO / GWO)",
     )
-    budget_evals: int = Field(default=200, ge=10, description="Real evaluations per repetition")
+    budget_evals: int = Field(default=200, ge=10, description="Real evaluations per repetition for GA/PSO/GWO")
+    ego_budget_evals: int = Field(
+        default=150, ge=10,
+        description=(
+            "Real evaluations per repetition for EGO only. "
+            "Independent from budget_evals (GA/PSO/GWO). "
+            "Typical: 100-300 (EGO is sample-efficient by design)."
+        ),
+    )
     n_rep: int = Field(default=10, ge=1, description="Independent repetitions per algorithm")
     base_seed: int = Field(default=42, description="rep_seed = base_seed + rep")
     h_min_m: float = Field(default=0.60, gt=0.0, description="Lower bound for h_x, h_y, h_z [m]")
@@ -139,6 +154,15 @@ class BenchmarkConfig(BaseModel):
     ga_pop_size: int = Field(default=150, ge=2, description="Inner-EI GA population (surrogate only)")
     ga_epoch: int = Field(default=50, ge=1, description="Inner-EI GA epochs (surrogate only)")
     penalty: float | None = Field(default=None, gt=0.0, description="Penalty for constraint violations")
+    fo_variant: str = Field(
+        default="fast",
+        description=(
+            "Implementacao da funcao objetivo a usar: "
+            "'fast' = _avaliar_projeto_fast (numpy vetorizado, ~0,1 ms/eval, Sprint 3.9); "
+            "'legacy' = _avaliar_projeto via pandas/df.apply (~10 ms/eval, versao original). "
+            "Use 'legacy' apenas para benchmarks de comparacao de desempenho."
+        ),
+    )
 
     @model_validator(mode="after")
     def _check_invariants(self) -> "BenchmarkConfig":
@@ -147,11 +171,11 @@ class BenchmarkConfig(BaseModel):
                 f"h_min_m must be strictly less than h_max_m; "
                 f"got h_min_m={self.h_min_m}, h_max_m={self.h_max_m}."
             )
-        if self.lhs_n_pop >= self.budget_evals:
+        if self.lhs_n_pop >= self.ego_budget_evals:
             raise ValueError(
                 f"lhs_n_pop ({self.lhs_n_pop}) must be strictly less than "
-                f"budget_evals ({self.budget_evals}); EGO needs room for at "
-                f"least one surrogate iteration."
+                f"ego_budget_evals ({self.ego_budget_evals}); EGO needs room "
+                f"for at least one surrogate iteration."
             )
         seen: set[str] = set()
         for alg in self.algorithms:
@@ -191,6 +215,9 @@ class BenchmarkResult:
     summary: pd.DataFrame
     pvalues: pd.DataFrame
     config: BenchmarkConfig = field()
+    best_sapatas: "Sequence[Any] | None" = field(default=None)
+    best_algorithm: str | None = field(default=None)
+    best_of_value: float = field(default=float("inf"))
 
 
 # =============================================================================
@@ -221,6 +248,7 @@ class TracedObjective:
         self.rep = int(rep)
         self.seed = int(seed)
         self._best: float = float("inf")
+        self._best_x: list[float] | None = None
         self._records: list[dict[str, Any]] = []
         self._t_start = time.perf_counter()
 
@@ -232,6 +260,15 @@ class TracedObjective:
     @property
     def best(self) -> float:
         return self._best
+
+    @property
+    def best_x(self) -> list[float] | None:
+        """Design vector that produced the best OF seen so far.
+
+        :return: Copy of the best-seen design vector, or ``None`` if no
+                 evaluation has been recorded yet.
+        """
+        return list(self._best_x) if self._best_x is not None else None
 
     @property
     def records(self) -> list[dict[str, Any]]:
@@ -261,6 +298,7 @@ class TracedObjective:
         dt = time.perf_counter() - t0
         if of < self._best:
             self._best = of
+            self._best_x = list(x)
         self._records.append({
             "eval_idx": len(self._records) + 1,
             "of_value": of,
@@ -303,7 +341,7 @@ def _run_ego(
 
     # The cap below is just a safety upper bound: BudgetExhausted will
     # almost always fire first.
-    n_gen_cap = max(1, config.budget_evals - config.lhs_n_pop)
+    n_gen_cap = max(1, config.ego_budget_evals - config.lhs_n_pop)
     try:
         ego_01_architecture(
             traced, n_gen_cap, x_ini, x_lower, x_upper,
@@ -456,9 +494,19 @@ def run_benchmark(
                     cancelled = True
                     break
                 rep_seed = int(config.base_seed) + rep
+                _fo_fn = (
+                    avaliar_projeto_fast
+                    if getattr(config, "fo_variant", "fast") == "fast"
+                    else avaliar_projeto_legacy
+                )
+                _budget = (
+                    config.ego_budget_evals
+                    if alg == "ego"
+                    else config.budget_evals
+                )
                 traced = TracedObjective(
-                    obj_felipe_lucas, args_obj,
-                    budget=config.budget_evals,
+                    _fo_fn, args_obj,
+                    budget=_budget,
                     algorithm=alg, rep=rep, seed=rep_seed,
                 )
                 _emit({"event": "benchmark.rep_start",
@@ -490,6 +538,7 @@ def run_benchmark(
                     "best": float(traced.best),
                     "n_evals": int(traced.n_evals),
                     "wall_time_s": float(wall),
+                    "best_x": traced.best_x,
                 })
                 units_done += 1
                 _emit({"event": "benchmark.rep_end",
@@ -522,11 +571,29 @@ def run_benchmark(
            "n_rows": int(len(history_df)),
            "n_algorithms": int(per_rep_df["algorithm"].nunique())})
 
+    # Decode the best solution vector back to Sapata entities
+    _best_sapatas = None
+    _best_algorithm: str | None = None
+    _best_of_value: float = float("inf")
+    if per_rep_records:
+        _best_rec = min(per_rep_records, key=lambda r: r["best"])
+        _best_of_value = float(_best_rec["best"])
+        _best_algorithm = str(_best_rec["algorithm"])
+        _best_x_vec = _best_rec.get("best_x")
+        if _best_x_vec is not None:
+            try:
+                _best_sapatas = design_vector_to_sapatas(_best_x_vec, projeto)
+            except Exception:
+                _best_sapatas = None
+
     return BenchmarkResult(
         history=history_df,
         summary=summary_df,
         pvalues=pvalues_df,
         config=config,
+        best_sapatas=_best_sapatas,
+        best_algorithm=_best_algorithm,
+        best_of_value=_best_of_value,
     )
 
 

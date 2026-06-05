@@ -30,6 +30,8 @@ import zipfile
 from datetime import datetime, timezone
 from typing import Any, Dict
 
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -46,10 +48,51 @@ from frontend.components import (
     figure_to_html_bytes,
     figure_to_png_bytes,
     render_convergence_chart,
+    render_footings_3d,
+    CAMERA_PRESETS,
 )
 from frontend.theme import apply_theme
 
 apply_theme()
+
+
+def _plot_layout_2d(sapatas):
+    """Render a top-down 2D layout of the footing positions (matplotlib).
+
+    :param sapatas: Sequence of Sapata entities
+    :return: Matplotlib figure
+    """
+    fig, ax = plt.subplots(figsize=(8, 8), facecolor="none")
+    ax.set_facecolor("#111827")
+    for s in sapatas:
+        xg = s.pilar.x_g
+        yg = s.pilar.y_g
+        rect = patches.Rectangle(
+            (xg - s.h_x / 2, yg - s.h_y / 2),
+            s.h_x, s.h_y,
+            linewidth=1.5,
+            edgecolor="#10b981",
+            facecolor="rgba(16,185,129,0.15)" if False else "#10b98120",
+        )
+        ax.add_patch(rect)
+        ax.plot(xg, yg, "o", color="#f59e0b", markersize=5)
+        ax.annotate(
+            f"P{s.pilar.rotulo}\n{s.h_x*100:.0f}×{s.h_y*100:.0f}×{s.h_z*100:.0f}cm",
+            (xg, yg),
+            textcoords="offset points", xytext=(6, 6),
+            fontsize=7, color="#e5e7eb",
+        )
+    ax.autoscale()
+    ax.set_aspect("equal")
+    ax.set_xlabel("x (m)", color="#9ca3af")
+    ax.set_ylabel("y (m)", color="#9ca3af")
+    ax.set_title("Posicionamento das sapatas — melhor solução", color="#e5e7eb")
+    ax.tick_params(colors="#9ca3af")
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#374151")
+    fig.tight_layout()
+    return fig
+
 
 POLL_INTERVAL_S = 0.4
 
@@ -92,11 +135,12 @@ with cfg_b:
 with cfg_c:
     budget_evals = st.number_input(
         "Orçamento de avaliações reais (por repetição)",
-        min_value=20, max_value=5000, step=10, value=150,
+        min_value=20, max_value=100_000, step=10, value=150,
         help=(
             "Número máximo de chamadas à função objetivo real **por "
-            "repetição**, compartilhado entre todos os algoritmos. É "
-            "o eixo X do gráfico de convergência."
+            "repetição**, compartilhado entre todos os algoritmos. "
+            "É o eixo X do gráfico de convergência. "
+            "Com a FO rápida (~0,1 ms/eval), 50.000 avaliações levam ~5 s."
         ),
     )
     n_rep = st.number_input(
@@ -130,21 +174,57 @@ with st.expander("🔧 Parâmetros avançados", expanded=False):
             help=(
                 "Quantos pontos LHS o EGO avalia antes de iniciar o "
                 "loop do surrogate. Deve ser estritamente menor que o "
-                "orçamento total. Valores mais altos dão amostragem "
+                "orçamento do EGO. Valores mais altos dão amostragem "
                 "inicial mais densa, mas comem do orçamento que iria "
                 "para o loop guiado por EI."
             ),
         )
-        meta_pop_size = st.number_input(
-            "GA/PSO/GWO · tamanho da população",
-            min_value=4, max_value=500, step=2, value=40,
+        ego_budget_evals = st.number_input(
+            "EGO · orçamento próprio de avaliações reais",
+            min_value=20, max_value=5_000, step=10, value=150,
             help=(
-                "Tamanho da população dos metaheurísticos puros. "
-                "Como o custo aqui é só de avaliar a função real (que é "
-                "barata), pode-se elevar sem grande impacto de tempo. "
-                "Com budget=150 e pop=40, cada algoritmo faz ~4 gerações."
+                "**Por que o EGO tem orçamento separado?**\n\n"
+                "O EGO é fundamentalmente diferente do GA/PSO/GWO: "
+                "antes de cada avaliação real ele (1) atualiza o GPR "
+                "(surrogate), (2) otimiza a aquisição Expected "
+                "Improvement com um GA interno sobre o surrogate "
+                "— portanto cada avaliação real custa muito mais "
+                "tempo de CPU do que uma avaliação do GA/PSO/GWO. "
+                "Com budget compartilhado de 10 000, o EGO levaria "
+                "horas enquanto GA/PSO/GWO terminariam em segundos.\n\n"
+                "O EGO **não precisa** de milhares de avaliações: "
+                "ele é eficiente por design — Jones et al. (1998) "
+                "usaram 20–100 avaliações em problemas de engenharia. "
+                "Valores típicos: **100–300**. O eixo X do gráfico de "
+                "convergência usa o máximo entre ego_budget e "
+                "meta_budget para todos os algoritmos ficarem visíveis."
             ),
         )
+        if lhs_n_pop >= ego_budget_evals:
+            st.warning(
+                f"⚠️ LHS inicial ({int(lhs_n_pop)}) ≥ orçamento EGO "
+                f"({int(ego_budget_evals)}): o EGO não teria nenhuma "
+                "iteração de surrogate. Aumente o orçamento EGO ou "
+                "reduza o LHS inicial."
+            )
+        meta_pop_size = st.number_input(
+            "GA/PSO/GWO · tamanho da população",
+            min_value=4, max_value=50_000, step=2, value=40,
+            help=(
+                "Tamanho da população dos metaheurísticos puros. "
+                "**Atenção:** o orçamento de avaliações é fixo — se "
+                "pop_size > budget_evals, o algoritmo não completa nem "
+                "uma geração (o budget é cortado no meio da 1ª geração). "
+                "Regra prática: pop_size ≤ budget_evals / 4 para ter "
+                "pelo menos ~4 gerações completas."
+            ),
+        )
+        if meta_pop_size > budget_evals:
+            st.warning(
+                f"⚠️ pop_size ({int(meta_pop_size)}) > budget ({int(budget_evals)}): "
+                "o GA/PSO/GWO **não completa nem uma geração**. "
+                "Reduza pop_size ou aumente o orçamento."
+            )
     with adv_b:
         ga_pop_size = st.number_input(
             "EGO · população do GA interno (EI)",
@@ -161,6 +241,31 @@ with st.expander("🔧 Parâmetros avançados", expanded=False):
         ga_epoch = st.number_input(
             "EGO · épocas do GA interno (EI)",
             min_value=5, max_value=500, step=5, value=30,
+        )
+
+    st.markdown("**Implementação da função objetivo**")
+    fo_variant = st.selectbox(
+        "Função objetivo a usar em todos os algoritmos",
+        options=["fast", "legacy"],
+        index=0,
+        format_func=lambda v: (
+            "🚀 fast — _avaliar_projeto_fast (numpy vetorizado, Sprint 3.9, ~0,1 ms/eval)"
+            if v == "fast"
+            else "🐢 legacy — _avaliar_projeto (pandas/df.apply, versão original, ~10 ms/eval)"
+        ),
+        help=(
+            "**fast** (padrão): versão Sprint 3.9 sem `df.apply`. "
+            "Todas as restrições (g_sob, g_ten, g_pun, g_geo) são preservadas — "
+            "a diferença é só de implementação (~100× mais rápida). "
+            "Use **legacy** para confirmar que os resultados são numericamente "
+            "equivalentes, ou para benchmarks de desempenho (tempo × avaliações)."
+        ),
+    )
+    if fo_variant == "legacy":
+        st.info(
+            "Modo **legacy** ativo: cada avaliação custa ~10 ms "
+            "(pandas/df.apply). Com 5.000 avaliações o benchmark levará ~50 s "
+            "por rep — considere reduzir o orçamento."
         )
 
 if not selected:
@@ -248,8 +353,10 @@ with col_estimate:
 if trigger:
     try:
         bench_cfg = BenchmarkConfig(
+            fo_variant=str(fo_variant),
             algorithms=tuple(selected),   # type: ignore[arg-type]
             budget_evals=int(budget_evals),
+            ego_budget_evals=int(ego_budget_evals),
             n_rep=int(n_rep),
             base_seed=int(base_seed),
             h_min_m=float(h_min_cm) / 100.0,
@@ -560,3 +667,55 @@ with ex_c:
         file_name=f"convergence_{ts}.html",
         mime="text/html",
     )
+
+
+# --- Melhor solução — visualização 2D e 3D ---------------------------
+if result.best_sapatas is not None:
+    st.divider()
+    best_label = ALGORITHM_LABELS.get(result.best_algorithm or "", result.best_algorithm or "?")
+    st.subheader("🏗️ Melhor solução encontrada")
+    st.caption(
+        f"Algoritmo: **{best_label}** · "
+        f"OF = **{result.best_of_value:.6f} m³** · "
+        f"{len(result.best_sapatas)} sapatas"
+    )
+
+    vis_a, vis_b = st.columns(2)
+    with vis_a:
+        st.markdown("**Vista superior (2D)**")
+        fig_2d = _plot_layout_2d(result.best_sapatas)
+        st.pyplot(fig_2d, use_container_width=True)
+        plt.close(fig_2d)
+
+    with vis_b:
+        st.markdown("**Visualização 3D interativa**")
+        camera_choice = st.selectbox(
+            "Câmera",
+            options=list(CAMERA_PRESETS.keys()),
+            index=0,
+            key="bench_camera",
+        )
+        fig_3d = render_footings_3d(
+            result.best_sapatas,
+            camera=CAMERA_PRESETS[camera_choice],
+        )
+        st.plotly_chart(
+            fig_3d,
+            use_container_width=True,
+            config={"displaylogo": False, "scrollZoom": True},
+        )
+
+    with st.expander("📐 Tabela de dimensões — melhor solução", expanded=False):
+        rows = []
+        for s in result.best_sapatas:
+            rows.append({
+                "Pilar": s.pilar.rotulo,
+                "hx (cm)": f"{s.h_x * 100:.1f}",
+                "hy (cm)": f"{s.h_y * 100:.1f}",
+                "hz (cm)": f"{s.h_z * 100:.1f}",
+                "Vol. (m³)": f"{s.h_x * s.h_y * s.h_z:.4f}",
+                "xg (m)": f"{s.pilar.x_g:.3f}",
+                "yg (m)": f"{s.pilar.y_g:.3f}",
+            })
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+

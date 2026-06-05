@@ -89,8 +89,8 @@ class TestBenchmarkConfig:
         [
             {"h_min_m": 1.0, "h_max_m": 1.0},
             {"h_min_m": 2.0, "h_max_m": 1.5},
-            {"lhs_n_pop": 30, "budget_evals": 30},
-            {"lhs_n_pop": 50, "budget_evals": 30},
+            {"lhs_n_pop": 30, "ego_budget_evals": 30},
+            {"lhs_n_pop": 50, "ego_budget_evals": 30},
             {"algorithms": ()},
             {"algorithms": ("ego", "ego")},
             {"n_rep": 0},

@@ -37,7 +37,8 @@ from core.observability import get_logger, run_context
 from core.optimization.cache import SurrogateCache
 from core.optimization import ego_01_architecture, initial_population_01
 from core.optimization.ego import _CancelSentinel
-from fundacao import constroi_kernel, obj_felipe_lucas
+from core.api.objective import avaliar_projeto_fast
+from fundacao import constroi_kernel  # moved to core.optimization in Sprint 5.x
 
 _log = get_logger("optimize")
 
@@ -189,7 +190,7 @@ def optimize(
                            "n_rep": int(config.n_rep)})
 
                 x_new, of_rep, history_df = ego_01_architecture(
-                    obj_felipe_lucas,
+                    avaliar_projeto_fast,
                     config.n_gen,
                     x_ini,
                     x_lower,

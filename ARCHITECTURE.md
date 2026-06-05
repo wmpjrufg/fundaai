@@ -108,6 +108,7 @@ fundaIA/
 │   └── api/
 │       ├── evaluate.py
 │       ├── optimize.py
+│       ├── objective.py     ← Sprint 3.9: avaliar_projeto_fast / legacy
 │       ├── types.py
 │       └── _adapter.py
 │
@@ -171,6 +172,7 @@ fundaIA/
 | **4.5**| 3D footings viewer (``frontend.components.footings_3d``) with Plotly + camera presets. | 183   |
 | **4.6**| Premium UI: dark theme + Plotly template + EGO history chart + unified export panel; recorder + cache default-on in the UI. | 205   |
 | **4.7**| UI polish: live progress callback, hover-closest charts, full-width 3D section, ``n_rep`` input, stable lighting (no flicker). | 211   |
+| **3.9**| ``core/api/objective.py`` criado com ``avaliar_projeto_fast`` e ``avaliar_projeto_legacy``. Vectorised FO (~100× speedup, ~0.1 ms/eval). ``core.api.benchmark`` e ``core.api.optimize`` passam a importar de ``core.api.objective`` em vez de ``fundacao``. ``obj_felipe_lucas`` em ``fundacao`` vira shim com import lazy (evita circular). ``fundacao.py`` não cresce (regra respeitada). | 46 |
 | **4.8**| Audit cleanup: domain purity (Solo no longer imports engineering), idxmin index-safety in ``best_avg_worst``, engineering edge-case guardrail tests, dead ``n_comb`` input removed, stale ``metapy_toolbox`` mentions purged from docs/tests, ``env_setup.py`` aligned with ``.venv`` convention. | 221   |
 
 ---

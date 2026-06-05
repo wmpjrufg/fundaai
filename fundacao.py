@@ -226,23 +226,25 @@ def _avaliar_projeto(x, args, *, penalty=None):
     return of_total, df
 
 
+
 def obj_felipe_lucas(x, args):
     """This function returns the scalar pseudo-objective used by the optimisation loop.
 
-    Wrapper fino sobre `_avaliar_projeto`: descarta o DataFrame anotado e
-    devolve apenas o valor de volume final penalizado. Mantém o
-    comportamento histórico (penalty = 10) quando o quinto valor de
-    `args` não é fornecido.
+    Compat shim mantido para retrocompatibilidade com notebooks e
+    chamadores legados. Desde Sprint 3.9 delega para
+    ``core.api.objective.avaliar_projeto_fast`` (numpy vetorizado,
+    ~100x mais rapido que a versao pandas/apply).
 
-    :param x: Vetor com `3 * N_fun` variáveis de projeto
-              `[hx_0, hy_0, hz_0, ..., hx_{N-1}, hy_{N-1}, hz_{N-1}]`
-    :param args: Tupla `(df, n_comb, f_ck, cob_m)` ou
-                 `(df, n_comb, f_ck, cob_m, penalty)`
+    Novo codigo deve importar diretamente de ``core.api.objective``.
 
+    :param x: Vetor com `3 * N_fun` variaveis de projeto
+    :param args: Tupla `(df, n_comb, f_ck, cob_m[, penalty])`
     :return: Valor escalar do volume final penalizado [of_total]
     """
-    of_total, _ = _avaliar_projeto(x, args)
-    return of_total
+    # Import deferido: evita circular fundacao → core.api → core.api.benchmark → fundacao
+    from core.api.objective import avaliar_projeto_fast as _fast  # noqa: PLC0415
+    return _fast(x, args)
+
 
 
 def obj_teste(x, args):
