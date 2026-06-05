@@ -489,6 +489,61 @@ summary = result.summary
 history = result.history
 pvalues = result.pvalues
 
+
+
+def _build_config_summary(projeto, result: BenchmarkResult, total_evals: int, total_time: float) -> pd.DataFrame:
+    """Build a tidy 3-section DataFrame describing the full experiment context.
+
+    Sections: Projeto (structural inputs), Experimento (algorithm config),
+    Resultado (outcome KPIs). Returned as a long-format DataFrame with
+    columns [Seção, Parâmetro, Valor] — ready for CSV export and
+    st.dataframe rendering.
+
+    :param projeto: FundacaoProjeto used in the benchmark
+    :param result: BenchmarkResult produced by run_benchmark
+    :param total_evals: Total real FO evaluations across all algorithms/reps
+    :param total_time: Cumulative wall time [s]
+    :return: Long-format DataFrame with columns Seção / Parâmetro / Valor
+    """
+    cfg = result.config
+    alg_labels = ", ".join(ALGORITHM_LABELS[a] for a in cfg.algorithms)
+    fo_label = (
+        "fast — numpy vetorizado, Sprint 3.9 (~0,1 ms/eval)"
+        if cfg.fo_variant == "fast"
+        else "legacy — pandas/df.apply (~10 ms/eval)"
+    )
+    best_alg_label = ALGORITHM_LABELS.get(result.best_algorithm or "", result.best_algorithm or "—")
+
+    rows = [
+        # ── Projeto ──────────────────────────────────────────────────────────
+        ("Projeto", "Pilares (fundações)",          str(projeto.n_fund)),
+        ("Projeto", "Combinações de carga",         str(projeto.n_comb)),
+        ("Projeto", "fck do concreto",              f"{projeto.f_ck_kpa / 1000:.0f} MPa"),
+        ("Projeto", "Cobrimento",                   f"{projeto.cobrimento_m * 100:.1f} cm"),
+        ("Projeto", "Dimensão do vetor x",          f"{3 * projeto.n_fund} variáveis  (3 × {projeto.n_fund} pilares)"),
+        ("Projeto", "Limite inferior  hx, hy, hz",  f"{cfg.h_min_m * 100:.0f} cm"),
+        ("Projeto", "Limite superior  hx, hy, hz",  f"{cfg.h_max_m * 100:.0f} cm"),
+        # ── Experimento ───────────────────────────────────────────────────────
+        ("Experimento", "Algoritmos comparados",            alg_labels),
+        ("Experimento", "Orçamento GA / PSO / GWO (por rep)", f"{cfg.budget_evals:,} avaliações reais"),
+        ("Experimento", "Orçamento EGO (por rep)",          f"{cfg.ego_budget_evals:,} avaliações reais"),
+        ("Experimento", "Repetições por algoritmo (n_rep)", str(cfg.n_rep)),
+        ("Experimento", "Seed base",                        str(cfg.base_seed)),
+        ("Experimento", "Pop. GA / PSO / GWO",              str(cfg.meta_pop_size)),
+        ("Experimento", "LHS inicial EGO",                  str(cfg.lhs_n_pop)),
+        ("Experimento", "Pop. GA interno EGO (otimiza EI)", str(cfg.ga_pop_size)),
+        ("Experimento", "Épocas GA interno EGO",            str(cfg.ga_epoch)),
+        ("Experimento", "Implementação FO",                 fo_label),
+        ("Experimento", "Data / hora",                      datetime.now().strftime("%Y-%m-%d  %H:%M")),
+        # ── Resultado ─────────────────────────────────────────────────────────
+        ("Resultado", "Melhor algoritmo",            best_alg_label),
+        ("Resultado", "Melhor OF (best absoluto)",   f"{result.best_of_value:.6f} m³"),
+        ("Resultado", "Avaliações reais totais",     f"{total_evals:,}"),
+        ("Resultado", "Tempo total acumulado",       f"{total_time:.1f} s"),
+        ("Resultado", "Reps completadas",            f"{len(cfg.algorithms)} alg × {cfg.n_rep} reps = {len(cfg.algorithms) * cfg.n_rep}"),
+    ]
+    return pd.DataFrame(rows, columns=["Seção", "Parâmetro", "Valor"])
+
 st.divider()
 st.subheader("📊 Resultados")
 
@@ -506,6 +561,14 @@ kpi_b.metric("Algoritmos avaliados", f"{len(summary)}")
 kpi_c.metric("Avaliações reais totais", f"{total_evals:,}")
 kpi_d.metric("Tempo total acumulado", f"{total_time:.1f} s")
 
+
+# Config summary card -------------------------------------------------------
+with st.expander("📋 Resumo do experimento — parâmetros e contexto", expanded=True):
+    summary_df_cfg = _build_config_summary(projeto, result, total_evals, total_time)
+    for secao in ["Projeto", "Experimento", "Resultado"]:
+        st.markdown(f"**{secao}**")
+        subset = summary_df_cfg[summary_df_cfg["Seção"] == secao][["Parâmetro", "Valor"]].reset_index(drop=True)
+        st.dataframe(subset, use_container_width=True, hide_index=True)
 
 # Convergence chart --------------------------------------------------------
 st.markdown("### 📈 Curva de convergência (best-so-far por nº de avaliações)")
@@ -624,11 +687,26 @@ def _build_bundle(result: BenchmarkResult, fig) -> bytes:
         zf.writestr("pvalues.csv", result.pvalues.to_csv())
 
         # config + metadata
+        _cfg_sum = _build_config_summary(projeto, result, int(len(result.history)), total_time)
+        zf.writestr("config_summary.csv", _cfg_sum.to_csv(index=False))
+
         meta = {
             "config": result.config.model_dump(),
             "created_at_utc": datetime.now(timezone.utc).isoformat(),
             "n_history_rows": int(len(result.history)),
             "algorithms": [str(a) for a in result.config.algorithms],
+            "projeto": {
+                "n_fund": int(projeto.n_fund),
+                "n_comb": int(projeto.n_comb),
+                "f_ck_mpa": float(projeto.f_ck_kpa / 1000),
+                "cobrimento_cm": float(projeto.cobrimento_m * 100),
+                "dim_vetor": int(3 * projeto.n_fund),
+            },
+            "resultado": {
+                "melhor_algoritmo": result.best_algorithm,
+                "melhor_of": float(result.best_of_value),
+                "total_evals": int(len(result.history)),
+            },
         }
         zf.writestr("metadata.json", json.dumps(meta, indent=2))
 
