@@ -54,14 +54,15 @@ from fundacao import constroi_kernel  # moved to core.optimization in Sprint 5.x
 _log = get_logger("benchmark")
 
 
-Algorithm = Literal["ego", "ga", "pso", "gwo"]
-ALL_ALGORITHMS: tuple[Algorithm, ...] = ("ego", "ga", "pso", "gwo")
+Algorithm = Literal["ego", "ga", "pso", "gwo", "random"]
+ALL_ALGORITHMS: tuple[Algorithm, ...] = ("ego", "ga", "pso", "gwo", "random")
 
 ALGORITHM_LABELS: dict[str, str] = {
-    "ego": "EGO + GPR",
-    "ga":  "GA puro",
-    "pso": "PSO puro",
-    "gwo": "GWO puro",
+    "ego":    "EGO + GPR",
+    "ga":     "GA puro",
+    "pso":    "PSO puro",
+    "gwo":    "GWO puro",
+    "random": "Busca aleatória",
 }
 
 
@@ -133,7 +134,7 @@ class BenchmarkConfig(BaseModel):
     algorithms: tuple[Algorithm, ...] = Field(
         default=ALL_ALGORITHMS,
         min_length=1,
-        description="Algorithms to compare (subset of EGO / GA / PSO / GWO)",
+        description="Algorithms to compare (subset of EGO / GA / PSO / GWO / random)",
     )
     budget_evals: int = Field(default=200, ge=10, description="Real evaluations per repetition for GA/PSO/GWO")
     ego_budget_evals: int = Field(
@@ -209,6 +210,14 @@ class BenchmarkResult:
                     Diagonal is ``NaN``
     :param config: Echo of the :class:`BenchmarkConfig` that produced
                    this result
+    :param per_rep: One row per (algorithm, repetition) with the final
+                    outcome of that repetition: ``best`` (penalised OF),
+                    ``volume_m3`` (raw concrete volume of the best
+                    design), ``feasible`` (every constraint
+                    ``g <= FEASIBILITY_TOL``), ``max_violation`` and the
+                    per-group worst constraint values (``viol_sob``,
+                    ``viol_pun``, ``viol_ten``, ``viol_geo``), plus
+                    ``seed``, ``n_evals`` and ``wall_time_s``
     """
 
     history: pd.DataFrame
@@ -218,6 +227,7 @@ class BenchmarkResult:
     best_sapatas: "Sequence[Any] | None" = field(default=None)
     best_algorithm: str | None = field(default=None)
     best_of_value: float = field(default=float("inf"))
+    per_rep: pd.DataFrame | None = field(default=None)
 
 
 # =============================================================================
@@ -310,6 +320,69 @@ class TracedObjective:
 
 
 # =============================================================================
+# Feasibility report
+# =============================================================================
+FEASIBILITY_TOL: float = 1e-9
+"""Tolerance used to declare a constraint satisfied (``g <= tol``)."""
+
+_CONSTRAINT_COLUMNS: dict[str, str] = {
+    "viol_sob": "g sobreposicao",
+    "viol_pun": "g punção secao C",
+    "viol_ten": "g tensao",
+    "viol_geo": "g geometria",
+}
+
+
+def _solution_report(best_x: Sequence[float] | None, args_obj: tuple) -> dict[str, Any]:
+    """Evaluate the engineering feasibility of a final design vector.
+
+    Runs the annotated (legacy) evaluation once on ``best_x`` and
+    extracts the raw, pre-penalty constraint values so the benchmark can
+    report *engineering-meaningful* metrics alongside the penalised OF:
+    the raw concrete volume, the worst violation per constraint group
+    and a feasibility verdict (every ``g <= FEASIBILITY_TOL``).
+
+    Because the exterior penalty is linear (``alpha = 10``, ``p = 1``),
+    a slightly infeasible design can carry a marginally lower penalised
+    OF than a feasible one — reporting feasibility explicitly is what
+    keeps the algorithm comparison honest.
+
+    :param best_x: Design vector that produced the best OF of a
+                   repetition, or ``None`` when the repetition recorded
+                   no evaluation
+    :param args_obj: Same args tuple consumed by the objective function
+
+    :return: Mapping with ``volume_m3``, ``feasible``, ``max_violation``
+             and the per-group worst values (``viol_sob``, ``viol_pun``,
+             ``viol_ten``, ``viol_geo``); NaN/False placeholders when
+             ``best_x`` is ``None``
+    """
+    if best_x is None:
+        report: dict[str, Any] = {k: float("nan") for k in _CONSTRAINT_COLUMNS}
+        report.update({
+            "volume_m3": float("nan"),
+            "max_violation": float("nan"),
+            "feasible": False,
+        })
+        return report
+
+    from fundacao import obj_teste  # annotated evaluation (legacy core)
+
+    _of, df_annot = obj_teste(list(best_x), args_obj)
+    report = {
+        key: float(df_annot[col].max())
+        for key, col in _CONSTRAINT_COLUMNS.items()
+    }
+    max_violation = max(report.values())
+    report.update({
+        "volume_m3": float(df_annot["volume (m3)"].sum()),
+        "max_violation": float(max_violation),
+        "feasible": bool(max_violation <= FEASIBILITY_TOL),
+    })
+    return report
+
+
+# =============================================================================
 # Per-algorithm runners
 # =============================================================================
 def _run_ego(
@@ -350,6 +423,39 @@ def _run_ego(
             seed=rep_seed,
         )
     except _BudgetExhausted:
+        pass
+
+
+def _run_random(
+    traced: TracedObjective,
+    *,
+    dim: int,
+    config: BenchmarkConfig,
+    rep_seed: int,
+) -> None:
+    """Run the Monte Carlo (uniform random search) baseline.
+
+    Draws ``budget_evals`` independent uniform samples from the search
+    box and evaluates each one through the traced objective. This is the
+    "tentativa aleatória" baseline used by the manuscript: no memory, no
+    learning — the floor any guided search must beat under the same
+    budget of real evaluations.
+
+    :param traced: Budget-capped traced objective shared by every algorithm
+    :param dim: Number of design variables (3 * n_fund)
+    :param config: Benchmark configuration (bounds + budget)
+    :param rep_seed: Seed of this repetition (``base_seed + rep``)
+
+    :return: None (the trace lives inside ``traced``)
+    """
+    rng = np.random.default_rng(rep_seed)
+    x_lower = np.full(dim, config.h_min_m)
+    x_upper = np.full(dim, config.h_max_m)
+    try:
+        for _ in range(config.budget_evals):
+            x = rng.uniform(x_lower, x_upper)
+            traced(x.tolist())
+    except _BudgetExhausted:   # pragma: no cover  (loop stops at the budget)
         pass
 
 
@@ -446,7 +552,17 @@ def run_benchmark(
 
     :raises RuntimeError: If no repetition completed successfully (e.g.
                           cancelled before any algorithm ran)
+    :raises ValueError: When ``config.h_min_m <= projeto.cobrimento_m``
+                        (candidates with non-positive punching-shear
+                        effective depth would enter the search space)
     """
+    if config.h_min_m <= projeto.cobrimento_m:
+        raise ValueError(
+            f"config.h_min_m ({config.h_min_m} m) must be strictly greater "
+            f"than projeto.cobrimento_m ({projeto.cobrimento_m} m): the "
+            f"punching-shear check requires a positive effective depth "
+            f"d = h_z - cob for every candidate in the search space."
+        )
     df_input = projeto_to_dataframe(projeto)
     dim = 3 * projeto.n_fund
 
@@ -519,6 +635,9 @@ def run_benchmark(
                 try:
                     if alg == "ego":
                         _run_ego(traced, dim=dim, config=config, rep_seed=rep_seed)
+                    elif alg == "random":
+                        _run_random(traced, dim=dim, config=config,
+                                    rep_seed=rep_seed)
                     else:
                         _run_metaheuristic(traced, alg, dim=dim, config=config,
                                            rep_seed=rep_seed)
@@ -539,6 +658,7 @@ def run_benchmark(
                     "n_evals": int(traced.n_evals),
                     "wall_time_s": float(wall),
                     "best_x": traced.best_x,
+                    **_solution_report(traced.best_x, args_obj),
                 })
                 units_done += 1
                 _emit({"event": "benchmark.rep_end",
@@ -594,6 +714,7 @@ def run_benchmark(
         best_sapatas=_best_sapatas,
         best_algorithm=_best_algorithm,
         best_of_value=_best_of_value,
+        per_rep=per_rep_df.drop(columns=["best_x"]),
     )
 
 
@@ -657,6 +778,16 @@ def _build_summary(
         aucs_arr = np.array(aucs, dtype=float) if aucs else np.array([np.nan])
         conv_arr = np.array(conv_evals, dtype=float) if conv_evals else np.array([np.nan])
 
+        # Engineering-facing metrics: feasibility of the final designs
+        # and the raw (pre-penalty) concrete volume of the feasible ones.
+        feas_mask = per_rep["feasible"].to_numpy(dtype=bool) \
+            if "feasible" in per_rep.columns else np.zeros(len(per_rep), dtype=bool)
+        volumes = per_rep["volume_m3"].to_numpy(dtype=float) \
+            if "volume_m3" in per_rep.columns else np.full(len(per_rep), np.nan)
+        feas_volumes = volumes[feas_mask]
+        max_viol = per_rep["max_violation"].to_numpy(dtype=float) \
+            if "max_violation" in per_rep.columns else np.full(len(per_rep), np.nan)
+
         rows.append({
             "algorithm":         alg,
             "label":             ALGORITHM_LABELS.get(alg, alg),
@@ -665,6 +796,11 @@ def _build_summary(
             "mean":              float(np.mean(bests)),
             "std":               float(np.std(bests, ddof=1)) if bests.size > 1 else 0.0,
             "median":            float(np.median(bests)),
+            "feasibility_rate":  float(np.mean(feas_mask)),
+            "best_feasible_volume_m3": (
+                float(np.min(feas_volumes)) if feas_volumes.size else float("nan")
+            ),
+            "mean_max_violation": float(np.nanmean(max_viol)) if max_viol.size else float("nan"),
             "auc_mean":          float(np.nanmean(aucs_arr)),
             "auc_std":           float(np.nanstd(aucs_arr, ddof=1)) if aucs_arr.size > 1 else 0.0,
             "conv_eval_mean":    float(np.nanmean(conv_arr)),
@@ -712,6 +848,7 @@ __all__ = [
     "Algorithm",
     "BenchmarkConfig",
     "BenchmarkResult",
+    "FEASIBILITY_TOL",
     "TracedObjective",
     "run_benchmark",
 ]

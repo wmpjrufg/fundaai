@@ -51,6 +51,7 @@ def _tiny_config(**overrides) -> BenchmarkConfig:
     defaults = dict(
         algorithms=("ego", "ga", "pso", "gwo"),
         budget_evals=30,
+        ego_budget_evals=30,
         n_rep=2,
         base_seed=42,
         h_min_m=0.60,
@@ -113,6 +114,64 @@ class TestRunBenchmarkContract:
         assert isinstance(result, BenchmarkResult)
         assert result.config == cfg
 
+    def test_random_baseline_runs_and_is_deterministic(self, projeto_tres):
+        """This test ensures the Monte Carlo baseline honours budget and seed.
+
+        A busca aleatória é o baseline do manuscrito: precisa consumir
+        exatamente ``budget_evals`` avaliações por repetição e ser
+        bit-reprodutível para a mesma seed.
+
+        :return: None (internal asserts)
+        """
+        cfg = _tiny_config(algorithms=("random",), n_rep=2)
+        r1 = run_benchmark(projeto_tres, cfg)
+        r2 = run_benchmark(projeto_tres, cfg)
+        per_rep_evals = r1.history.groupby("rep")["eval_idx"].max()
+        assert (per_rep_evals == cfg.budget_evals).all()
+        deterministic_cols = ["algorithm", "rep", "seed", "eval_idx",
+                              "of_value", "of_best_so_far"]
+        pd.testing.assert_frame_equal(
+            r1.history[deterministic_cols], r2.history[deterministic_cols]
+        )
+
+    def test_per_rep_carries_feasibility_report(self, projeto_tres):
+        """This test ensures the per-rep table reports engineering feasibility.
+
+        :return: None (internal asserts)
+        """
+        cfg = _tiny_config(algorithms=("random", "ga"), n_rep=2)
+        result = run_benchmark(projeto_tres, cfg)
+        expected = {
+            "algorithm", "rep", "seed", "best", "n_evals", "wall_time_s",
+            "volume_m3", "feasible", "max_violation",
+            "viol_sob", "viol_pun", "viol_ten", "viol_geo",
+        }
+        assert expected.issubset(set(result.per_rep.columns))
+        assert len(result.per_rep) == 2 * cfg.n_rep
+        # Raw volume never exceeds the penalised OF of the same design.
+        assert (result.per_rep["volume_m3"]
+                <= result.per_rep["best"] + 1e-9).all()
+        # Feasibility columns are populated in summary as well.
+        assert {"feasibility_rate", "best_feasible_volume_m3",
+                "mean_max_violation"}.issubset(set(result.summary.columns))
+
+    def test_h_min_below_cover_raises(self, assets_dir: Path):
+        """This test ensures run_benchmark rejects bounds that allow d <= 0.
+
+        Mirrors the equivalent guard in ``core.api.optimize``: with
+        ``h_min_m <= cobrimento_m`` the search space would contain
+        candidates whose punching-shear effective depth is non-positive.
+
+        :return: None (internal asserts)
+        """
+        proj = read_projeto_from_excel(
+            assets_dir / "data" / "problema_fund_um.xlsx",
+            f_ck_kpa=25_000.0,
+            cobrimento_m=0.70,   # cover above h_min_m = 0.60
+        )
+        with pytest.raises(ValueError, match="h_min_m"):
+            run_benchmark(proj, _tiny_config(algorithms=("ga",), n_rep=1))
+
     def test_history_schema_is_stable(self, projeto_tres):
         cfg = _tiny_config(algorithms=("ga", "gwo"), n_rep=2)
         result = run_benchmark(projeto_tres, cfg)
@@ -129,8 +188,11 @@ class TestRunBenchmarkContract:
         max_per_rep = (
             result.history.groupby(["algorithm", "rep"])["eval_idx"].max()
         )
-        # No repetition may exceed the budget.
-        assert (max_per_rep <= cfg.budget_evals).all(), max_per_rep.to_dict()
+        # No repetition may exceed its algorithm's budget: EGO is capped
+        # at ego_budget_evals, the pure metaheuristics at budget_evals.
+        for (alg, _rep), n_evals in max_per_rep.items():
+            cap = cfg.ego_budget_evals if alg == "ego" else cfg.budget_evals
+            assert n_evals <= cap, max_per_rep.to_dict()
 
     def test_best_so_far_is_monotonic(self, projeto_tres):
         cfg = _tiny_config(algorithms=("ga", "pso"), n_rep=2)
