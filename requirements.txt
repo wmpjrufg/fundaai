@@ -40,6 +40,11 @@ pydantic>=2.0,<3.0
 # --- Notebooks (dev) ----------------------------------------------------------
 jupyter==1.1.1
 
+# --- Testes (dev) ---------------------------------------------------------------
+# A suite de regressão (tests/) é a rede de segurança do projeto; manter o
+# pytest instalável junto com o runtime evita ambientes sem a suite.
+pytest
+
 # --- Auxiliares (transitivas explicitamente preservadas do snapshot) ---------
 fqdn==1.5.1
 isoduration==20.11.0
