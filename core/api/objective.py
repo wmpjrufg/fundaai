@@ -99,6 +99,14 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
     For a fully annotated DataFrame (all intermediate columns) use
     ``fundacao.obj_teste``, which still calls the legacy implementation.
 
+    Preconditions (validated at the domain boundary, see
+    ``core.domain.Combinacao`` and ``core.domain.FundacaoProjeto``):
+    every ``Fz-c{i}`` must be strictly positive (the sigma formulas
+    divide by ``Fz``) and ``f_ck`` must be given in kPa. The only guard
+    enforced here is ``hz > cob_m`` because ``hz`` is a *design
+    variable*: a candidate with non-positive effective depth would flip
+    the punching-shear sign and read as feasible.
+
     :param x: Design vector of length ``3 * N_fund``, layout
               ``[hx_0, hy_0, hz_0, ..., hx_{N-1}, hy_{N-1}, hz_{N-1}]``
     :param args: Tuple ``(df, n_comb, f_ck_kpa, cob_m)`` or
@@ -107,6 +115,12 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
                     or the project default (10.0) when ``None``
 
     :return: Scalar penalised volume [m³]
+
+    :raises ValueError: When any ``hz`` is not strictly greater than
+                        ``cob_m`` (non-positive effective depth). Mirrors
+                        the guard in
+                        ``core.engineering.verificacao_puncao_sapata`` so
+                        the fast and legacy paths fail identically
     """
     df, n_comb, f_ck, cob_m, pen_default = _unpack(args)
     pen = pen_default if penalty is None else float(penalty)
@@ -116,6 +130,14 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
     hx = x_arr[:, 0]
     hy = x_arr[:, 1]
     hz = x_arr[:, 2]
+
+    if np.any(hz <= cob_m):
+        bad = float(hz.min())
+        raise ValueError(
+            f"effective depth d = h_z - cob must be positive for every "
+            f"footing; got min(h_z)={bad}, cob={cob_m}. Keep the lower "
+            f"bound of h_z strictly above the concrete cover."
+        )
 
     # --- volume bruto ---------------------------------------------------
     vol = hx * hy * hz  # (N,)

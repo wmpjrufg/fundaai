@@ -45,8 +45,19 @@ def verificacao_puncao_sapata(
              [1] = Resistant punching-shear stress, tau_rd2 [kPa]
              [2] = Critical perimeter at the pillar face, u_rd2 [m]
              [3] = Constraint value g_rd2; g_rd2 <= 0 means feasible
+
+    :raises ValueError: When ``h_z <= cob`` — the effective depth
+                        ``d = h_z - cob`` would be non-positive, flipping
+                        the sign of ``tau_sd2`` and making an unbuildable
+                        footing look feasible
     """
     d = h_z - cob
+    if d <= 0:
+        raise ValueError(
+            f"effective depth d = h_z - cob must be positive; got "
+            f"h_z={h_z}, cob={cob} (d={d}). Keep the lower bound of h_z "
+            f"strictly above the concrete cover."
+        )
     alpha_v2 = 1 - (f_ck / 1000) / 250
     f_cd = f_ck / 1.4
     tau_rd2 = 0.27 * alpha_v2 * f_cd

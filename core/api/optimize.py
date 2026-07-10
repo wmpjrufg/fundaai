@@ -114,7 +114,20 @@ def optimize(
     :return: OptimisationResult with the winning sapatas, the best
              objective, the seed that produced it and the per-rep
              trajectory of best objective values
+
+    :raises ValueError: When ``config.h_min_m <= projeto.cobrimento_m``.
+                        The punching-shear check divides by the effective
+                        depth ``d = h_z - cob``; a lower bound at or
+                        below the cover would let candidates with
+                        non-positive ``d`` enter the search space
     """
+    if config.h_min_m <= projeto.cobrimento_m:
+        raise ValueError(
+            f"config.h_min_m ({config.h_min_m} m) must be strictly greater "
+            f"than projeto.cobrimento_m ({projeto.cobrimento_m} m): the "
+            f"punching-shear check requires a positive effective depth "
+            f"d = h_z - cob for every candidate in the search space."
+        )
     df_input = projeto_to_dataframe(projeto)
     n_fund = projeto.n_fund
     dim = 3 * n_fund

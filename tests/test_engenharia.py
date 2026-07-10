@@ -544,28 +544,29 @@ class TestEngineeringEdgeCases:
                                    h_x=1.0, h_y=1.0)
 
     def test_puncao_h_z_equal_to_cover_raises(self):
-        """h_z == cob makes d = 0; the formula raises ZeroDivisionError.
+        """h_z == cob makes d = 0; the guard raises an explicit ValueError.
 
-        Pinned as a known unsafe regime: the optimiser bounds h_z
-        above the cover by construction, but a direct caller must
-        ensure h_z > cob themselves. A future sprint may add an
-        explicit ``ValueError`` upfront; this test will then need to
-        be updated to assert ``ValueError`` instead.
+        Updated from the Sprint 4.8 guardrail (which pinned the old
+        ``ZeroDivisionError``): the function now validates ``d > 0``
+        upfront so an unbuildable footing fails loudly instead of
+        depending on the division to blow up.
         """
-        with pytest.raises(ZeroDivisionError):
+        with pytest.raises(ValueError, match="effective depth"):
             verificacao_puncao_sapata(
                 h_z=0.04, f_ck=25_000.0, a_p=0.30, b_p=0.30,
                 f_zk=500.0, cob=0.04,
             )
 
-    def test_puncao_h_z_below_cover_yields_negative_stress(self):
-        """h_z < cob makes d < 0; the formula returns a negative tau_sd2.
+    def test_puncao_h_z_below_cover_raises(self):
+        """h_z < cob makes d < 0; the guard raises an explicit ValueError.
 
-        Same regime as above: the optimiser does not visit it, but
-        a direct caller must guard against it.
+        Updated from the Sprint 4.8 guardrail (which pinned the old
+        silent behaviour of returning a *negative* tau_sd2 that made
+        the constraint read as feasible). A negative effective depth is
+        physically meaningless, so it now fails loudly.
         """
-        tau_sd2, _tau_rd2, _u, _g = verificacao_puncao_sapata(
-            h_z=0.03, f_ck=25_000.0, a_p=0.30, b_p=0.30,
-            f_zk=500.0, cob=0.04,
-        )
-        assert tau_sd2 < 0
+        with pytest.raises(ValueError, match="effective depth"):
+            verificacao_puncao_sapata(
+                h_z=0.03, f_ck=25_000.0, a_p=0.30, b_p=0.30,
+                f_zk=500.0, cob=0.04,
+            )

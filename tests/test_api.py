@@ -334,6 +334,24 @@ class TestOptimize:
         # best_seed is one of the actual repetition seeds
         assert result.best_seed in {cfg.base_seed + r for r in range(cfg.n_rep)}
 
+    def test_h_min_below_cover_raises(self, assets_dir: Path):
+        """This test ensures optimize rejects bounds that allow d <= 0.
+
+        Com ``h_min_m <= cobrimento_m`` o espaco de busca conteria
+        candidatos com altura util nao positiva, cujo sinal invertido na
+        puncao os faria parecer viaveis. A validacao de entrada precisa
+        barrar a combinacao antes de qualquer avaliacao.
+
+        :return: None (internal asserts)
+        """
+        proj = read_projeto_from_excel(
+            assets_dir / "data" / "problema_fund_um.xlsx",
+            f_ck_kpa=25_000.0,
+            cobrimento_m=0.70,   # cover above h_min_m = 0.60
+        )
+        with pytest.raises(ValueError, match="h_min_m"):
+            optimize(proj, self._small_config())
+
     def test_optimize_is_reproducible(self, assets_dir: Path):
         """This test ensures two calls with the same config yield the same result.
 

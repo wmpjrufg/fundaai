@@ -20,12 +20,31 @@ class Combinacao:
     superstructure analysis for a given combination index.
 
     :param rotulo: Combination label (e.g. "c1", "c2", "c3")
-    :param f_z: Characteristic vertical load on the column [kN]
+    :param f_z: Characteristic vertical load on the column [kN]; must be
+                strictly positive — the composite-bending formulation
+                divides by ``f_z`` (see ``calcular_sigma_max_min``), so
+                null or uplift (negative) loads are outside the scope of
+                the current formulation
     :param m_x: Characteristic bending moment about the X axis [kN m]
     :param m_y: Characteristic bending moment about the Y axis [kN m]
+
+    :raises ValueError: When ``f_z`` is not strictly positive
     """
 
     rotulo: str
     f_z: float
     m_x: float
     m_y: float
+
+    def __post_init__(self) -> None:
+        """This hook validates the strictly positive vertical load precondition.
+
+        :return: None
+        """
+        if self.f_z <= 0:
+            raise ValueError(
+                f"combination {self.rotulo!r}: f_z must be strictly positive "
+                f"(the sigma_max/sigma_min formulation divides by f_z); got "
+                f"f_z={self.f_z}. Null or uplift loads are not supported by "
+                f"the current formulation."
+            )

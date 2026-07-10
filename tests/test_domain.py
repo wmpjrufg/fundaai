@@ -126,6 +126,21 @@ class TestCombinacao:
         c = Combinacao("c1", f_z=855.5, m_x=-3.7, m_y=9.2)
         assert (c.rotulo, c.f_z, c.m_x, c.m_y) == ("c1", 855.5, -3.7, 9.2)
 
+    def test_non_positive_f_z_raises(self):
+        """This test ensures the strictly positive vertical load precondition.
+
+        The composite-bending formulation divides by ``f_z``
+        (``6 * M / (f_z * h)``), so null or uplift loads must be
+        rejected at construction instead of producing silent inf/NaN
+        inside the objective function.
+
+        :return: None (internal asserts)
+        """
+        with pytest.raises(ValueError, match="strictly positive"):
+            Combinacao("c1", f_z=0.0, m_x=1.0, m_y=1.0)
+        with pytest.raises(ValueError, match="strictly positive"):
+            Combinacao("c1", f_z=-120.0, m_x=0.0, m_y=0.0)
+
 
 # =============================================================================
 # Sapata
@@ -280,3 +295,28 @@ class TestFundacaoProjeto:
             FundacaoProjeto(pilares, solo, comb, f_ck_kpa=0.0, cobrimento_m=0.04)
         with pytest.raises(ValueError):
             FundacaoProjeto(pilares, solo, comb, f_ck_kpa=25_000.0, cobrimento_m=-0.01)
+
+    def test_f_ck_unit_mistake_raises(self):
+        """This test ensures the kPa plausibility range catches MPa inputs.
+
+        Passing ``f_ck = 25`` (MPa) where kPa is expected would silently
+        shrink ``tau_rd2`` by three orders of magnitude and flag every
+        candidate as punching-infeasible. The plausible structural range
+        [10000, 90000] kPa (C10-C90) rejects the mistake loudly.
+
+        :return: None (internal asserts)
+        """
+        pilares = [Pilar("P", 0.30, 0.30, 0.0, 0.0)]
+        solo = {"P": Solo("argila", 30)}
+        comb = {"P": [Combinacao("c1", 100.0, 0.0, 0.0)]}
+        with pytest.raises(ValueError, match="kPa"):
+            FundacaoProjeto(pilares, solo, comb, f_ck_kpa=25.0, cobrimento_m=0.04)
+        with pytest.raises(ValueError, match="kPa"):
+            FundacaoProjeto(pilares, solo, comb, f_ck_kpa=250_000.0, cobrimento_m=0.04)
+        # Boundary classes C10 and C90 remain accepted.
+        assert FundacaoProjeto(
+            pilares, solo, comb, f_ck_kpa=10_000.0, cobrimento_m=0.04
+        ).f_ck_kpa == 10_000.0
+        assert FundacaoProjeto(
+            pilares, solo, comb, f_ck_kpa=90_000.0, cobrimento_m=0.04
+        ).f_ck_kpa == 90_000.0

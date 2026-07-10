@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from core.api.objective import avaliar_projeto_fast
 from fundacao import (
     _PENALTY_DEFAULT,
     _avaliar_projeto,
@@ -221,3 +222,34 @@ def test_args_aceita_4_ou_5_elementos(
     # Nao levanta excecao em nenhuma das duas formas
     obj_felipe_lucas(x_seed42, args=args4)
     obj_felipe_lucas(x_seed42, args=args5)
+
+
+# =============================================================================
+# Guarda de altura util (h_z <= cob) — fast e legacy falham identicamente
+# =============================================================================
+@pytest.mark.regression
+def test_hz_below_cover_raises_on_both_implementations(
+    df_problema_tres: pd.DataFrame,
+    cfg_calibracao: Dict[str, Any],
+):
+    """This test ensures both FO variants reject a non-positive effective depth.
+
+    Um candidato com ``h_z <= cob`` inverteria o sinal de ``tau_sd2`` e
+    leria a puncao como viavel. A guarda explicita (fast: upfront;
+    legacy: dentro de ``verificacao_puncao_sapata``) transforma o regime
+    fisicamente sem sentido em erro imediato nas duas implementacoes.
+
+    :return: Nada (assert interno)
+    """
+    n_fun = df_problema_tres.shape[0]
+    x_bad = np.tile([1.0, 1.0, cfg_calibracao["cob_m"]], n_fun)  # h_z == cob
+    args = (
+        df_problema_tres,
+        cfg_calibracao["n_comb"],
+        cfg_calibracao["f_ck_kpa"],
+        cfg_calibracao["cob_m"],
+    )
+    with pytest.raises(ValueError, match="effective depth"):
+        avaliar_projeto_fast(x_bad, args)
+    with pytest.raises(ValueError, match="effective depth"):
+        _avaliar_projeto(x_bad, args)

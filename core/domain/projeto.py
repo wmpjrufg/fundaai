@@ -33,12 +33,18 @@ class FundacaoProjeto:
     :param combinacoes_por_pilar: Mapping from pillar label to a sequence
                                   of Combinacao entities (one per load
                                   combination index, in label order)
-    :param f_ck_kpa: Characteristic concrete compressive strength [kPa]
+    :param f_ck_kpa: Characteristic concrete compressive strength [kPa].
+                     Must lie within the plausible structural range
+                     [10 000, 90 000] kPa (concrete classes C10–C90); the
+                     range check catches the silent unit mistake of
+                     passing MPa (e.g. ``25``) where kPa is expected
+                     (``25_000``)
     :param cobrimento_m: Concrete cover [m]
 
     :raises ValueError: When per-pillar maps are missing entries for any
-                        declared pillar, when ``f_ck_kpa`` is non-positive
-                        or when ``cobrimento_m`` is negative
+                        declared pillar, when ``f_ck_kpa`` is outside the
+                        plausible kPa range or when ``cobrimento_m`` is
+                        negative
     """
 
     pilares: Sequence[Pilar]
@@ -54,6 +60,13 @@ class FundacaoProjeto:
         """
         if self.f_ck_kpa <= 0:
             raise ValueError(f"f_ck_kpa must be positive; got {self.f_ck_kpa}.")
+        if not (10_000.0 <= self.f_ck_kpa <= 90_000.0):
+            raise ValueError(
+                f"f_ck_kpa must be within [10000, 90000] kPa (concrete "
+                f"classes C10-C90); got {self.f_ck_kpa}. If you meant "
+                f"{self.f_ck_kpa} MPa, pass {self.f_ck_kpa * 1000:.0f} kPa "
+                f"instead — every engineering check expects kPa."
+            )
         if self.cobrimento_m < 0:
             raise ValueError(
                 f"cobrimento_m must be non-negative; got {self.cobrimento_m}."
