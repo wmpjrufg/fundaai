@@ -253,3 +253,43 @@ def test_hz_below_cover_raises_on_both_implementations(
         avaliar_projeto_fast(x_bad, args)
     with pytest.raises(ValueError, match="effective depth"):
         _avaliar_projeto(x_bad, args)
+
+
+# =============================================================================
+# Paridade da avaliação por componentes (Frente C / CBO)
+# =============================================================================
+@pytest.mark.regression
+def test_componentes_theta_bit_identico_ao_fast(
+    df_problema_tres: pd.DataFrame,
+    cfg_calibracao: Dict[str, Any],
+    x_seed42: np.ndarray,
+):
+    """Theta devolvido por componentes é bit-idêntico ao do avaliador fast.
+
+    ``avaliar_projeto_componentes`` compartilha o núcleo numérico e a
+    expressão final de ``avaliar_projeto_fast`` — a igualdade exigida
+    aqui é exata (==), não aproximada. Também valida o contrato dos
+    componentes: volume bruto <= Theta e vetor g com os 4 grupos.
+
+    :return: Nada (assert interno)
+    """
+    from core.api.objective import avaliar_projeto_componentes
+
+    args = (
+        df_problema_tres,
+        cfg_calibracao["n_comb"],
+        cfg_calibracao["f_ck_kpa"],
+        cfg_calibracao["cob_m"],
+    )
+    theta, volume, g = avaliar_projeto_componentes(x_seed42, args)
+    assert theta == avaliar_projeto_fast(x_seed42, args)
+    assert theta == 19.70604234767181
+    assert g.shape == (4,)
+    assert volume <= theta
+
+    rng = np.random.default_rng(2026)
+    n_fun = df_problema_tres.shape[0]
+    for x in rng.uniform(0.6, 3.0, size=(200, 3 * n_fun)):
+        t_c, v_c, g_c = avaliar_projeto_componentes(x, args)
+        assert t_c == avaliar_projeto_fast(x, args)
+        assert v_c <= t_c + 1e-12

@@ -59,7 +59,12 @@ import pandas as pd
 
 from core.engineering import k_tabela_19_2, rho_minimo_flexao, sobreposicao_matrix
 
-__all__ = ["avaliar_projeto_fast", "avaliar_projeto_legacy"]
+__all__ = [
+    "CONSTRAINT_GROUPS",
+    "avaliar_projeto_componentes",
+    "avaliar_projeto_fast",
+    "avaliar_projeto_legacy",
+]
 
 _PENALTY_DEFAULT: float = 1e1
 
@@ -126,6 +131,39 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
     """
     df, n_comb, f_ck, cob_m, pen_default = _unpack(args)
     pen = pen_default if penalty is None else float(penalty)
+    vol, g_sob, g_puncao, g_tensao, g_geo = _nucleo_componentes(x, args)
+
+    # --- pseudo-objetivo -------------------------------------------------
+    return float(
+        (
+            vol
+            + np.clip(g_sob,    0.0, None) * pen
+            + np.clip(g_puncao, 0.0, None) * pen
+            + np.clip(g_tensao, 0.0, None) * pen
+            + np.clip(g_geo,    0.0, None) * pen
+        ).sum()
+    )
+
+
+def _nucleo_componentes(x, args) -> tuple:
+    """Compute the per-element raw components of the pseudo-objective.
+
+    Single numerical core shared by :func:`avaliar_projeto_fast` and
+    :func:`avaliar_projeto_componentes`: both operate on the exact same
+    arrays produced here, so the penalised scalar is bit-identical
+    between the two public entry points by construction.
+
+    :param x: Design vector of length ``3 * N_fund``
+    :param args: Same tuple contract as :func:`avaliar_projeto_fast`
+
+    :return: ``(vol, g_sob, g_puncao, g_tensao, g_geo)`` — per-element
+             arrays of shape (N,); ``g_puncao`` is already the worst of
+             the C and C' contours over every load combination
+
+    :raises ValueError: When any ``hz`` is not strictly greater than
+                        ``cob_m`` (non-positive effective depth)
+    """
+    df, n_comb, f_ck, cob_m, _pen_default = _unpack(args)
 
     n = len(df)
     x_arr = np.asarray(x, dtype=np.float64).reshape(n, 3)
@@ -233,8 +271,48 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
         1.0 + 2.0 * 0.10 / bp - hy / bp,
     )  # (N,)
 
-    # --- pseudo-objetivo -------------------------------------------------
-    return float(
+    return vol, g_sob, g_puncao, g_tensao, g_geo
+
+
+# Ordem canônica dos grupos de restrição agregados devolvidos por
+# ``avaliar_projeto_componentes`` (consumida pelo CBO e pelos testes).
+CONSTRAINT_GROUPS: tuple[str, ...] = ("sob", "pun", "ten", "geo")
+
+
+def avaliar_projeto_componentes(x, args, *, penalty: float | None = None) -> tuple:
+    """Evaluate the pseudo-objective decomposed into optimisation components.
+
+    Companion of :func:`avaliar_projeto_fast` for constraint-aware
+    optimisers (Constrained Bayesian Optimization): besides the same
+    penalised scalar ``theta`` — bit-identical to
+    ``avaliar_projeto_fast`` because both consume the arrays of the
+    shared :func:`_nucleo_componentes` with the same final expression —
+    it returns the raw total volume and the four aggregated constraint
+    values, each the worst (max) over elements and load combinations,
+    in the order of :data:`CONSTRAINT_GROUPS`:
+
+    * ``g[0]`` — sobreposição AABB
+    * ``g[1]`` — punção (pior contorno, C ou C')
+    * ``g[2]`` — tensão admissível do solo
+    * ``g[3]`` — geometria (balanço mínimo)
+
+    A design is strictly feasible when ``(g <= 0).all()``.
+
+    :param x: Design vector of length ``3 * N_fund``
+    :param args: Same tuple contract as :func:`avaliar_projeto_fast`
+    :param penalty: Optional penalty override (same semantics)
+
+    :return: ``(theta, volume_total, g)`` with ``g`` a float64 array of
+             shape (4,)
+
+    :raises ValueError: When any ``hz`` is not strictly greater than
+                        ``cob_m``
+    """
+    _df, _n_comb, _f_ck, _cob_m, pen_default = _unpack(args)
+    pen = pen_default if penalty is None else float(penalty)
+    vol, g_sob, g_puncao, g_tensao, g_geo = _nucleo_componentes(x, args)
+
+    theta = float(
         (
             vol
             + np.clip(g_sob,    0.0, None) * pen
@@ -243,6 +321,9 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
             + np.clip(g_geo,    0.0, None) * pen
         ).sum()
     )
+    g = np.array([g_sob.max(), g_puncao.max(), g_tensao.max(), g_geo.max()],
+                 dtype=np.float64)
+    return theta, float(vol.sum()), g
 
 
 def avaliar_projeto_legacy(x, args) -> float:

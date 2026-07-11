@@ -46,19 +46,28 @@ from core.api._adapter import projeto_to_dataframe
 from core.api.types import OptimisationConfig
 from core.domain import FundacaoProjeto
 from core.observability import get_logger, run_context
-from core.optimization import ego_01_architecture, initial_population_01
-from core.api.objective import avaliar_projeto_fast, avaliar_projeto_legacy
+from core.optimization import (
+    cbo_01_architecture,
+    ego_01_architecture,
+    initial_population_01,
+)
+from core.api.objective import (
+    avaliar_projeto_componentes,
+    avaliar_projeto_fast,
+    avaliar_projeto_legacy,
+)
 from core.api._adapter import design_vector_to_sapatas
 from fundacao import constroi_kernel  # moved to core.optimization in Sprint 5.x
 
 _log = get_logger("benchmark")
 
 
-Algorithm = Literal["ego", "ga", "pso", "gwo", "random"]
-ALL_ALGORITHMS: tuple[Algorithm, ...] = ("ego", "ga", "pso", "gwo", "random")
+Algorithm = Literal["ego", "cbo", "ga", "pso", "gwo", "random"]
+ALL_ALGORITHMS: tuple[Algorithm, ...] = ("ego", "cbo", "ga", "pso", "gwo", "random")
 
 ALGORITHM_LABELS: dict[str, str] = {
     "ego":    "EGO + GPR",
+    "cbo":    "CBO (ECI)",
     "ga":     "GA puro",
     "pso":    "PSO puro",
     "gwo":    "GWO puro",
@@ -155,6 +164,16 @@ class BenchmarkConfig(BaseModel):
     ga_pop_size: int = Field(default=150, ge=2, description="Inner-EI GA population (surrogate only)")
     ga_epoch: int = Field(default=50, ge=1, description="Inner-EI GA epochs (surrogate only)")
     penalty: float | None = Field(default=None, gt=0.0, description="Penalty for constraint violations")
+    cbo_constraint_restarts: int = Field(
+        default=5, ge=1,
+        description=(
+            "n_restarts_optimizer of the CBO constraint GPs (the volume "
+            "GP keeps the production value of 5). Lower values trade "
+            "hyperparameter-fit quality of the smoother constraint "
+            "targets for wall time; recorded so every run is "
+            "reproducible from config.json."
+        ),
+    )
     fo_variant: str = Field(
         default="fast",
         description=(
@@ -319,6 +338,36 @@ class TracedObjective:
         return of
 
 
+class _TracedComponents(TracedObjective):
+    """Budget-capped tracer for component-returning objectives (CBO).
+
+    Same budget accounting and per-evaluation trace as
+    :class:`TracedObjective` — the recorded ``of_value`` is the
+    penalised Theta, so every algorithm is compared on the identical
+    metric — but ``__call__`` returns the full ``(theta, volume, g)``
+    tuple that :func:`core.optimization.cbo_01_architecture` consumes.
+    """
+
+    def __call__(self, x, args=None):   # noqa: D401
+        if len(self._records) >= self._budget:
+            raise _BudgetExhausted()
+        t0 = time.perf_counter()
+        theta, volume, g = self._obj(list(x), self._args)
+        dt = time.perf_counter() - t0
+        theta = float(theta)
+        if theta < self._best:
+            self._best = theta
+            self._best_x = list(x)
+        self._records.append({
+            "eval_idx": len(self._records) + 1,
+            "of_value": theta,
+            "of_best_so_far": self._best,
+            "time_eval_s": float(dt),
+            "time_total_s": float(time.perf_counter() - self._t_start),
+        })
+        return theta, volume, g
+
+
 # =============================================================================
 # Feasibility report
 # =============================================================================
@@ -421,6 +470,56 @@ def _run_ego(
             paras_opt, paras_kernel,
             args=None,
             seed=rep_seed,
+        )
+    except _BudgetExhausted:
+        pass
+
+
+def _run_cbo(
+    traced: "_TracedComponents",
+    *,
+    dim: int,
+    config: BenchmarkConfig,
+    rep_seed: int,
+) -> None:
+    """Run constrained Bayesian optimisation under the EGO budget.
+
+    Shares every protocol lever with :func:`_run_ego` (same LHS size,
+    same inner-EI genetic algorithm, same production kernel, same
+    ``ego_budget_evals`` cap) so the CBO-vs-EGO comparison isolates a
+    single factor: how constraints are handled — exterior penalisation
+    absorbed by one surrogate versus independent surrogates with the
+    constrained acquisition of Gardner et al. (2014).
+
+    :param traced: Budget-capped component tracer
+    :param dim: Number of design variables (3 * n_fund)
+    :param config: Benchmark configuration
+    :param rep_seed: Seed of this repetition (``base_seed + rep``)
+
+    :return: None (the trace lives inside ``traced``)
+    """
+    x_lower = [config.h_min_m] * dim
+    x_upper = [config.h_max_m] * dim
+    x_ini = initial_population_01(
+        config.lhs_n_pop, dim, x_lower, x_upper,
+        seed=rep_seed, use_lhs=True,
+    )
+    paras_opt = {
+        "optimizer algorithm": GA.BaseGA(
+            epoch=config.ga_epoch, pop_size=config.ga_pop_size,
+        )
+    }
+    kernel_pool = constroi_kernel()
+    paras_kernel = {"kernel": kernel_pool[config.kernel_index]}
+
+    n_gen_cap = max(1, config.ego_budget_evals - config.lhs_n_pop)
+    try:
+        cbo_01_architecture(
+            traced, n_gen_cap, x_ini, x_lower, x_upper,
+            paras_opt, paras_kernel,
+            args=None,
+            seed=rep_seed,
+            constraint_n_restarts=config.cbo_constraint_restarts,
         )
     except _BudgetExhausted:
         pass
@@ -617,14 +716,21 @@ def run_benchmark(
                 )
                 _budget = (
                     config.ego_budget_evals
-                    if alg == "ego"
+                    if alg in ("ego", "cbo")
                     else config.budget_evals
                 )
-                traced = TracedObjective(
-                    _fo_fn, args_obj,
-                    budget=_budget,
-                    algorithm=alg, rep=rep, seed=rep_seed,
-                )
+                if alg == "cbo":
+                    traced = _TracedComponents(
+                        avaliar_projeto_componentes, args_obj,
+                        budget=_budget,
+                        algorithm=alg, rep=rep, seed=rep_seed,
+                    )
+                else:
+                    traced = TracedObjective(
+                        _fo_fn, args_obj,
+                        budget=_budget,
+                        algorithm=alg, rep=rep, seed=rep_seed,
+                    )
                 _emit({"event": "benchmark.rep_start",
                        "algorithm": alg, "rep": int(rep),
                        "seed": int(rep_seed),
@@ -635,6 +741,9 @@ def run_benchmark(
                 try:
                     if alg == "ego":
                         _run_ego(traced, dim=dim, config=config, rep_seed=rep_seed)
+                    elif alg == "cbo":
+                        _run_cbo(traced, dim=dim, config=config,
+                                 rep_seed=rep_seed)
                     elif alg == "random":
                         _run_random(traced, dim=dim, config=config,
                                     rep_seed=rep_seed)
