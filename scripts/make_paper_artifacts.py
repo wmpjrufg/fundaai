@@ -181,6 +181,113 @@ def _load(case: str, scenario: str) -> dict:
     }
 
 
+
+# =============================================================================
+# Best feasible designs (deterministic reproduction for the layout figure)
+# =============================================================================
+def _best_feasible_designs() -> dict:
+    """Reproduce the best strictly feasible EGO design of each case.
+
+    The per-rep table stores which repetition produced the best feasible
+    design (min ``volume_m3`` among ``feasible`` rows) but not the design
+    vector itself. Because every repetition is fully seeded, re-running
+    that single repetition reproduces the trajectory bit-for-bit; the
+    decoded ``best_sapatas`` are cached in ``best_designs.json`` so the
+    (~2 min) reproduction happens only once.
+
+    :return: Mapping ``case -> list of dicts`` with pillar + footing geometry
+    """
+    import json
+    cache = PROTO_DIR / "best_designs.json"
+    if cache.exists():
+        return json.loads(cache.read_text(encoding="utf-8"))
+
+    from core.api import BenchmarkConfig, run_benchmark
+    from core.io import read_projeto_from_excel
+
+    spreadsheets = {
+        "caso1_um": "problema_fund_um.xlsx",
+        "caso2_dois": "problema_fund_dois.xlsx",
+        "caso3_tres": "problema_fund_três.xlsx",
+    }
+    designs: dict[str, list[dict]] = {}
+    for case, fname in spreadsheets.items():
+        per_rep = pd.read_csv(PROTO_DIR / case / S1 / "per_rep.csv")
+        feas = per_rep[(per_rep["algorithm"] == "ego") & per_rep["feasible"]]
+        row = feas.loc[feas["volume_m3"].idxmin()]
+        proj = read_projeto_from_excel(
+            REPO_ROOT / "assets" / "data" / fname,
+            f_ck_kpa=25_000.0, cobrimento_m=0.04,
+        )
+        cfg_json = json.loads((PROTO_DIR / case / S1 / "config.json")
+                              .read_text(encoding="utf-8"))
+        cfg = BenchmarkConfig(**{**cfg_json,
+                                 "algorithms": ("ego",),
+                                 "n_rep": 1,
+                                 "base_seed": int(row["seed"])})
+        res = run_benchmark(proj, cfg)
+        if abs(res.best_of_value - float(row["best"])) > 1e-9:
+            raise RuntimeError(
+                f"{case}: reproduced best {res.best_of_value} != "
+                f"stored {row['best']} â seeds/config drifted."
+            )
+        designs[case] = [
+            {"rotulo": s.pilar.rotulo, "xg": s.pilar.xg, "yg": s.pilar.yg,
+             "ap": s.pilar.a_p, "bp": s.pilar.b_p,
+             "hx": s.h_x, "hy": s.h_y, "hz": s.h_z}
+            for s in res.best_sapatas
+        ]
+        print(f"  design factível reproduzido: {case} "
+              f"(seed {int(row['seed'])}, V={row['volume_m3']:.3f} m³)")
+    cache.write_text(json.dumps(designs, indent=2, ensure_ascii=False),
+                     encoding="utf-8")
+    return designs
+
+
+def fig_planta_casos(designs: dict) -> None:
+    """Plan-view layout of the best strictly feasible EGO design per case.
+
+    :param designs: Mapping produced by :func:`_best_feasible_designs`
+    :return: None
+    """
+    from matplotlib.patches import Rectangle
+
+    fig, axes = plt.subplots(1, 3, figsize=(6.3, 2.7))
+    for ax, (case, meta) in zip(axes, CASES.items()):
+        for s in designs[case]:
+            ax.add_patch(Rectangle(
+                (s["xg"] - s["hx"] / 2, s["yg"] - s["hy"] / 2),
+                s["hx"], s["hy"],
+                facecolor=ALG_COLOR["ego"] + "22",
+                edgecolor=ALG_COLOR["ego"], linewidth=1.4,
+            ))
+            ax.add_patch(Rectangle(
+                (s["xg"] - s["ap"] / 2, s["yg"] - s["bp"] / 2),
+                s["ap"], s["bp"],
+                facecolor=INK_2, edgecolor=INK, linewidth=0.8,
+            ))
+            ax.annotate(
+                f"{s['rotulo']}\n"
+                f"{s['hx'] * 100:.0f}×{s['hy'] * 100:.0f}×{s['hz'] * 100:.0f}",
+                (s["xg"], s["yg"] - s["hy"] / 2),
+                textcoords="offset points", xytext=(0, -4),
+                ha="center", va="top", fontsize=7, color=INK,
+            )
+        xs = [s["xg"] for s in designs[case]]
+        ys = [s["yg"] for s in designs[case]]
+        half = max(max(s["hx"], s["hy"]) for s in designs[case]) / 2
+        pad = half + 0.9
+        ax.set_xlim(min(xs) - pad, max(xs) + pad)
+        ax.set_ylim(min(ys) - pad - 0.6, max(ys) + pad)
+        ax.set_aspect("equal")
+        ax.set_title(meta["titulo"], color=INK, pad=6)
+        ax.set_xlabel("x [m]")
+        ax.grid(True)
+    axes[0].set_ylabel("y [m]")
+    fig.tight_layout()
+    _save(fig, "fig_planta_casos")
+
+
 # =============================================================================
 # Figures
 # =============================================================================
@@ -439,7 +546,7 @@ def tab_casos() -> None:
             )
     body = "\n        ".join(rows)
     _write_tex("tab_casos.tex", rf"""% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
-\begin{{table}}[H]
+\begin{{table*}}[!t]
     \centering
     \caption{{Casos de estudo congelados: geometria dos pilares, sondagem e envelope dos esforços característicos nas três combinações de carregamento.}}
     \label{{tab:casos}}
@@ -452,7 +559,7 @@ def tab_casos() -> None:
         \bottomrule
     \end{{tabular}}
     \caption*{{\footnotesize Fonte: planilhas oficiais do repositório (\texttt{{assets/data/}}). Momentos em kN\,m.}}
-\end{{table}}
+\end{{table*}}
 """)
 
 
@@ -468,7 +575,7 @@ def tab_protocolo(data: dict) -> None:
     cfg2 = json.loads((PROTO_DIR / "caso3_tres" / S2 / "config.json")
                       .read_text(encoding="utf-8"))
     _write_tex("tab_protocolo.tex", rf"""% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
-\begin{{table}}[H]
+\begin{{table*}}[!t]
     \centering
     \caption{{Protocolo experimental congelado: dois cenários de orçamento sob as mesmas $n_{{\mathrm{{rep}}}} = {cfg['n_rep']}$ repetições semeadas (\textit{{seeds}} ${cfg['base_seed']}$ a ${cfg['base_seed'] + cfg['n_rep'] - 1}$).}}
     \label{{tab:protocolo}}
@@ -489,7 +596,7 @@ def tab_protocolo(data: dict) -> None:
         \bottomrule
     \end{{tabular}}
     \caption*{{\footnotesize Fonte: \texttt{{config.json}} persistido por caso/cenário em \texttt{{experiments/protocolo\_final/}}.}}
-\end{{table}}
+\end{{table*}}
 """)
 
 
@@ -532,7 +639,7 @@ def tab_resultados(data: dict) -> None:
     """
     body1 = _stats_block(data, S1, ALG_ORDER)
     _write_tex("tab_s1.tex", rf"""% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
-\begin{{table}}[H]
+\begin{{table*}}[!t]
     \centering
     \caption{{Cenário S1 (orçamento igual de 150 avaliações reais): estatísticas do melhor $\Theta$ [\si{{\meter\cubed}}] em 30 repetições, factibilidade da solução final (tolerância $g_k \le 10^{{-9}}$), violação máxima média, melhor volume factível $V^{{\mathrm{{feas}}}}_{{\min}}$ [\si{{\meter\cubed}}] e tempo de parede.}}
     \label{{tab:s1}}
@@ -544,11 +651,11 @@ def tab_resultados(data: dict) -> None:
         {body1}
         \bottomrule
     \end{{tabular}}
-\end{{table}}
+\end{{table*}}
 """)
     body2 = _stats_block(data, S2, ["ga", "pso", "gwo", "random"])
     _write_tex("tab_s2.tex", rf"""% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
-\begin{{table}}[H]
+\begin{{table*}}[!t]
     \centering
     \caption{{Cenário S2 (orçamento estendido de 3\,000 avaliações reais para as buscas diretas): estatísticas em 30 repetições, mesmas \textit{{seeds}} do S1.}}
     \label{{tab:s2}}
@@ -560,7 +667,7 @@ def tab_resultados(data: dict) -> None:
         {body2}
         \bottomrule
     \end{{tabular}}
-\end{{table}}
+\end{{table*}}
 """)
 
 
@@ -587,7 +694,7 @@ def tab_pvalues(data: dict) -> None:
     header = blocks[0][0]
     body = ("\n        \\addlinespace[6pt]\n        ").join(b for _, b in blocks)
     _write_tex("tab_pvalues_s1.tex", rf"""% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
-\begin{{table}}[H]
+\begin{{table}}[!t]
     \centering
     \caption{{Matriz triangular de p-valores (Mann--Whitney~$U$ bilateral) sobre o melhor $\Theta$ por repetição no cenário S1; valores em negrito indicam $p < 0{{,}}05$.}}
     \label{{tab:pvalues_s1}}
@@ -667,7 +774,7 @@ def tab_gpr(metrics: pd.DataFrame, preds: pd.DataFrame) -> None:
         )
     body = "\n        ".join(rows)
     _write_tex("tab_gpr_kernels.tex", rf"""% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
-\begin{{table}}[H]
+\begin{{table*}}[!t]
     \centering
     \caption{{Qualidade preditiva do GPR por \textit{{kernel}} (média em 3 réplicas independentes de amostragem/partição; caso de 3 sapatas; 900 amostras LHS; partição 70/30): as oito melhores configurações sob $\alpha = 10^{{1}}$ e o \textit{{kernel}} de produção. RMSE$_{{\mathrm{{feas}}}}$ é o erro restrito aos pontos de teste factíveis — a região onde a função de aquisição decide.}}
     \label{{tab:gpr_kernels}}
@@ -682,7 +789,7 @@ def tab_gpr(metrics: pd.DataFrame, preds: pd.DataFrame) -> None:
         \bottomrule
     \end{{tabular}}
     \caption*{{\footnotesize $^\dagger$\,\textit{{kernel}} adotado em produção no \fundaai{{}} (\texttt{{constroi\_kernel()[-1]}}). RMSE em \si{{\meter\cubed}}.}}
-\end{{table}}
+\end{{table*}}
 """)
 
 
@@ -721,6 +828,7 @@ def main() -> None:
     fig_dist_best_s1(data)
     fig_s1_vs_s2(data)
     fig_violacoes_s1(data)
+    fig_planta_casos(_best_feasible_designs())
 
     metrics = None
     if (GPR_DIR / "metrics.csv").exists():
