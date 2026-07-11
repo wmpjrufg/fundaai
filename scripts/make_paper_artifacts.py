@@ -72,15 +72,16 @@ S1, S2 = "S1_orcamento_igual", "S2_orcamento_estendido"
 # Fixed identity → hue map (validated categorical palette, light mode,
 # white surface; aqua/yellow carry the relief rule → direct labels + tables).
 ALG_COLOR = {
-    "ego":    "#2a78d6",   # slot 1 — blue
-    "ga":     "#1baf7a",   # slot 2 — aqua
-    "pso":    "#eda100",   # slot 3 — yellow
-    "gwo":    "#008300",   # slot 4 — green
-    "random": "#4a3aa7",   # slot 5 — violet
+    "ego":    "#2a78d6",   # blue
+    "cbo":    "#e34948",   # red — 6-slot set validated (worst CVD dE 21.2)
+    "ga":     "#1baf7a",   # aqua
+    "pso":    "#eda100",   # yellow
+    "gwo":    "#008300",   # green
+    "random": "#4a3aa7",   # violet
 }
-ALG_ORDER = ["ego", "ga", "pso", "gwo", "random"]
+ALG_ORDER = ["ego", "cbo", "ga", "pso", "gwo", "random"]
 ALG_LABEL = {
-    "ego": "EGO+GPR", "ga": "GA", "pso": "PSO",
+    "ego": "EGO+GPR", "cbo": "CBO (ECI)", "ga": "GA", "pso": "PSO",
     "gwo": "GWO", "random": "Aleatória",
 }
 PENALTY_COLOR = {10.0: "#2a78d6", 1e6: "#e34948"}   # blue vs red (slot 6)
@@ -163,6 +164,66 @@ def _save(fig, name: str) -> None:
     fig.savefig(FIG_DIR / f"{name}.png", bbox_inches="tight")
     plt.close(fig)
     print(f"  figura: {name}.pdf/.png")
+
+
+def _recompute_pvalues(per_rep: pd.DataFrame, algs: list[str]) -> pd.DataFrame:
+    """Pairwise Mann-Whitney U (two-sided) on per-rep best, for merged data.
+
+    :param per_rep: Merged per-repetition table
+    :param algs: Algorithms present, in display order
+    :return: Square p-value matrix with NaN diagonal
+    """
+    from scipy.stats import mannwhitneyu
+    out = pd.DataFrame(np.nan, index=algs, columns=algs, dtype=float)
+    for a in algs:
+        va = per_rep.loc[per_rep["algorithm"] == a, "best"].to_numpy()
+        for b in algs:
+            if a == b or va.size < 2:
+                continue
+            vb = per_rep.loc[per_rep["algorithm"] == b, "best"].to_numpy()
+            if vb.size < 2:
+                continue
+            try:
+                out.loc[a, b] = float(mannwhitneyu(va, vb,
+                                                   alternative="two-sided")[1])
+            except ValueError:
+                out.loc[a, b] = 1.0
+    return out
+
+
+def _load_s1_merged(case: str) -> dict:
+    """Load the S1 artefacts, merging the CBO run when it exists.
+
+    The CBO front (S1_cbo) is executed by ``run_cbo_benchmark.py`` under
+    the same seeds and budget as S1, so histories and per-rep tables
+    concatenate directly; the p-value matrix is recomputed over the
+    merged per-rep bests.
+
+    :param case: Case folder name
+    :return: Same mapping shape as :func:`_load`
+    """
+    base = _load(case, S1)
+    cbo_dir = PROTO_DIR / case / "S1_cbo"
+    if not (cbo_dir / "per_rep.csv").exists():
+        return base
+    cbo = {
+        "history": pd.read_parquet(cbo_dir / "history.parquet"),
+        "per_rep": pd.read_csv(cbo_dir / "per_rep.csv"),
+        "summary": pd.read_csv(cbo_dir / "summary.csv"),
+    }
+    merged = {
+        "history": pd.concat([base["history"], cbo["history"]],
+                             ignore_index=True),
+        "per_rep": pd.concat([base["per_rep"], cbo["per_rep"]],
+                             ignore_index=True),
+        "summary": pd.concat([base["summary"], cbo["summary"]],
+                             ignore_index=True),
+    }
+    merged["pvalues"] = _recompute_pvalues(
+        merged["per_rep"],
+        [a for a in ALG_ORDER if a in set(merged["per_rep"]["algorithm"])],
+    )
+    return merged
 
 
 def _load(case: str, scenario: str) -> dict:
@@ -386,6 +447,12 @@ def fig_s1_vs_s2(data: dict) -> None:
                    linestyle=(0, (4, 2)), zorder=1)
         ax.text(len(metas) - 0.42, ego_med, "EGO (150)", color=ALG_COLOR["ego"],
                 fontsize=7.5, va="bottom", ha="right")
+        if (pr_s1["algorithm"] == "cbo").any():
+            cbo_med = pr_s1.loc[pr_s1["algorithm"] == "cbo", "best"].median()
+            ax.axhline(cbo_med, color=ALG_COLOR["cbo"], linewidth=1.4,
+                       linestyle=(0, (1, 2)), zorder=1)
+            ax.text(0.02, cbo_med, "CBO (150)", color=ALG_COLOR["cbo"],
+                    fontsize=7.5, va="bottom", ha="left")
         ax.set_xticks(range(len(metas)))
         ax.set_xticklabels([ALG_LABEL[a] for a in metas],
                            rotation=35, ha="right")
@@ -584,11 +651,12 @@ def tab_protocolo(data: dict) -> None:
         \toprule
         Parâmetro & S1 (orçamento igual) & S2 (orçamento estendido) \\
         \midrule
-        Algoritmos & EGO, GA, PSO, GWO, aleatória & GA, PSO, GWO, aleatória \\
+        Algoritmos & EGO, CBO, GA, PSO, GWO, aleatória & GA, PSO, GWO, aleatória \\
         Avaliações reais de $\Theta$ por repetição & {cfg['budget_evals']} (todos) & {cfg2['budget_evals']} \\
         Amostra inicial do EGO (LHS) & $10d$ por caso & --- \\
         População das metaheurísticas & {cfg['meta_pop_size']} & {cfg2['meta_pop_size']} \\
-        AG interno do EI (\textit{{pop\_size}} $\times$ \textit{{epoch}}) & ${cfg['ga_pop_size']} \times {cfg['ga_epoch']}$ & --- \\
+        AG interno da aquisição (\textit{{pop\_size}} $\times$ \textit{{epoch}}) & ${cfg['ga_pop_size']} \times {cfg['ga_epoch']}$ & --- \\
+        GPs do CBO (reinícios: volume / restrições) & $5$ / $5$ & --- \\
         \textit{{Kernel}} do GPR & Matérn $\nu{{=}}2{{,}}5$ (produção) & --- \\
         Limites $h_x, h_y, h_z$ [m] & \multicolumn{{2}}{{c}}{{$[{_fmt_br(cfg['h_min_m'])};\ {_fmt_br(cfg['h_max_m'])}]$}} \\
         Penalidade & \multicolumn{{2}}{{c}}{{exterior linear, $\alpha = 10$, $p = 1$}} \\
@@ -678,20 +746,25 @@ def tab_pvalues(data: dict) -> None:
     :return: None
     """
     blocks = []
+    algs = ALG_ORDER
+    ncol = len(algs)
     for case, meta in CASES.items():
         pv = data[case][S1]["pvalues"]
-        header = " & ".join(ALG_LABEL[a] for a in ALG_ORDER[1:])
-        lines = [rf"\multicolumn{{5}}{{l}}{{\textit{{{meta['titulo']}}}}} \\", r"\midrule"]
-        for a in ALG_ORDER[:-1]:
+        algs = [a for a in ALG_ORDER if a in pv.index]
+        ncol = len(algs)
+        header = " & ".join(ALG_LABEL[a] for a in algs[1:])
+        lines = [rf"\multicolumn{{{ncol}}}{{l}}{{\textit{{{meta['titulo']}}}}} \\", r"\midrule"]
+        for a in algs[:-1]:
             cells = []
-            for b in ALG_ORDER[1:]:
-                if ALG_ORDER.index(b) <= ALG_ORDER.index(a):
+            for b in algs[1:]:
+                if algs.index(b) <= algs.index(a):
                     cells.append("")
                 else:
                     cells.append(_fmt_pvalue(float(pv.loc[a, b])))
             lines.append(f"{ALG_LABEL[a]} & " + " & ".join(cells) + r" \\")
         blocks.append((header, "\n        ".join(lines)))
     header = blocks[0][0]
+    colspec = "l" + "c" * (ncol - 1)
     body = ("\n        \\addlinespace[6pt]\n        ").join(b for _, b in blocks)
     _write_tex("tab_pvalues_s1.tex", rf"""% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
 \begin{{table}}[!t]
@@ -699,7 +772,7 @@ def tab_pvalues(data: dict) -> None:
     \caption{{Matriz triangular de p-valores (Mann--Whitney~$U$ bilateral) sobre o melhor $\Theta$ por repetição no cenário S1; valores em negrito indicam $p < 0{{,}}05$.}}
     \label{{tab:pvalues_s1}}
     \small
-    \begin{{tabular}}{{lcccc}}
+    \begin{{tabular}}{{{colspec}}}
         \toprule
          & {header} \\
         \midrule
@@ -821,7 +894,7 @@ def main() -> None:
     :return: None
     """
     _style()
-    data = {case: {scen: _load(case, scen) for scen in (S1, S2)}
+    data = {case: {S1: _load_s1_merged(case), S2: _load(case, S2)}
             for case in CASES}
     print("Figuras:")
     fig_convergencia_s1(data)
