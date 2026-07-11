@@ -57,7 +57,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from core.engineering import sobreposicao_matrix
+from core.engineering import k_tabela_19_2, rho_minimo_flexao, sobreposicao_matrix
 
 __all__ = ["avaliar_projeto_fast", "avaliar_projeto_legacy"]
 
@@ -93,7 +93,9 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
     * ``g_sob`` — AABB overlap between adjacent footings
       (``core.engineering.sobreposicao_matrix``)
     * ``g_ten`` — soil bearing pressure (σ_max and σ_min vs σ_adm, NBR 6122)
-    * ``g_pun`` — punching shear at the C critical section (NBR 6118 §19.5)
+    * ``g_pun`` — punching shear at the C (column face) **and** C'
+      (2d from the face) critical sections (NBR 6118 §19.5); the group
+      value is the worst of the two contours
     * ``g_geo`` — minimum pillar-footing overhang (0.10 m each side)
 
     For a fully annotated DataFrame (all intermediate columns) use
@@ -168,12 +170,28 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
     # --- punção e tensão por combinação ---------------------------------
     g_tensao_mat = np.empty((n, n_comb), dtype=np.float64)
     g_puncao_mat = np.empty((n, n_comb), dtype=np.float64)
+    g_puncao1_mat = np.empty((n, n_comb), dtype=np.float64)
 
     # constantes de punção (dependem de f_ck e cob_m, não de x)
     d = hz - cob_m                                    # (N,)
     alpha_v2 = 1.0 - (f_ck / 1_000.0) / 250.0        # escalar
     tau_rd2 = 0.27 * alpha_v2 * (f_ck / 1.4)         # escalar [kPa]
     u_rd2 = 2.0 * (ap + bp)                           # (N,) [m]
+
+    # constantes do contorno C' (NBR 6118 §19.5, a 2d da face). Os
+    # coeficientes K e rho_min vêm das mesmas funções escalares da camada
+    # de engenharia para garantir paridade bit a bit com a via legacy.
+    rho = rho_minimo_flexao(f_ck)                     # escalar [-]
+    k_x = np.array([k_tabela_19_2(a / b) for a, b in zip(ap, bp)])
+    k_y = np.array([k_tabela_19_2(b / a) for a, b in zip(ap, bp)])
+    u_rd1 = 2.0 * (ap + bp) + 4.0 * np.pi * d         # (N,) [m]
+    w_px = ap ** 2 / 2.0 + ap * bp + 4.0 * bp * d + 16.0 * d ** 2 \
+        + 2.0 * np.pi * d * ap                        # (N,) [m²]
+    w_py = bp ** 2 / 2.0 + ap * bp + 4.0 * ap * d + 16.0 * d ** 2 \
+        + 2.0 * np.pi * d * bp                        # (N,) [m²]
+    k_e = np.minimum(1.0 + np.sqrt(20.0 / (d * 100.0)), 2.0)
+    tau_rd1 = 0.13 * k_e * (100.0 * rho * (f_ck / 1_000.0)) ** (1.0 / 3.0) \
+        * 1_000.0                                     # (N,) [kPa]
 
     for ci in range(n_comb):
         lbl = f"c{ci + 1}"
@@ -199,8 +217,15 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
         tau_sd2 = (1.4 * fz) / (u_rd2 * d)
         g_puncao_mat[:, ci] = tau_sd2 / tau_rd2 - 1.0
 
-    g_tensao = g_tensao_mat.max(axis=1)  # pior combinação (N,)
-    g_puncao = g_puncao_mat.max(axis=1)  # pior combinação (N,)
+        # vetoriza verificacao_puncao_sapata_c_linha (seção C' a 2d)
+        tau_sd1 = (1.4 * fz) / (u_rd1 * d) \
+            + k_x * (1.4 * mx) / (w_px * d) \
+            + k_y * (1.4 * my) / (w_py * d)
+        g_puncao1_mat[:, ci] = tau_sd1 / tau_rd1 - 1.0
+
+    g_tensao = g_tensao_mat.max(axis=1)   # pior combinação (N,)
+    # pior contorno de punção (C ou C') na pior combinação
+    g_puncao = np.maximum(g_puncao_mat.max(axis=1), g_puncao1_mat.max(axis=1))
 
     # --- geometria (vetoriza checagem_geometria, balanço 0.10 m) --------
     g_geo = np.maximum(

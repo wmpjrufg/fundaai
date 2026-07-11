@@ -36,7 +36,10 @@ from core.engineering import (  # noqa: F401  (re-exported on purpose)
     calcular_sigma_max_min,
     checagem_tensao_max_min,
     checagem_geometria,
+    k_tabela_19_2,
+    rho_minimo_flexao,
     verificacao_puncao_sapata,
+    verificacao_puncao_sapata_c_linha,
     sobreposicao_sapatas,
     sobreposicao_matrix,
 )
@@ -179,6 +182,22 @@ def _avaliar_projeto(x, args, *, penalty=None):
         )
     df['g punção secao C'] = df[[f'g_rd2 - {i}' for i in labels_comb]].max(axis=1)
 
+    # Checagem à punção (seção crítica C', a 2d da face) por combinação.
+    # NBR 6118 item 19.5 com rho = rho_min (Tabela 17.3) e transferência
+    # de momentos pela Tabela 19.2; sem abatimento da reação do solo
+    # (conservador). Ver core.engineering.verificacao_puncao_sapata_c_linha.
+    for i in labels_comb:
+        df[[f'tau_sd1 - {i}', f'tau_rd1 - {i}',
+            f'u_rd1 - {i}', f'g_rd1 - {i}']] = df.apply(
+            lambda row, k=i: verificacao_puncao_sapata_c_linha(
+                row['h_z (m)'], f_ck, row['ap (m)'], row['bp (m)'],
+                row[f'Fz-{k}'], row[f'Mx-{k}'], row[f'My-{k}'], cob=cob_m
+            ),
+            axis=1, result_type='expand',
+        )
+    df['g punção secao Clinha'] = df[[f'g_rd1 - {i}' for i in labels_comb]].max(axis=1)
+    df['g punção'] = df[['g punção secao C', 'g punção secao Clinha']].max(axis=1)
+
     # Checagem das tensões máxima e mínima por combinação
     for i in labels_comb:
         df[[f'tensao max. (kPa) - {i}',
@@ -214,11 +233,12 @@ def _avaliar_projeto(x, args, *, penalty=None):
     )
     df['g geometria'] = df[['g geometria x', 'g geometria y']].max(axis=1)
 
-    # Função pseudo-objetivo: volume + penalização exterior linear
+    # Função pseudo-objetivo: volume + penalização exterior linear.
+    # O grupo de punção usa o pior contorno (max entre C e C').
     df['volume final (m3)'] = (
         df['volume (m3)']
         + df['g sobreposicao'].clip(lower=0) * penalty
-        + df['g punção secao C'].clip(lower=0) * penalty
+        + df['g punção'].clip(lower=0) * penalty
         + df['g tensao'].clip(lower=0) * penalty
         + df['g geometria'].clip(lower=0) * penalty
     )

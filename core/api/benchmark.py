@@ -327,7 +327,7 @@ FEASIBILITY_TOL: float = 1e-9
 
 _CONSTRAINT_COLUMNS: dict[str, str] = {
     "viol_sob": "g sobreposicao",
-    "viol_pun": "g punção secao C",
+    "viol_pun": "g punção",       # worst of the C and C' contours
     "viol_ten": "g tensao",
     "viol_geo": "g geometria",
 }

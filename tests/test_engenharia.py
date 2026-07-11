@@ -28,10 +28,13 @@ from fundacao import (
     calcular_sigma_max_min,
     checagem_geometria,
     checagem_tensao_max_min,
+    k_tabela_19_2,
+    rho_minimo_flexao,
     sobreposicao_matrix,
     sobreposicao_sapatas,
     tensao_adm_solo,
     verificacao_puncao_sapata,
+    verificacao_puncao_sapata_c_linha,
 )
 
 
@@ -568,5 +571,99 @@ class TestEngineeringEdgeCases:
         with pytest.raises(ValueError, match="effective depth"):
             verificacao_puncao_sapata(
                 h_z=0.03, f_ck=25_000.0, a_p=0.30, b_p=0.30,
+                f_zk=500.0, cob=0.04,
+            )
+
+
+# =============================================================================
+# Punção — seção crítica C' (NBR 6118 item 19.5, contorno a 2d da face)
+# =============================================================================
+@pytest.mark.engineering
+class TestPuncaoCLinha:
+    """This class verifies the C' punching check against hand-computed values.
+
+    Referencia da formulacao: NBR 6118:2014 item 19.5 (contorno a 2d,
+    cantos circulares, Tabela 19.2 para transferencia de momento e
+    Tabela 17.3 para rho_min), conforme sistematizado em Santos, Lima
+    Neto e Ferreira (2018), IBRACON Struct. Mater. J. 11(2).
+    """
+
+    def test_rho_minimo_valores_tabelados_e_interpolacao(self):
+        """Tabela 17.3: valores exatos nas classes e interpolacao entre elas."""
+        assert rho_minimo_flexao(25_000.0) == pytest.approx(0.0015)
+        assert rho_minimo_flexao(50_000.0) == pytest.approx(0.00208)
+        assert rho_minimo_flexao(90_000.0) == pytest.approx(0.00256)
+        # interpolacao linear entre C35 (0.164%) e C40 (0.179%)
+        assert rho_minimo_flexao(37_500.0) == pytest.approx(0.0017150)
+        # piso abaixo de C20 (fora da faixa estrutural, documentado)
+        assert rho_minimo_flexao(15_000.0) == pytest.approx(0.0015)
+
+    def test_k_tabela_19_2_valores_e_saturacao(self):
+        """Tabela 19.2: exatos, interpolados e saturados nos limites."""
+        assert k_tabela_19_2(0.5) == pytest.approx(0.45)
+        assert k_tabela_19_2(1.0) == pytest.approx(0.60)
+        assert k_tabela_19_2(1.5) == pytest.approx(0.65)   # interp 1.0-2.0
+        assert k_tabela_19_2(3.0) == pytest.approx(0.80)
+        assert k_tabela_19_2(0.2) == pytest.approx(0.45)   # satura em 0.5
+        assert k_tabela_19_2(10.0) == pytest.approx(0.80)  # satura em 3.0
+
+    def test_valor_de_referencia_calculado_a_mao(self):
+        """Caso de referencia: pilar 0.30x1.50 m, C25, hz=0.60, cob=0.04.
+
+        Calculo independente (d = 0.56 m):
+            u1'    = 2(1.80) + 4*pi*0.56          = 10.63717...
+            W_px   = 0.045 + 0.45 + 3.36 + 5.0176 + 2*pi*0.56*0.30
+            W_py   = 1.125 + 0.45 + 0.672 + 5.0176 + 2*pi*0.56*1.50
+            Kx     = K(0.2 -> 0.5)                = 0.45
+            Ky     = K(5.0 -> 3.0)                = 0.80
+            tau_sd1 = 1.4*900/(u1'*d) + 0.45*1.4*60/(W_px*d)
+                      + 0.80*1.4*10/(W_py*d)
+            k_e     = 1 + sqrt(20/56)             = 1.59761...
+            tau_rd1 = 0.13*k_e*(100*0.0015*25)^(1/3)*1000
+        """
+        import math
+        d = 0.56
+        u1 = 2.0 * (0.30 + 1.50) + 4.0 * math.pi * d
+        w_px = 0.30**2 / 2 + 0.30 * 1.50 + 4 * 1.50 * d + 16 * d**2 \
+            + 2 * math.pi * d * 0.30
+        w_py = 1.50**2 / 2 + 0.30 * 1.50 + 4 * 0.30 * d + 16 * d**2 \
+            + 2 * math.pi * d * 1.50
+        tau_sd_esp = (1.4 * 900.0) / (u1 * d) \
+            + 0.45 * (1.4 * 60.0) / (w_px * d) \
+            + 0.80 * (1.4 * 10.0) / (w_py * d)
+        k_e = 1.0 + math.sqrt(20.0 / 56.0)
+        tau_rd_esp = 0.13 * k_e * (100.0 * 0.0015 * 25.0) ** (1 / 3) * 1000.0
+
+        tau_sd1, tau_rd1, u_rd1, g_rd1 = verificacao_puncao_sapata_c_linha(
+            h_z=0.60, f_ck=25_000.0, a_p=0.30, b_p=1.50,
+            f_zk=900.0, m_xk=-60.0, m_yk=10.0, cob=0.04,
+        )
+        assert u_rd1 == pytest.approx(u1, rel=1e-12)
+        assert tau_sd1 == pytest.approx(tau_sd_esp, rel=1e-12)
+        assert tau_rd1 == pytest.approx(tau_rd_esp, rel=1e-12)
+        assert g_rd1 == pytest.approx(tau_sd_esp / tau_rd_esp - 1.0, rel=1e-12)
+        # o momento entra em modulo: sinal de m_xk nao pode reduzir tau_sd1
+        tau_sd1_pos, *_ = verificacao_puncao_sapata_c_linha(
+            h_z=0.60, f_ck=25_000.0, a_p=0.30, b_p=1.50,
+            f_zk=900.0, m_xk=60.0, m_yk=10.0, cob=0.04,
+        )
+        assert tau_sd1_pos == pytest.approx(tau_sd1, rel=1e-15)
+
+    def test_g_diminui_com_altura(self):
+        """A folga da verificacao C' cresce monotonicamente com h_z."""
+        gs = [
+            verificacao_puncao_sapata_c_linha(
+                h_z=h, f_ck=25_000.0, a_p=0.30, b_p=1.50,
+                f_zk=900.0, m_xk=60.0, m_yk=10.0, cob=0.04,
+            )[3]
+            for h in (0.60, 1.00, 2.00, 3.00)
+        ]
+        assert all(g2 < g1 for g1, g2 in zip(gs, gs[1:]))
+
+    def test_h_z_igual_ao_cobrimento_levanta_erro(self):
+        """Mesma guarda de altura util da secao C."""
+        with pytest.raises(ValueError, match="effective depth"):
+            verificacao_puncao_sapata_c_linha(
+                h_z=0.04, f_ck=25_000.0, a_p=0.30, b_p=0.30,
                 f_zk=500.0, cob=0.04,
             )

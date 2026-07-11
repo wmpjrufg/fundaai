@@ -17,7 +17,12 @@ Resumo em português:
 from .solo import tensao_adm_solo
 from .tensao import calcular_sigma_max_min, checagem_tensao_max_min
 from .geometria import checagem_geometria
-from .puncao import verificacao_puncao_sapata
+from .puncao import (
+    k_tabela_19_2,
+    rho_minimo_flexao,
+    verificacao_puncao_sapata,
+    verificacao_puncao_sapata_c_linha,
+)
 from .packing import sobreposicao_matrix, sobreposicao_sapatas
 
 __all__ = [
@@ -25,7 +30,10 @@ __all__ = [
     "calcular_sigma_max_min",
     "checagem_tensao_max_min",
     "checagem_geometria",
+    "k_tabela_19_2",
+    "rho_minimo_flexao",
     "verificacao_puncao_sapata",
+    "verificacao_puncao_sapata_c_linha",
     "sobreposicao_sapatas",
     "sobreposicao_matrix",
 ]

@@ -30,6 +30,8 @@ from fundacao import _avaliar_projeto
 _PER_ELEMENT_CONSTRAINTS: tuple[str, ...] = (
     "g sobreposicao",
     "g punção secao C",
+    "g punção secao Clinha",
+    "g punção",
     "g tensao",
     "g geometria",
 )
