@@ -379,7 +379,7 @@ def fig_convergencia_s1(data: dict) -> None:
         ax.set_xlabel("Avaliações reais de $\\Theta$")
     axes[0].set_ylabel("Melhor $\\Theta$ até então [m³]")
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=5,
+    fig.legend(handles, labels, loc="upper center", ncol=6,
                bbox_to_anchor=(0.5, 1.13), columnspacing=1.4,
                handlelength=1.6)
     fig.tight_layout()
@@ -767,7 +767,7 @@ def tab_pvalues(data: dict) -> None:
     colspec = "l" + "c" * (ncol - 1)
     body = ("\n        \\addlinespace[6pt]\n        ").join(b for _, b in blocks)
     _write_tex("tab_pvalues_s1.tex", rf"""% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
-\begin{{table}}[!t]
+\begin{{table*}}[!t]
     \centering
     \caption{{Matriz triangular de p-valores (Mann--Whitney~$U$ bilateral) sobre o melhor $\Theta$ por repetição no cenário S1; valores em negrito indicam $p < 0{{,}}05$.}}
     \label{{tab:pvalues_s1}}
@@ -779,7 +779,7 @@ def tab_pvalues(data: dict) -> None:
         {body}
         \bottomrule
     \end{{tabular}}
-\end{{table}}
+\end{{table*}}
 """)
 
 
