@@ -55,8 +55,8 @@ def verificacao_puncao_sapata(
         tau_sd2  = (1.4 * F_zk) / (u_rd2 * d)
         g_rd2    = tau_sd2 / tau_rd2 - 1   (constraint convention)
 
-    The verification at the C' critical section (perimeter at d/2 from
-    the pillar face) is not implemented in the current release.
+    The companion function ``verificacao_puncao_sapata_c_linha`` checks
+    the C' critical section at ``2d`` from the pillar face.
 
     :param h_z: Footing height [m]
     :param f_ck: Characteristic concrete compressive strength [kPa]

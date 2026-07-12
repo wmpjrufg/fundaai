@@ -1,0 +1,33 @@
+% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
+\begin{table*}[!t]
+    \centering
+    \caption{Cenário S1 (orçamento igual de 150 avaliações reais): estatísticas do melhor $\Theta$ [\si{\meter\cubed}] em 30 repetições, factibilidade da solução final (tolerância $g_k \le 10^{-9}$), violação máxima média, melhor volume factível $V^{\mathrm{feas}}_{\min}$ [\si{\meter\cubed}] e tempo de parede.}
+    \label{tab:s1}
+    \small
+    \begin{tabular}{llccccccc}
+        \toprule
+        Caso & Algoritmo & Melhor & Média $\pm$ DP & Mediana & Fact. & $\overline{\max g_k}$ & $V^{\mathrm{feas}}_{\min}$ & Tempo [s] \\
+        \midrule
+        Caso 1 & EGO+GPR & 3,184 & 3,283 $\pm$ 0,067 & 3,285 & 83\% & 0,000 & 3,184 & 72,28 \\
+        Caso 1 & CBO (ECI) & 3,159 & 3,233 $\pm$ 0,047 & 3,228 & 63\% & 0,004 & 3,159 & 115,92 \\
+        Caso 1 & GA & 3,289 & 4,317 $\pm$ 0,934 & 3,973 & 57\% & 0,011 & 3,289 & 0,02 \\
+        Caso 1 & PSO & 3,336 & 3,691 $\pm$ 0,424 & 3,562 & 63\% & 0,015 & 3,363 & 0,02 \\
+        Caso 1 & GWO & 3,156 & 3,287 $\pm$ 0,092 & 3,278 & 63\% & 0,006 & 3,156 & 0,02 \\
+        Caso 1 & Aleatória & 3,542 & 4,450 $\pm$ 0,671 & 4,287 & 47\% & 0,040 & 3,542 & 0,02 \\
+        \midrule
+        Caso 2 & EGO+GPR & 5,290 & 5,909 $\pm$ 0,303 & 6,004 & 83\% & 0,003 & 5,290 & 57,07 \\
+        Caso 2 & CBO (ECI) & 4,959 & 5,357 $\pm$ 0,176 & 5,324 & 37\% & 0,015 & 5,107 & 89,40 \\
+        Caso 2 & GA & 5,681 & 7,865 $\pm$ 1,108 & 7,578 & 53\% & 0,025 & 6,272 & 0,02 \\
+        Caso 2 & PSO & 5,756 & 6,804 $\pm$ 0,961 & 6,517 & 60\% & 0,039 & 5,952 & 0,02 \\
+        Caso 2 & GWO & 5,009 & 5,478 $\pm$ 0,246 & 5,482 & 50\% & 0,014 & 5,090 & 0,02 \\
+        Caso 2 & Aleatória & 6,537 & 9,906 $\pm$ 1,881 & 9,809 & 30\% & 0,150 & 6,537 & 0,02 \\
+        \midrule
+        Caso 3 & EGO+GPR & 2,941 & 3,335 $\pm$ 0,195 & 3,289 & 83\% & 0,003 & 2,941 & 39,51 \\
+        Caso 3 & CBO (ECI) & 2,490 & 2,612 $\pm$ 0,081 & 2,607 & 83\% & 0,000 & 2,490 & 61,30 \\
+        Caso 3 & GA & 3,874 & 5,327 $\pm$ 0,759 & 5,286 & 53\% & 0,031 & 3,874 & 0,02 \\
+        Caso 3 & PSO & 4,181 & 6,200 $\pm$ 1,420 & 6,157 & 43\% & 0,068 & 4,181 & 0,02 \\
+        Caso 3 & GWO & 3,063 & 3,862 $\pm$ 0,509 & 3,837 & 60\% & 0,011 & 3,063 & 0,02 \\
+        Caso 3 & Aleatória & 6,211 & 8,853 $\pm$ 1,254 & 9,108 & 37\% & 0,068 & 6,211 & 0,02 \\
+        \bottomrule
+    \end{tabular}
+\end{table*}

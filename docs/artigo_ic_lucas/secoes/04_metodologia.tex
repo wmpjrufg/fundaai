@@ -1,0 +1,217 @@
+% =============================================================================
+% Seção 4 — Metodologia
+% =============================================================================
+\section{Formulação do problema e arquitetura proposta}
+\label{sec:metodologia}
+
+\subsection{Variáveis de projeto e função objetivo}
+\label{sec:met_variaveis}
+
+Considere um conjunto de $N_{\mathrm{f}}$ sapatas isoladas, cujas posições em planta $(x_{g,i}, y_{g,i})$ são fornecidas pelo projeto estrutural e correspondem aos centróides dos pilares respectivos. Para cada sapata $i = 1, \dots, N_{\mathrm{f}}$, definem-se as variáveis de projeto contínuas
+\begin{equation}
+    \bm{x}_i = (h_{x,i},\, h_{y,i},\, h_{z,i}) \in \mathbb{R}^3,
+    \label{eq:vars_local}
+\end{equation}
+em que $h_{x,i}$ e $h_{y,i}$ são as dimensões em planta da sapata nas direções $x$ e $y$, respectivamente, e $h_{z,i}$ é sua altura. O vetor completo de variáveis de projeto é, portanto,
+\begin{equation}
+    \bm{x} = (\bm{x}_1, \bm{x}_2, \dots, \bm{x}_{N_{\mathrm{f}}}) \in \mathbb{R}^{3 N_{\mathrm{f}}}.
+    \label{eq:vars_global}
+\end{equation}
+
+A função objetivo é o volume total de concreto:
+\begin{equation}
+    V(\bm{x}) = \sum_{i=1}^{N_{\mathrm{f}}} h_{x,i} \cdot h_{y,i} \cdot h_{z,i}.
+    \label{eq:volume}
+\end{equation}
+
+Os limites laterais $h_{\min} \le h_{x,i}, h_{y,i}, h_{z,i} \le h_{\max}$ refletem restrições construtivas usuais, sendo configuráveis pelo usuário na ferramenta \fundaai{}.
+
+\subsection{Restrições de projeto e verificações parciais}
+\label{sec:met_restricoes}
+
+As restrições adotadas são organizadas em quatro grupos: tensão admissível do solo, geometria mínima, punção e não sobreposição em planta. A formulação atual combina critérios inspirados na NBR~6118 \citepabnt{abnt6118} e na NBR~6122 \citepabnt{abnt6122}, correlações empíricas usuais e simplificações de projeto adotadas nesta etapa do software. Por esse motivo, os resultados devem ser interpretados como pré-dimensionamento geométrico experimental, não como projeto executivo completo. Todas as restrições são expressas na forma $g_k(\bm{x}) \le 0$, com $k = 1, \dots, J$, de modo a se prestarem ao tratamento por penalização (Seção~\ref{sec:met_penalizacao}).
+
+\paragraph{Tensão admissível do solo.}
+Adota-se, nesta versão, uma correlação empírica preliminar em que a tensão admissível $\sigma_{\mathrm{adm}}$ é estimada a partir do índice $N_{\mathrm{spt}}$ obtido em sondagem do tipo SPT (\textit{Standard Penetration Test}) e do tipo de solo:
+\begin{equation}
+    \sigma_{\mathrm{adm}} = \begin{cases}
+        \dfrac{N_{\mathrm{spt}}}{30} \cdot 10^3 & \text{(pedregulho)},\\[4pt]
+        \dfrac{N_{\mathrm{spt}}}{40} \cdot 10^3 & \text{(areia)},\\[4pt]
+        \dfrac{N_{\mathrm{spt}}}{50} \cdot 10^3 & \text{(silte ou argila)},
+    \end{cases}
+    \label{eq:sigma_adm}
+\end{equation}
+expressa em $\si{\kilo\pascal}$. Trata-se de uma hipótese empírica de pré-dimensionamento, usada aqui de forma determinística. Ela não substitui a definição da tensão admissível por investigação geotécnica completa, nem é apresentada como prescrição direta da NBR~6122.
+
+Para uma sapata sujeita à carga axial característica $F_{zk}$ e às componentes de momento $M_{xk}$ e $M_{yk}$, as tensões máxima e mínima em sua base são calculadas a partir da formulação de flexão composta, conforme apresentada por \citeonline{wang2008economic} e implementada de forma análoga em \citeonline{waheed2022practical}. Na convenção de entrada do \fundaai{}, $M_{xk}$ é a componente que produz excentricidade na direção $x$ ($M_{xk}=F_{zk}e_x$) e $M_{yk}$ é a componente que produz excentricidade na direção $y$ ($M_{yk}=F_{zk}e_y$). Portanto, quando os esforços são obtidos de programas que reportam momentos em torno dos eixos globais, as componentes devem ser convertidas antes da importação. Definindo $A=h_xh_y$ e adotando $\gamma_c=\SI{25}{\kilo\newton\per\meter\cubed}$ para o peso específico do concreto armado, o peso próprio é calculado explicitamente como função do volume:
+\begin{equation}
+    W_c(\bm{x}) = \gamma_c \, h_x h_y h_z.
+    \label{eq:peso_proprio}
+\end{equation}
+\begin{align}
+    \sigma_{\max} &=
+        \dfrac{F_{zk}+W_c}{A}
+        + \dfrac{6 |M_{xk}|}{A h_x}
+        + \dfrac{6 |M_{yk}|}{A h_y},
+    \label{eq:sigma_max}\\
+    \sigma_{\min} &=
+        \dfrac{F_{zk}+W_c}{A}
+        - \dfrac{6 |M_{xk}|}{A h_x}
+        - \dfrac{6 |M_{yk}|}{A h_y}.
+    \label{eq:sigma_min}
+\end{align}
+O peso próprio é centrado, portanto contribui apenas para a parcela axial. As componentes de momento não são majoradas por esse acréscimo. Como a comparação é feita com tensão admissível do solo, as tensões das Equações~\eqref{eq:sigma_max}--\eqref{eq:sigma_min} são comparadas diretamente com $\sigma_{\mathrm{adm}}$, sem os coeficientes legados de $1{,}05$ e $1{,}30$ anteriormente usados na implementação. As restrições associadas são
+\begin{equation}
+    \begin{gathered}
+    g_{\sigma}^{\max}(\bm{x}) = \dfrac{\sigma_{\max}}{\sigma_{\mathrm{adm}}} - 1,
+    \\[4pt]
+    g_{\sigma}^{\min}(\bm{x}) =
+    \begin{cases}
+        \dfrac{\sigma_{\min}}{\sigma_{\mathrm{adm}}} - 1, & \sigma_{\min} \ge 0,\\[4pt]
+        -\dfrac{\sigma_{\min}}{\sigma_{\mathrm{adm}}}, & \sigma_{\min} < 0,
+    \end{cases}
+    \end{gathered}
+    \label{eq:g_tensao}
+\end{equation}
+em que o segundo ramo expressa a inadmissibilidade de tração na interface solo-sapata.
+
+\paragraph{Restrição geométrica.}
+Adota-se um balanço mínimo $\delta$ entre a face do pilar e a borda da sapata, em ambas as direções principais:
+\begin{equation}
+    g_{\mathrm{geo},x}(\bm{x}) = 1 + \dfrac{2\delta}{a_p} - \dfrac{h_x}{a_p}, \qquad
+    g_{\mathrm{geo},y}(\bm{x}) = 1 + \dfrac{2\delta}{b_p} - \dfrac{h_y}{b_p},
+    \label{eq:g_geometria}
+\end{equation}
+em que $a_p$ e $b_p$ são as dimensões do pilar e $\delta$ é a folga mínima admitida (default: $\SI{0,10}{\meter}$).
+
+\paragraph{Verificação à punção (contornos críticos $C$ e $C'$).}
+A punção é verificada nos dois contornos críticos prescritos pela NBR~6118 (item~19.5) \citepabnt{abnt6118}, seguindo as mesmas recomendações de ligação laje--pilar que a norma estende a sapatas, conforme sistematizado por \citeonline{santos2018punching}. Sejam $f_{ck}$ a resistência característica do concreto, $\mathrm{cob}$ o cobrimento e $d = h_z - \mathrm{cob}$ a altura útil.
+
+No \textbf{contorno $C$} (face do pilar), verifica-se a compressão diagonal do concreto, com $f_{cd} = f_{ck}/1{,}4$ e $\alpha_{v2} = 1 - f_{ck}/250$ ($f_{ck}$ em $\si{\mega\pascal}$):
+\begin{equation}
+    \tau_{Rd2} = 0{,}27 \, \alpha_{v2} \, f_{cd}, \qquad
+    \tau_{Sd2} = \dfrac{1{,}4 \, F_{zk}}{2(a_p + b_p) \, d},
+    \label{eq:puncao}
+\end{equation}
+com restrição $g_{\mathrm{pun},C} = \tau_{Sd2}/\tau_{Rd2} - 1$.
+
+No \textbf{contorno $C'$} (afastado $2d$ da face, com cantos circulares), verifica-se a punção propriamente dita, sem armadura transversal. O perímetro de controle e os módulos de resistência plástica do contorno são
+\begin{equation}
+    u_1' = 2(a_p + b_p) + 4\pi d,
+    \label{eq:u_c_linha}
+\end{equation}
+\begin{equation}
+    W_{p,x} = \dfrac{a_p^2}{2} + a_p b_p + 4 b_p d + 16 d^2 + 2\pi d\, a_p,
+    \label{eq:wp}
+\end{equation}
+com $W_{p,y}$ obtido por permutação de $a_p$ e $b_p$. A tensão solicitante inclui a transferência de momentos pelos coeficientes $K$ da Tabela~19.2 da norma (função da razão entre as dimensões do pilar, interpolada linearmente e saturada em $[0{,}5;\,3{,}0]$):
+\begin{equation}
+    \begin{split}
+    \tau_{Sd1} ={} & \dfrac{1{,}4\,F_{zk}}{u_1'\, d}
+    + K_x \dfrac{1{,}4\,|M_{xk}|}{W_{p,x}\, d} \\
+    & + K_y \dfrac{1{,}4\,|M_{yk}|}{W_{p,y}\, d},
+    \end{split}
+    \label{eq:tau_sd1}
+\end{equation}
+e a tensão resistente, para $d$ em $\si{\centi\meter}$ e $f_{ck}$ em $\si{\mega\pascal}$, é
+\begin{equation}
+    \tau_{Rd1} = 0{,}13 \left(1 + \sqrt{\dfrac{20}{d}}\,\right)
+    \left(100\,\rho\, f_{ck}\right)^{1/3},
+    \label{eq:tau_rd1}
+\end{equation}
+com restrição $g_{\mathrm{pun},C'} = \tau_{Sd1}/\tau_{Rd1} - 1$. O grupo de punção da formulação penalizada usa o pior contorno, $g_{\mathrm{pun}} = \max(g_{\mathrm{pun},C},\, g_{\mathrm{pun},C'})$.
+
+Duas hipóteses de modelagem, ambas conservadoras, são adotadas e declaradas: (i) como a ferramenta não dimensiona a armadura de flexão, a taxa $\rho$ é tomada como a taxa mínima da Tabela~17.3 da NBR~6118 para o $f_{ck}$ adotado ($\rho_{\min} = 0{,}15\,\%$ para C25) — subestimar $\rho$ subestima $\tau_{Rd1}$; e (ii) a reação do solo no interior do contorno de controle não é abatida da força solicitante — o abatimento é uma permissão do Eurocode~2 não prevista nas prescrições da NBR, e omiti-lo é a favor da segurança \citepabnt{santos2018punching}. Registra-se, ainda, que \citeonline{santos2018punching} mostram, sobre 216 ensaios, que a abordagem da NBR~6118 para sapatas tende ao conservadorismo em relação aos resultados experimentais.
+
+\paragraph{Restrição de não sobreposição.}
+A condição de não sobreposição entre sapatas vizinhas é incluída a título de salvaguarda na formulação atual, na qual as posições $(x_g, y_g)$ são fixas. Modelando-se cada sapata como um retângulo alinhado aos eixos, a área de interseção entre duas sapatas $i$ e $j$ é $A_{\mathrm{ov}}^{ij} = \delta_x^{ij}\,\delta_y^{ij}$. As interseções por eixo são calculadas em duas etapas:
+\begin{equation}
+    \begin{aligned}
+    \Delta_x^{ij} &=
+        \min(x_{i,\max}, x_{j,\max})
+        - \max(x_{i,\min}, x_{j,\min}), \\
+    \Delta_y^{ij} &=
+        \min(y_{i,\max}, y_{j,\max})
+        - \max(y_{i,\min}, y_{j,\min}), \\
+    \delta_x^{ij} &= \max(0, \Delta_x^{ij}), \qquad
+    \delta_y^{ij} = \max(0, \Delta_y^{ij}).
+    \end{aligned}
+    \label{eq:overlap}
+\end{equation}
+A restrição correspondente, normalizada pela área da própria sapata, é
+\begin{equation}
+    g_{\mathrm{ov},i}(\bm{x}) = \dfrac{1}{h_{x,i} h_{y,i}} \sum_{j \neq i} A_{\mathrm{ov}}^{ij}.
+    \label{eq:g_overlap}
+\end{equation}
+A discussão crítica desta restrição -- em particular, a possibilidade de dupla contagem entre os pares $(i,j)$ e $(j,i)$, e o tratamento desta restrição como \textit{soft} ou \textit{hard} -- é apresentada na Seção~\ref{sec:discussao} e remetida à frente futura de empacotamento (Seção~\ref{sec:conclusoes}).
+
+\subsection{Função pseudo-objetivo e penalização}
+\label{sec:met_penalizacao}
+
+Adotando-se uma estratégia de penalização exterior \citepabnt{shahriari2016review}, as restrições são incorporadas à função objetivo por meio de um termo aditivo
+\begin{equation}
+    P(\bm{x}) = \alpha \sum_{k=1}^{J} \max\bigl(0,\, g_k(\bm{x})\bigr)^p,
+    \label{eq:penalizacao}
+\end{equation}
+em que $\alpha > 0$ é o fator de penalidade e $p \in \{1, 2\}$ define o tipo de penalização (linear ou quadrática). Nesta pesquisa adota-se a instância $\alpha = 10$ e $p = 1$ (penalização exterior linear) como configuração de referência da ferramenta. A função pseudo-objetivo a ser minimizada é então
+\begin{equation}
+    \Theta(\bm{x}) = V(\bm{x}) + P(\bm{x}).
+    \label{eq:pseudo_objetivo}
+\end{equation}
+A escolha de $\alpha$ exerce influência direta sobre a paisagem de $\Theta$ e, por consequência, sobre o ajuste do modelo substituto; suas consequências — tanto sobre a qualidade preditiva do GPR quanto sobre a factibilidade estrita das soluções finais — são quantificadas na Seção~\ref{sec:resultados}. Cabe registrar que a avaliação de $\Theta$ tem baixo custo computacional na implementação vetorizada atual; o uso da arquitetura assistida por modelo substituto nesta etapa é uma decisão metodológica, avaliada empiricamente sob dois regimes de orçamento na Seção~\ref{sec:res_s1} e discutida na Seção~\ref{sec:discussao}.
+
+\subsection{Arquitetura híbrida EGO--GPR--AG}
+\label{sec:met_arquitetura}
+
+A arquitetura proposta integra os elementos descritos na Seção~\ref{sec:fundamentacao} e segue o fluxo operacional descrito a seguir. Nesta versão, o uso de EGO--GPR--AG deve ser entendido como uma arquitetura experimental para estudar penalização, qualidade do modelo substituto e integração futura com problemas de posicionamento e interação entre fundações, e não como a única estratégia necessária para resolver a formulação algébrica atual.
+
+\begin{enumerate}
+    \item \textbf{Geração da amostra inicial.} Um conjunto de pontos do espaço de busca é gerado por amostragem do tipo \textit{Latin Hypercube Sampling} (LHS), de modo a obter cobertura uniforme do domínio das variáveis de projeto.
+    \item \textbf{Avaliação inicial da função pseudo-objetivo.} Cada ponto da amostra inicial é avaliado por $\Theta$ (Equação~\eqref{eq:pseudo_objetivo}), envolvendo o cálculo das restrições de projeto implementadas para todas as combinações de carregamento.
+    \item \textbf{Ajuste do GPR.} A partir do conjunto de pares $\{(\bm{x}^{(i)}, \Theta^{(i)})\}$, ajusta-se um Processo Gaussiano com normalização interna dos dados ($\bm{x}$ por \textit{StandardScaler}; $\Theta$ por \texttt{normalize\_y=True}) e otimização da verossimilhança marginal com múltiplos reinícios.
+    \item \textbf{Maximização de EI por AG.} A função de aquisição $\mathrm{EI}(\bm{x})$ é avaliada exclusivamente sobre o GPR, e seu máximo é buscado por um Algoritmo Genético cujos parâmetros explicitamente definidos na implementação são sintetizados na Tabela~\ref{tab:ag_params}.
+    \item \textbf{Avaliação real e atualização.} O ponto $\bm{x}^{(n+1)}$ obtido na etapa anterior é avaliado por $\Theta$ e adicionado à base de treinamento. As etapas (3)--(5) são repetidas até atingir o orçamento de iterações.
+    \item \textbf{Repetições e seleção da melhor solução.} Na versão final do protocolo experimental, o processo deve ser repetido $n_{\mathrm{rep}}$ vezes com sementes distintas; a melhor solução final é a de menor $\Theta$ encontrado entre as execuções válidas.
+\end{enumerate}
+
+\begin{table}[!t]
+    \centering
+    \caption{Parâmetros do Algoritmo Genético utilizado como otimizador interno da função de aquisição.}
+    \label{tab:ag_params}
+    \small
+    \begin{tabular}{p{0.32\columnwidth}p{0.21\columnwidth}p{0.27\columnwidth}}
+        \toprule
+        Parâmetro & Valor & Origem \\
+        \midrule
+        Tamanho da população (\textit{pop\_size}) & 50 & implementação e protocolo experimental \\
+        Número de gerações (\textit{epoch}) & 30 & implementação e protocolo experimental \\
+        Demais operadores e hiperparâmetros & padrão da classe \texttt{BaseGA} (\textit{mealpy} 3.0.3) & registrados nos metadados persistidos \\
+        \bottomrule
+    \end{tabular}
+    \caption*{\footnotesize Fonte: elaborado pelo autor a partir da implementação da ferramenta \fundaai{}. O AG interno opera exclusivamente sobre o modelo substituto: suas avaliações não consomem o orçamento de avaliações reais de $\Theta$.}
+\end{table}
+
+\subsection{Tratamento explícito de restrições: aquisição com probabilidade de factibilidade (CBO)}
+\label{sec:met_cbo}
+
+Os resultados da Seção~\ref{sec:res_penalidade} quantificam duas fragilidades estruturais da penalização exterior sob a ótica do modelo substituto: o GPR precisa reproduzir a variação artificial abrupta imposta pela penalidade — o que degrada seu erro exatamente na região factível — e, com fator finito, o ótimo penalizado admite violações residuais. Em projeto estrutural, a distinção entre objetivos de baixo custo e restrições potencialmente custosas já foi explorada por \citeonline{mathern2021multiobjective} em otimização bayesiana com restrições, o que reforça a pertinência de separar volume e verificações em modelos probabilísticos distintos quando a formulação evoluir para verificações mais custosas. A resposta metodológica investigada nesta pesquisa é a \textit{Constrained Bayesian Optimization} (CBO) na formulação de \citeonline{gardner2014bayesian}: o volume bruto $V(\bm{x})$ e cada grupo agregado de restrição $g_k(\bm{x})$ recebem processos gaussianos \textit{independentes} — nenhum alvo de regressão carrega o termo de penalização —, e o candidato seguinte maximiza a aquisição com restrições
+\begin{equation}
+    \mathrm{ECI}(\bm{x}) = \mathrm{EI}\bigl(\bm{x} \mid V_{\min}^{\mathrm{feas}}\bigr)
+    \prod_{k} P\bigl(g_k(\bm{x}) \le 0\bigr),
+    \label{eq:eci}
+\end{equation}
+em que a EI da Equação~\eqref{eq:ei} é computada sobre o GP do volume, condicionada ao melhor valor \textit{estritamente factível} observado, e cada probabilidade de factibilidade decorre da posteriori gaussiana do respectivo grupo:
+\begin{equation}
+    P\bigl(g_k(\bm{x}) \le 0\bigr) = \Phi\!\left(-\,\dfrac{\mu_k(\bm{x})}{\sigma_k(\bm{x})}\right).
+    \label{eq:pof}
+\end{equation}
+Enquanto nenhum ponto factível foi observado, a aquisição reduz-se ao produto das probabilidades de factibilidade \citepabnt{gardner2014bayesian}, direcionando a busca primeiro à região viável. Três decisões de implementação completam a arquitetura: (i) as restrições são agregadas por grupo como o pior valor sobre elementos e combinações, mantendo quatro modelos substitutos independentemente do número de sapatas; (ii) grupos com variância observada nula (caso da sobreposição nos casos congelados) são tratados como determinísticos, com probabilidade de factibilidade exatamente 0 ou 1; e (iii) todos os demais parâmetros — amostra inicial LHS, \textit{kernel} de produção, AG interno da aquisição e orçamento de avaliações reais — são idênticos aos do EGO penalizado, de modo que a comparação isole um único fator: o tratamento das restrições. Variantes mais sofisticadas da mesma família, como o SCBO com regiões de confiança para dimensionalidades maiores \citepabnt{eriksson2021scbo}, permanecem como extensão para a frente de empacotamento.
+
+\subsection{Métricas de avaliação e protocolo comparativo}
+\label{sec:met_metricas}
+
+Para a avaliação do desempenho preditivo do modelo substituto, utilizam-se o coeficiente de determinação $R^2$, o erro médio absoluto (MAE) e a raiz do erro quadrático médio (RMSE), calculados sobre conjuntos de teste obtidos por particionamento aleatório semeado do conjunto amostral, complementados pelo RMSE restrito à \textit{região factível} — subconjunto de teste em que $g_k \le 0$ para toda restrição —, que mede o erro exatamente onde a função de aquisição discrimina candidatos.
+
+Para a avaliação da qualidade da otimização, cada algoritmo é julgado pelo melhor valor de $\Theta$ por repetição (melhor, média $\pm$ desvio-padrão e mediana em 30 repetições com sementes pareadas), pela factibilidade estrita da solução final ($g_k \le 10^{-9}$ para toda restrição, aferida por reavaliação analítica independente), pela violação máxima residual $\max_k g_k$, pelo melhor volume estritamente factível e pelo tempo de parede. A comparação estatística entre algoritmos usa o teste pareado de Wilcoxon bilateral sobre o melhor valor por repetição, com correção de Holm para múltiplas comparações dentro de cada matriz. Quatro estratégias de referência são confrontadas com a arquitetura proposta sob o mesmo orçamento de avaliações reais: Algoritmo Genético, PSO e GWO (implementações da biblioteca \textit{mealpy}) e busca aleatória uniforme — esta última como piso de referência não assistido, aproximação computacional controlada de tentativa e erro. O protocolo completo (dois cenários de orçamento, casos congelados e parâmetros) é apresentado na Seção~\ref{sec:res_casos}.
+
+Além da comparação pareada, executa-se uma auditoria de quase separabilidade por sapata. Como as posições dos pilares são fixas e a sobreposição é inativa nos três casos congelados, cada subproblema tridimensional é otimizado isoladamente por Differential Evolution, algoritmo já usado como referência em estudos de otimização de sapatas \citepabnt{nigdeli2018metaheuristic}, com uma função auxiliar de busca que prioriza factibilidade estrita. As soluções locais são então concatenadas e reavaliadas uma única vez pelo mesmo avaliador global de $\Theta$, incluindo novamente a restrição de sobreposição. Por empregar orçamento diagnóstico distinto e não pareado, essa linha de base não entra nas matrizes de Wilcoxon; seu papel é medir a proximidade das soluções globais ao ótimo das instâncias simplificadas e verificar se os ganhos observados podem estar sendo influenciados pela decomponibilidade estrutural do problema atual.

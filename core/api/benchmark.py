@@ -224,9 +224,10 @@ class BenchmarkResult:
                     ``auc_mean``, ``auc_std``, ``conv_eval_mean``,
                     ``conv_eval_std``, ``wall_time_mean_s``,
                     ``wall_time_std_s``
-    :param pvalues: Pairwise Mann–Whitney U two-sided p-values on the
-                    per-rep best (one row + column per algorithm).
-                    Diagonal is ``NaN``
+    :param pvalues: Pairwise Wilcoxon signed-rank two-sided p-values on
+                    the per-rep best, paired by repetition and adjusted
+                    with Holm's step-down correction within each matrix
+                    (one row + column per algorithm). Diagonal is ``NaN``
     :param config: Echo of the :class:`BenchmarkConfig` that produced
                    this result
     :param per_rep: One row per (algorithm, repetition) with the final
@@ -920,34 +921,60 @@ def _build_summary(
     return pd.DataFrame(rows)
 
 
-def _build_pvalues(per_rep_df: pd.DataFrame, algorithms: Sequence[str]) -> pd.DataFrame:
-    """Pairwise Mann–Whitney U two-sided p-values on per-rep best.
+def _holm_adjust(p_values: Sequence[float]) -> list[float]:
+    """Return Holm-adjusted p-values, preserving the input order."""
+    m = len(p_values)
+    adjusted = [float("nan")] * m
+    finite = [(idx, float(p)) for idx, p in enumerate(p_values) if np.isfinite(p)]
+    running = 0.0
+    for rank, (idx, p) in enumerate(sorted(finite, key=lambda item: item[1]), start=1):
+        running = max(running, (len(finite) - rank + 1) * p)
+        adjusted[idx] = min(1.0, running)
+    return adjusted
 
-    Uses ``scipy.stats.mannwhitneyu`` so the test is non-parametric and
-    handles tied ranks. Diagonal is ``NaN`` (an algorithm is not
-    compared against itself). When fewer than two reps are available
-    for a pair, the corresponding cell is ``NaN``.
+
+def _build_pvalues(per_rep_df: pd.DataFrame, algorithms: Sequence[str]) -> pd.DataFrame:
+    """Pairwise Wilcoxon-Holm p-values on per-rep best.
+
+    The benchmark uses the same seeds across algorithms, so observations
+    are paired by ``rep``. For each algorithm pair, the two-sided
+    Wilcoxon signed-rank test is applied to the paired best values; the
+    resulting raw p-values are then corrected with Holm's step-down
+    procedure within the returned matrix. Diagonal is ``NaN``.
     """
-    from scipy.stats import mannwhitneyu
+    from scipy.stats import wilcoxon
 
     algs = list(algorithms)
-    out = pd.DataFrame(
-        np.nan, index=algs, columns=algs, dtype=float,
-    )
-    for a in algs:
-        a_vals = per_rep_df.loc[per_rep_df["algorithm"] == a, "best"].to_numpy()
-        for b in algs:
-            if a == b:
+    out = pd.DataFrame(np.nan, index=algs, columns=algs, dtype=float)
+    pair_keys: list[tuple[str, str]] = []
+    raw_p: list[float] = []
+
+    for i, a in enumerate(algs[:-1]):
+        a_vals = per_rep_df.loc[
+            per_rep_df["algorithm"] == a, ["rep", "best"]
+        ].rename(columns={"best": "best_a"})
+        for b in algs[i + 1:]:
+            b_vals = per_rep_df.loc[
+                per_rep_df["algorithm"] == b, ["rep", "best"]
+            ].rename(columns={"best": "best_b"})
+            paired = a_vals.merge(b_vals, on="rep", how="inner").sort_values("rep")
+            pair_keys.append((a, b))
+            if paired.shape[0] < 2:
+                raw_p.append(float("nan"))
                 continue
-            b_vals = per_rep_df.loc[per_rep_df["algorithm"] == b, "best"].to_numpy()
-            if a_vals.size < 2 or b_vals.size < 2:
+            va = paired["best_a"].to_numpy(dtype=float)
+            vb = paired["best_b"].to_numpy(dtype=float)
+            if np.allclose(va, vb, rtol=0.0, atol=1e-15):
+                raw_p.append(1.0)
                 continue
             try:
-                _, p = mannwhitneyu(a_vals, b_vals, alternative="two-sided")
-                out.loc[a, b] = float(p)
+                raw_p.append(float(wilcoxon(va, vb, alternative="two-sided").pvalue))
             except ValueError:
-                # Identical samples — p is undefined but effectively 1.
-                out.loc[a, b] = 1.0
+                raw_p.append(1.0)
+
+    for (a, b), p in zip(pair_keys, _holm_adjust(raw_p)):
+        out.loc[a, b] = p
+        out.loc[b, a] = p
     return out
 
 

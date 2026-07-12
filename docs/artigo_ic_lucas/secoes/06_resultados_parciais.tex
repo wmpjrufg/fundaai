@@ -1,0 +1,116 @@
+% =============================================================================
+% Seção 6 — Resultados
+% =============================================================================
+\section{Resultados}
+\label{sec:resultados}
+
+Esta seção reporta os resultados do protocolo experimental final da pesquisa, executado com sementes registradas, orçamento de avaliações equalizado e persistência integral dos artefatos (configurações, históricos por avaliação, estatísticas e metadados de ambiente). Os experimentos cobrem quatro frentes: (i) o efeito do fator de penalidade sobre a qualidade preditiva do modelo substituto; (ii) o efeito da escolha do \textit{kernel} do GPR; (iii) a comparação estatística entre a arquitetura EGO--GPR--AG e quatro estratégias de referência (AG, PSO, GWO e busca aleatória uniforme) sob dois cenários de orçamento; e (iv) uma auditoria de quase separabilidade por decomposição de sapatas. Todas as figuras e tabelas desta seção são regeneradas por \textit{scripts} determinísticos a partir dos artefatos persistidos.
+
+\subsection{Casos de estudo e protocolo experimental}
+\label{sec:res_casos}
+
+Os experimentos foram conduzidos sobre três casos de estudo congelados, com $N_{\mathrm{f}} \in \{1, 2, 3\}$ elementos de fundação (dimensionalidades 3, 6 e 9), extraídos das planilhas oficiais do repositório e resumidos na Tabela~\ref{tab:casos}. As configurações comuns foram: $f_{ck} = \SI{25}{\mega\pascal}$, cobrimento de \SI{4}{\centi\meter}, $h_{\min} = \SI{0,60}{\meter}$, $h_{\max} = \SI{3,00}{\meter}$ e três combinações de carregamento por elemento. Registra-se, por transparência, que nas configurações geométricas destes três casos as distâncias entre pilares (mínima de \SI{3,20}{\meter}) excedem o alcance máximo conjunto de duas sapatas vizinhas ($2 \times h_{\max}/2 = \SI{3,00}{\meter}$); a restrição de não sobreposição $g_{\mathrm{ov}}$ permanece, portanto, inativa por construção nestes casos, atuando apenas como salvaguarda da formulação. O papel dessa restrição torna-se central na frente futura de empacotamento (Seção~\ref{sec:conclusoes}).
+
+\input{tabelas/tab_casos}
+
+O protocolo comparativo, sintetizado na Tabela~\ref{tab:protocolo}, adota dois cenários complementares. No cenário \textbf{S1} (orçamento igual), todos os algoritmos dispõem de exatamente 150 avaliações reais da função pseudo-objetivo $\Theta$ por repetição — a pergunta respondida é de \textit{eficiência amostral}. No cenário \textbf{S2} (orçamento estendido), as buscas diretas recebem $3\,000$ avaliações reais por repetição — a pergunta passa a ser de \textit{tempo de parede}, relevante porque a avaliação vetorizada de $\Theta$ custa cerca de \SI{0,1}{\milli\second} na implementação atual. Cada célula (algoritmo, caso, cenário) foi repetida 30 vezes com sementes independentes e reprodutíveis ($42$ a $71$), compartilhadas entre algoritmos para pareamento justo. A amostra inicial do EGO segue a prática consolidada de $10d$ pontos por hipercubo latino \citepabnt{jones1998efficient}, e o AG interno que maximiza a aquisição opera exclusivamente sobre os modelos substitutos. O algoritmo CBO (Seção~\ref{sec:met_cbo}) foi executado em rodada própria sob exatamente as mesmas sementes, orçamento e parâmetros do cenário S1 — de modo que seu confronto com o EGO isola um único fator, o tratamento das restrições — e integra as tabelas e figuras deste cenário. A factibilidade final é aferida com tolerância estrita ($g_k \le 10^{-9}$ para toda restrição), e a solução final de cada repetição é reavaliada pela implementação analítica de referência para extração das violações por grupo de restrição.
+
+\input{tabelas/tab_protocolo}
+
+A Figura~\ref{fig:planta} apresenta, em planta, o arranjo da melhor solução estritamente factível encontrada pelo EGO em cada caso, com as dimensões otimizadas anotadas. Os arranjos são fisicamente consistentes: as alturas convergem para a vizinhança do limite inferior (a punção nunca governa nos casos estudados), as áreas em planta são ditadas pela tensão admissível e, no caso 1, a direção $x$ respeita o mínimo geométrico imposto pelo pilar alongado ($h_x \ge a_p + 2\delta = \SI{2,30}{\meter}$).
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=\textwidth]{fig_planta_casos.pdf}
+    \caption{Arranjo em planta da melhor solução estritamente factível do EGO por caso (retângulos claros: sapatas otimizadas; retângulos escuros: pilares; dimensões $h_x \times h_y \times h_z$ em centímetros). Reproduzido deterministicamente a partir da semente da repetição vencedora.}
+    \label{fig:planta}
+\end{figure*}
+
+\subsection{Efeito do fator de penalidade no modelo substituto}
+\label{sec:res_penalidade}
+
+Para isolar o efeito do fator $\alpha$ da Equação~\eqref{eq:penalizacao} sobre a qualidade do modelo substituto, a mesma amostra de 900 pontos LHS do caso de três sapatas foi rotulada duas vezes — com $\alpha = 10^{1}$ (padrão do projeto) e $\alpha = 10^{6}$ — e particionada em treino/teste (70\%/30\%) em três réplicas independentes de amostragem e partição. Os 21 \textit{kernels} do conjunto experimental foram ajustados sob o mesmo \textit{pipeline} de produção (\textit{StandardScaler} seguido de GPR com \texttt{normalize\_y}, \textit{jitter} $10^{-1}$ e cinco reinícios do otimizador de verossimilhança).
+
+O resultado central está na Tabela~\ref{tab:gpr_kernels} e na Figura~\ref{fig:gpr_obs_pred}, e é mais sutil do que a formulação preliminar desta pesquisa sugeria: o coeficiente $R^2$ \textit{global} é praticamente insensível à penalidade (medianas de $0{,}925$ sob $\alpha = 10^{1}$ e $0{,}919$ sob $\alpha = 10^{6}$), pois trata-se de métrica invariante à escala — sob $\alpha = 10^{6}$, a variância do alvo passa a ser dominada pelo próprio termo de penalização, e o modelo substituto reproduz essa variância artificial. O erro absoluto, contudo, muda de natureza: o RMSE global salta de $\approx \SI{2,0}{\meter\cubed}$ para $\approx 1{,}9 \times 10^{5}\,\si{\meter\cubed}$. A métrica decisiva para a otimização é o erro restrito à \textit{região factível} — onde os rótulos das duas penalidades coincidem exatamente e onde a função de aquisição precisa discriminar candidatos. Nessa região, o RMSE do \textit{kernel} de produção é de \SI{1,28}{\meter\cubed} sob $\alpha = 10^{1}$ contra $\approx 1{,}2 \times 10^{5}\,\si{\meter\cubed}$ sob $\alpha = 10^{6}$ — cinco ordens de grandeza acima da escala do volume ($\Theta \sim 10^{0}$--$10^{1}\,\si{\meter\cubed}$). Em síntese: penalidades elevadas não degradam o ajuste \textit{aparente} do GPR, mas reduzem sua utilidade exatamente onde a busca decide, o que fundamenta a adoção de penalidade moderada nesta arquitetura.
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=\textwidth]{fig_gpr_obs_pred.pdf}
+    \caption{Valores observados e preditos de $\Theta$ no conjunto de teste (réplica de semente 101, \textit{kernel} de melhor $R^2$ médio): sob $\alpha = 10^{6}$ (direita), a escala do alvo é dominada pela penalização ($10^{6}\,\si{\meter\cubed}$) e a região factível colapsa junto à origem, embora o $R^2$ global permaneça alto.}
+    \label{fig:gpr_obs_pred}
+\end{figure*}
+
+\input{tabelas/tab_gpr_kernels}
+
+\subsection{Efeito da escolha do \textit{kernel}}
+\label{sec:res_kernels}
+
+O conjunto experimental compreende 21 configurações de \textit{kernel} (identificadas \texttt{k00} a \texttt{k20}), das quais a última — Matérn com $\nu = 2{,}5$ e limites ampliados de comprimento de escala — é a adotada em produção na ferramenta \fundaai{}. A Figura~\ref{fig:gpr_kernels} apresenta o $R^2$ médio (e amplitude em três réplicas) por configuração e penalidade. O padrão observado nuança a expectativa de que a escolha do \textit{kernel} seria determinante: 19 das 21 configurações concentram-se em uma banda estreita ($R^2 \approx 0{,}93$) dentro da variabilidade entre réplicas ($\pm 0{,}011$); apenas o \textit{kernel} puramente periódico (\texttt{k14}) e o puramente linear (\texttt{k13}) falham, por hipótese estrutural incompatível com a resposta. A configuração de produção situa-se na banda superior ($R^2 = 0{,}931 \pm 0{,}011$), a menos de $0{,}004$ do melhor valor médio observado ($0{,}934$, \texttt{k10}/\texttt{k12}). Com apenas três réplicas por configuração, o resultado deve ser lido como rastreio exploratório: para esta formulação, a escala da penalidade (Seção~\ref{sec:res_penalidade}) e a base amostral parecem mais determinantes do que a escolha fina da função de covariância dentro das famílias suaves usuais.
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=0.78\textwidth]{fig_gpr_kernels_r2.pdf}
+    \caption{$R^2$ no conjunto de teste por configuração de \textit{kernel} e fator de penalidade (média e amplitude em 3 réplicas independentes; caso de 3 sapatas). A maioria das configurações suaves fica em faixa estreita; falham apenas as hipóteses estruturais incompatíveis (periódica pura e linear pura).}
+    \label{fig:gpr_kernels}
+\end{figure*}
+
+\subsection{Comparação sob orçamento igual de avaliações (cenário S1)}
+\label{sec:res_s1}
+
+A Figura~\ref{fig:convergencia} apresenta as curvas de convergência medianas (com banda interquartílica) do melhor valor de $\Theta$ em função do número de avaliações reais, e a Figura~\ref{fig:dist_best} a distribuição do melhor valor final nas 30 repetições. A Tabela~\ref{tab:s1} consolida as estatísticas e a Tabela~\ref{tab:pvalues_s1} os p-valores ajustados por Holm a partir do teste pareado de Wilcoxon bilateral sobre o melhor valor por repetição.
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=\textwidth]{fig_convergencia_s1.pdf}
+    \caption{Convergência mediana (linha) e banda interquartílica (faixa) do melhor $\Theta$ em função das avaliações reais no cenário S1. O EGO acompanha a amostragem inicial (LHS de $10d$ pontos) e reduz rapidamente $\Theta$ quando a função de aquisição EI passa a selecionar os candidatos.}
+    \label{fig:convergencia}
+\end{figure*}
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=\textwidth]{fig_dist_best_s1.pdf}
+    \caption{Distribuição do melhor $\Theta$ final por algoritmo no cenário S1 (30 repetições; caixas com mediana; pontos individuais sobrepostos).}
+    \label{fig:dist_best}
+\end{figure*}
+
+\input{tabelas/tab_s1}
+\input{tabelas/tab_pvalues_s1}
+
+Quatro padrões emergem. Primeiro, \textbf{o CBO apresenta a melhor média e a melhor mediana de $\Theta$ nos três casos avaliados}, com vantagem significativa sobre EGO, AG, PSO, GWO e busca aleatória nas matrizes pareadas da Tabela~\ref{tab:pvalues_s1}, exceto pelo confronto EGO--GWO no caso 1, em que há empate estatístico. Segundo, \textbf{a redução mediana da melhor arquitetura assistida em relação à busca aleatória aumenta na sequência dos casos testados}: $24{,}7\,\%$ no caso 1, $45{,}7\,\%$ no caso 2 e $71{,}4\,\%$ no caso 3; para o EGO penalizado isoladamente, as reduções são $23{,}4\,\%$, $38{,}8\,\%$ e $63{,}9\,\%$. Como há uma instância por dimensionalidade e a restrição de sobreposição está inativa, esse padrão é interpretado como evidência nas instâncias avaliadas, não como isolamento causal do efeito da dimensão. Terceiro, \textbf{as arquiteturas assistidas são também as mais estáveis}, especialmente o CBO, cujos desvios-padrão são $0{,}047$, $0{,}176$ e $0{,}081\,\si{\meter\cubed}$ nos três casos.
+
+O quarto padrão é o confronto que isola o tratamento das restrições: \textbf{o CBO melhora $\Theta$ em relação ao EGO nos três casos, mas troca parte dessa melhoria por perda de factibilidade nos casos 1 e 2}. A média de $\Theta$ do CBO fica $1{,}5\,\%$, $9{,}3\,\%$ e $21{,}7\,\%$ abaixo da média do EGO nos casos 1--3, respectivamente. Em melhor volume estritamente factível, o CBO também melhora o EGO em $0{,}8\,\%$, $3{,}5\,\%$ e $15{,}3\,\%$. Contudo, as taxas de factibilidade estrita são $63\,\%$, $37\,\%$ e $83\,\%$ no CBO, contra $83\,\%$ em todos os casos para o EGO. Esse comportamento é coerente com a mecânica do método: quando a restrição ativa é suave e o ótimo encosta na fronteira de tensão, os GPs de restrição podem superestimar localmente a probabilidade de factibilidade. Nas instâncias avaliadas, o CBO explora essa fronteira de forma mais agressiva, enquanto o EGO penalizado preserva maior regularidade de factibilidade; a validação desse padrão em problemas realmente acoplados fica reservada à frente de posicionamento conjunto. O custo computacional do CBO é o esperado de múltiplos modelos substitutos por iteração: cerca de $1{,}5$ a $1{,}6$ vez o tempo de parede do EGO por repetição.
+
+\subsection{Orçamento estendido e tempo de parede (cenário S2)}
+\label{sec:res_s2}
+
+O cenário S2 responde à pergunta complementar: quando a avaliação de $\Theta$ tem baixo custo computacional, o que as buscas diretas entregam com orçamento folgado? A Tabela~\ref{tab:s2} e a Figura~\ref{fig:s1s2} mostram que, com $3\,000$ avaliações ($20\times$ o orçamento de S1), PSO e GWO superam consistentemente as referências assistidas por modelo substituto de 150 avaliações — no caso 3, o GWO atinge $2{,}200 \pm 0{,}022\,\si{\meter\cubed}$ contra $3{,}335 \pm 0{,}195\,\si{\meter\cubed}$ do EGO--150 e $2{,}612 \pm 0{,}081\,\si{\meter\cubed}$ do CBO--150 — consumindo, contudo, apenas $0{,}3$--$0{,}4$ segundos de parede por repetição, contra dezenas de segundos dos métodos assistidos. O custo de parede do EGO/CBO é dominado pelo próprio método (ajustes sucessivos de GPR e maximização interna da aquisição), não pelas avaliações de $\Theta$, que respondem por menos de $0{,}1\,\%$ do tempo total. Esses dois regimes delimitam com precisão o domínio de adequação da arquitetura: \textbf{as arquiteturas assistidas são competitivas quando o orçamento de avaliações reais é o recurso escasso; as buscas diretas são preferíveis quando o recurso escasso é o tempo de parede e a avaliação tem baixo custo}. O resultado do caso 3 indica ainda que 150 avaliações são insuficientes para esgotar o problema de nove variáveis (o teto prático observado situa-se em torno de $2{,}17$--$2{,}20\,\si{\meter\cubed}$), delimitando o orçamento adotado como escolha de protocolo, e não como capacidade máxima do método.
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=\textwidth]{fig_s1_vs_s2.pdf}
+    \caption{Mediana do melhor $\Theta$ por algoritmo sob 150 avaliações (círculos vazados) e $3\,000$ avaliações (círculos cheios), com a referência EGO--150 (linha tracejada). Com avaliação de baixo custo e orçamento estendido, as buscas diretas ultrapassam a referência em menor tempo de parede.}
+    \label{fig:s1s2}
+\end{figure*}
+
+\input{tabelas/tab_s2}
+
+\subsection{Diagnóstico de quase separabilidade por decomposição}
+\label{sec:res_decomposicao}
+
+A observação geométrica da Seção~\ref{sec:res_casos} tem consequência direta: como a restrição de sobreposição é inativa nos três casos congelados, o problema atual se aproxima da soma de subproblemas independentes de três variáveis, um por sapata. Para quantificar esse efeito, cada sapata foi otimizada separadamente por Differential Evolution com critério auxiliar de factibilidade, as soluções locais foram concatenadas e o vetor completo foi reavaliado pelo mesmo avaliador global usado no protocolo. A Tabela~\ref{tab:decomposicao} mostra que essa decomposição produz soluções estritamente factíveis e melhora o melhor volume factível já observado no protocolo global em $<0{,}01\,\%$, $0{,}77\,\%$ e $2{,}08\,\%$ nos casos 1--3, respectivamente.
+
+\input{tabelas/tab_decomposicao}
+
+O resultado tem duas implicações metodológicas. Primeiro, ele confirma que os casos atuais são adequados para testar integração de código, penalização, CBO e eficiência amostral, mas ainda não exercitam fortemente o acoplamento geométrico entre fundações. Segundo, ele impede uma leitura excessiva do aumento de ganho com a dimensionalidade: parte do desempenho observado decorre de resolver várias sapatas quase independentes, não necessariamente de uma vantagem intrínseca dos modelos substitutos em problemas acoplados de maior dimensão. Por isso, o artigo trata a decomposição como auditoria estrutural do problema atual e remete a validação de problemas não separáveis à frente de posicionamento conjunto.
+
+\subsection{Factibilidade das soluções finais e comportamento da penalização}
+\label{sec:res_factibilidade}
+
+A aferição estrita de factibilidade ($g_k \le 10^{-9}$) expõe um comportamento previsto pela teoria da penalização exterior com fator finito: em todos os algoritmos guiados por $\Theta$, parte das soluções finais carrega violações residuais — tipicamente da ordem de $10^{-4}$ a $10^{-1}$ na razão normalizada $g_k$ —, pois, com $\alpha = 10$ e penalização linear ($p = 1$), uma violação marginal que economize volume superior a $10\,g_k$ é aceita pelo otimizador. A Figura~\ref{fig:violacoes} apresenta a violação máxima por solução final: entre os métodos guiados pela penalização, o EGO manteve a maior regularidade de factibilidade no cenário S1 ($83\,\%$ nos três casos), com melhores volumes estritamente factíveis de \SI{3,184}{\meter\cubed}, \SI{5,290}{\meter\cubed} e \SI{2,941}{\meter\cubed}. O CBO, único método que otimiza a factibilidade explicitamente, reduziu esses volumes para \SI{3,159}{\meter\cubed}, \SI{5,107}{\meter\cubed} e \SI{2,490}{\meter\cubed}, mas com factibilidade de $63\,\%$, $37\,\%$ e $83\,\%$, respectivamente. Quanto às restrições governantes, a análise das soluções finais confirma e refina o padrão qualitativo das etapas anteriores: a tensão admissível do solo é a restrição ativa nos três casos ($S/R \to 1$); as duas verificações de punção permanecem folgadas na faixa explorada; e, no caso 1, a compatibilidade geométrica é estruturalmente ativa na direção $x$, pois o pilar de $a_p = \SI{2,10}{\meter}$ impõe $h_x \ge \SI{2,30}{\meter}$. Esses resultados quantificam o compromisso embutido na estratégia de penalização adotada e motivam, como refinamento futuro, esquemas de tratamento explícito de restrições e seleção final por dominância de factibilidade (Seção~\ref{sec:conclusoes}).
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=\textwidth]{fig_violacoes_s1.pdf}
+    \caption{Violação máxima de restrição da melhor solução de cada repetição (cenário S1; escala simétrico-logarítmica; valores no eixo do zero correspondem a soluções estritamente factíveis). A penalização exterior linear com $\alpha = 10$ admite violações residuais em todos os métodos.}
+    \label{fig:violacoes}
+\end{figure*}

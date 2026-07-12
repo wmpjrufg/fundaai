@@ -1,8 +1,9 @@
 # FundaIA
 
-> Plataforma computacional para o **dimensionamento otimizado de
-> sapatas isoladas** em concreto armado, integrando critérios
-> estruturais, geotécnicos e geométricos da NBR 6118 e da NBR 6122
+> Plataforma computacional para o **pré-dimensionamento geométrico
+> otimizado de sapatas isoladas** em concreto armado, integrando
+> verificações estruturais, geotécnicas e geométricas inspiradas na
+> NBR 6118 e na NBR 6122
 > em um ambiente único de projeto. A solução é obtida por uma
 > arquitetura híbrida do tipo **Efficient Global Optimization
 > (EGO)**, combinando um modelo substituto baseado em **Regressão
@@ -36,7 +37,7 @@
 
 ## Visão geral
 
-O dimensionamento de sapatas isoladas é tradicionalmente conduzido
+O pré-dimensionamento de sapatas isoladas é tradicionalmente conduzido
 por procedimentos iterativos de tentativa e verificação, dependentes
 da experiência do projetista e frequentemente conservadores quanto
 ao consumo de concreto. O **FundaIA** propõe uma alternativa
@@ -44,9 +45,9 @@ computacional que formaliza o problema como uma **otimização
 mono-objetivo penalizada**, cuja função objetivo é o volume total de
 concreto, sujeita a restrições de:
 
-- **Tensão admissível do solo** (correlação empírica com SPT, NBR 6122).
-- **Flexão composta na base da sapata** (σ_max e σ_min com excentricidades nos dois eixos).
-- **Punção na seção crítica C** (NBR 6118 item 19.5).
+- **Tensão admissível do solo** (correlação empírica preliminar com SPT).
+- **Flexão composta na base da sapata** (σ_max e σ_min com excentricidades nos dois eixos). Nos arquivos de entrada legados, `Mx` e `My` são componentes associadas às excentricidades em `x` e `y`; se uma fonte externa reportar momentos em torno dos eixos globais, é necessário converter os eixos antes da importação.
+- **Punção nas seções críticas C e C'** (NBR 6118 item 19.5, com hipóteses declaradas de pré-dimensionamento).
 - **Compatibilidade geométrica pilar-sapata** (balanço mínimo configurável).
 - **Não sobreposição** entre fundações vizinhas (modelagem AABB).
 
@@ -74,7 +75,7 @@ profissional e organiza-se em três páginas:
   com o mesmo orçamento de avaliações reais e seeds reprodutíveis;
   entrega curva de convergência multi-algoritmo, tabela-resumo
   (best, mean ± std, AUC, avaliações até o ótimo, tempo) e matriz de
-  p-valores Mann–Whitney prontas para o relatório científico.
+  p-valores Wilcoxon-Holm prontas para o relatório científico.
 
 A pesquisa associada é desenvolvida no contexto de uma Iniciação
 Científica em andamento.
@@ -422,7 +423,7 @@ config = BenchmarkConfig(
 result = run_benchmark(projeto, config)
 
 print(result.summary)        # mean ± std, AUC, conv_eval, tempo por algoritmo
-print(result.pvalues)        # matriz Mann–Whitney bilateral
+print(result.pvalues)        # matriz Wilcoxon-Holm pareada
 print(result.history.head()) # uma linha por avaliação real
 ```
 
@@ -662,7 +663,7 @@ Marcos das sprints concluídas (detalhe completo em
   GWO puros sob mesmo orçamento de avaliações, com
   `TracedObjective` cooperativo (`_BudgetExhausted`),
   componente `convergence_chart` (mediana + ±1σ + envelope),
-  tabela-resumo, matriz Mann–Whitney e bundle zip
+  tabela-resumo, matriz Wilcoxon-Holm e bundle zip
   (parquet + csv + html + png). Defaults do EGO interno
   rebalanceados (`ga_pop_size 150→50`, `ga_epoch 50→30`,
   `n_pop 250→100`) — pipeline ~5× mais rápido sem regredir a

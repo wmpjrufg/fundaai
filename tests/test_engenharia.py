@@ -97,34 +97,40 @@ class TestTensaoAdmSolo:
 class TestCalcularSigmaMaxMin:
     """This class verifies the eccentric soil pressure formula on the base of a footing."""
 
-    def test_sem_momento_sigma_uniforme_majorada(self):
-        """This test verifies that with `M_x = M_y = 0` both pressures equal sigma_Fz·1,30.
+    def test_sem_momento_sigma_uniforme_com_peso_proprio(self):
+        """This test verifies uniform pressure with explicit self-weight.
 
         Quando os momentos sao nulos, sigma_max e sigma_min coincidem
-        com a parcela axial sigma_Fz = 1,05·F/(hx·hy) majorada pelo
-        coeficiente 1,30 (caso compressivo).
+        com a parcela axial (F_z + gamma_c V)/(hx·hy), sem o antigo
+        majorador 1,30.
 
         :return: Nada (asserts internos)
         """
-        f_zk, h_x, h_y = 1000.0, 2.0, 2.0
-        sigma_max, sigma_min = calcular_sigma_max_min(f_zk, 0.0, 0.0, h_x, h_y)
-        sigma_fz = 1.05 * f_zk / (h_x * h_y) * 1.30
+        f_zk, h_x, h_y, h_z = 1000.0, 2.0, 2.0, 0.60
+        sigma_max, sigma_min = calcular_sigma_max_min(
+            f_zk, 0.0, 0.0, h_x, h_y, h_z
+        )
+        sigma_fz = (f_zk + 25.0 * h_x * h_y * h_z) / (h_x * h_y)
         assert sigma_max == pytest.approx(sigma_fz)
         assert sigma_min == pytest.approx(sigma_fz)
 
-    def test_excentricidade_pura_em_x(self):
-        """This test checks the maximum pressure with eccentricity only on the X axis.
+    def test_excentricidade_pura_em_x_usa_hx_por_convencao_do_projeto(self):
+        """This test checks the FundaIA Mx convention on a non-square footing.
 
-        Para `M_y = 0`, a contribuicao em Y deve desaparecer e o
-        majorador 6·M_x/(F·hx) deve aparecer apenas no termo de X.
+        No FundaIA, `M_x` significa a componente de momento que produz
+        excentricidade na direcao x (`M_x = F_z e_x`). Por isso, mesmo
+        em uma sapata nao quadrada, o termo relativo usa `h_x`. Se a
+        entrada vier de um software que reporta momentos em torno dos
+        eixos estruturais, ela deve ser convertida antes da importacao.
 
         :return: Nada (asserts internos)
         """
-        f_zk, m_xk, h_x, h_y = 1000.0, 50.0, 2.0, 2.0
-        sigma_max, _ = calcular_sigma_max_min(f_zk, m_xk, 0.0, h_x, h_y)
-        sigma_fz = 1.05 * f_zk / (h_x * h_y)
-        e_x = 6.0 * m_xk / (f_zk * h_x)
-        esperado = sigma_fz * (1.0 + e_x) * 1.30
+        f_zk, m_xk, h_x, h_y, h_z = 1000.0, 50.0, 2.0, 4.0, 0.60
+        sigma_max, _ = calcular_sigma_max_min(f_zk, m_xk, 0.0, h_x, h_y, h_z)
+        area = h_x * h_y
+        sigma_fz = (f_zk + 25.0 * area * h_z) / area
+        sigma_mx = 6.0 * m_xk / (area * h_x)
+        esperado = sigma_fz + sigma_mx
         assert sigma_max == pytest.approx(esperado)
 
     def test_modulo_dos_momentos_eh_aplicado(self):
@@ -135,27 +141,25 @@ class TestCalcularSigmaMaxMin:
 
         :return: Nada (asserts internos)
         """
-        f_zk, h_x, h_y = 1000.0, 2.0, 2.0
-        a = calcular_sigma_max_min(f_zk, 50.0, 0.0, h_x, h_y)
-        b = calcular_sigma_max_min(f_zk, -50.0, 0.0, h_x, h_y)
+        f_zk, h_x, h_y, h_z = 1000.0, 2.0, 2.0, 0.60
+        a = calcular_sigma_max_min(f_zk, 50.0, 0.0, h_x, h_y, h_z)
+        b = calcular_sigma_max_min(f_zk, -50.0, 0.0, h_x, h_y, h_z)
         assert a == pytest.approx(b)
 
-    def test_sigma_min_negativa_nao_eh_majorada(self):
-        """This test verifies that tensile (negative) pressures are NOT multiplied by 1,30.
+    def test_sigma_min_negativa_preserva_tracao(self):
+        """This test verifies that tensile pressures are not clipped or factored.
 
-        A funcao aplica o fator 1,30 somente quando a tensao eh
-        compressiva (positiva). Tensoes de tracao permanecem sem
-        majoracao para entrar diretamente na restricao de nao-tracao.
+        Tensoes de tracao permanecem negativas para entrar diretamente
+        na restricao de nao-tracao.
 
         :return: Nada (asserts internos)
         """
-        f_zk, m_xk, h_x, h_y = 100.0, 200.0, 2.0, 2.0   # excentricidade alta -> traca
-        _, sigma_min = calcular_sigma_max_min(f_zk, m_xk, 0.0, h_x, h_y)
-        # sem majoracao significa: |sigma_min / sigma_fz| corresponde a
-        # |1 - e_x| sem o 1.30
-        sigma_fz = 1.05 * f_zk / (h_x * h_y)
-        e_x = 6.0 * m_xk / (f_zk * h_x)
-        esperado = sigma_fz * (1.0 - e_x)
+        f_zk, m_xk, h_x, h_y, h_z = 100.0, 200.0, 2.0, 2.0, 0.60
+        _, sigma_min = calcular_sigma_max_min(f_zk, m_xk, 0.0, h_x, h_y, h_z)
+        area = h_x * h_y
+        sigma_fz = (f_zk + 25.0 * area * h_z) / area
+        sigma_mx = 6.0 * m_xk / (area * h_x)
+        esperado = sigma_fz - sigma_mx
         assert sigma_min == pytest.approx(esperado)
         assert sigma_min < 0.0
 
@@ -541,10 +545,10 @@ class TestEngineeringEdgeCases:
             checagem_tensao_max_min(sigma=10.0, sigma_adm=0.0)
 
     def test_sigma_max_min_zero_load_raises(self):
-        """f_zk=0 makes the moment ratios undefined; raises ZeroDivisionError."""
-        with pytest.raises(ZeroDivisionError):
+        """f_zk=0 is outside the supported load-combination domain."""
+        with pytest.raises(ValueError, match="f_zk"):
             calcular_sigma_max_min(f_zk=0.0, m_xk=10.0, m_yk=10.0,
-                                   h_x=1.0, h_y=1.0)
+                                   h_x=1.0, h_y=1.0, h_z=0.6)
 
     def test_puncao_h_z_equal_to_cover_raises(self):
         """h_z == cob makes d = 0; the guard raises an explicit ValueError.

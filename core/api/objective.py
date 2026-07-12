@@ -57,7 +57,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from core.engineering import k_tabela_19_2, rho_minimo_flexao, sobreposicao_matrix
+from core.engineering import (
+    PESO_ESPECIFICO_CONCRETO_KN_M3,
+    k_tabela_19_2,
+    rho_minimo_flexao,
+    sobreposicao_matrix,
+)
 
 __all__ = [
     "CONSTRAINT_GROUPS",
@@ -93,11 +98,12 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
     Returns only the scalar OF value (no annotated DataFrame) — sufficient
     for any optimisation loop.
 
-    All normative constraints are preserved:
+    The pre-design constraint groups are preserved:
 
     * ``g_sob`` — AABB overlap between adjacent footings
       (``core.engineering.sobreposicao_matrix``)
-    * ``g_ten`` — soil bearing pressure (σ_max and σ_min vs σ_adm, NBR 6122)
+    * ``g_ten`` — soil bearing pressure (σ_max and σ_min vs the
+      preliminary σ_adm adopted by the project)
     * ``g_pun`` — punching shear at the C (column face) **and** C'
       (2d from the face) critical sections (NBR 6118 §19.5); the group
       value is the worst of the two contours
@@ -108,11 +114,12 @@ def avaliar_projeto_fast(x, args, *, penalty: float | None = None) -> float:
 
     Preconditions (validated at the domain boundary, see
     ``core.domain.Combinacao`` and ``core.domain.FundacaoProjeto``):
-    every ``Fz-c{i}`` must be strictly positive (the sigma formulas
-    divide by ``Fz``) and ``f_ck`` must be given in kPa. The only guard
-    enforced here is ``hz > cob_m`` because ``hz`` is a *design
-    variable*: a candidate with non-positive effective depth would flip
-    the punching-shear sign and read as feasible.
+    every ``Fz-c{i}`` must be strictly positive (null load/uplift is
+    outside the current soil-contact pre-design model) and ``f_ck`` must
+    be given in kPa. The only guard enforced here is ``hz > cob_m``
+    because ``hz`` is a *design variable*: a candidate with non-positive
+    effective depth would flip the punching-shear sign and read as
+    feasible.
 
     :param x: Design vector of length ``3 * N_fund``, layout
               ``[hx_0, hy_0, hz_0, ..., hx_{N-1}, hy_{N-1}, hz_{N-1}]``
@@ -237,14 +244,15 @@ def _nucleo_componentes(x, args) -> tuple:
         mx = np.abs(df[f"Mx-{lbl}"].to_numpy(dtype=np.float64))
         my = np.abs(df[f"My-{lbl}"].to_numpy(dtype=np.float64))
 
-        # vetoriza calcular_sigma_max_min
-        s_fz = (fz / (hx * hy)) * 1.05
-        aux_x = 6.0 * mx / (fz * hx)
-        aux_y = 6.0 * my / (fz * hy)
-        s_max = s_fz * (1.0 + aux_x + aux_y)
-        s_max = np.where(s_max > 0.0, s_max * 1.30, s_max)
-        s_min = s_fz * (1.0 - aux_x - aux_y)
-        s_min = np.where(s_min > 0.0, s_min * 1.30, s_min)
+        # vetoriza calcular_sigma_max_min: peso proprio centrado e
+        # dependente do volume; sem coeficientes legados 1.05/1.30.
+        area = hx * hy
+        peso_proprio = PESO_ESPECIFICO_CONCRETO_KN_M3 * area * hz
+        s_axial = (fz + peso_proprio) / area
+        s_mx = 6.0 * mx / (area * hx)
+        s_my = 6.0 * my / (area * hy)
+        s_max = s_axial + s_mx + s_my
+        s_min = s_axial - s_mx - s_my
 
         # vetoriza checagem_tensao_max_min  (g <= 0 → viável)
         g_max = np.where(s_max >= 0.0, s_max / sig_adm - 1.0, -s_max / sig_adm)

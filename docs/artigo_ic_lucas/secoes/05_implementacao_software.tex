@@ -1,0 +1,34 @@
+% =============================================================================
+% Seção 5 — Implementação computacional
+% =============================================================================
+\section{Implementação computacional}
+\label{sec:implementacao}
+
+A implementação computacional da arquitetura descrita na Seção~\ref{sec:metodologia} foi conduzida em linguagem Python, com interface interativa desenvolvida em Streamlit. A ferramenta resultante, denominada \fundaai{}, permite que o usuário forneça os dados de projeto, parametrize o método de otimização, execute a busca e visualize os arranjos resultantes sem necessidade de programação adicional.
+
+\subsection{Organização do código}
+\label{sec:impl_organizacao}
+
+O repositório do projeto está organizado em três camadas funcionais:
+\begin{itemize}
+    \item \textbf{Camada de engenharia.} Consolida as funções relativas às verificações de projeto (tensão admissível do solo, tensões atuantes, geometria, punção nos contornos $C$ e $C'$ e sobreposição), bem como a função pseudo-objetivo $\Theta(\bm{x})$ definida na Equação~\eqref{eq:pseudo_objetivo}.
+    \item \textbf{Camada de otimização.} Reúne a implementação do método EGO, a construção e ajuste do GPR -- com suporte a múltiplas funções de covariância -- e a interface com o Algoritmo Genético utilizado como otimizador interno. As metaheurísticas são acessadas por meio das bibliotecas \textit{MEALPY} e \textit{SciPy}, e os processos gaussianos por meio do \textit{scikit-learn}.
+    \item \textbf{Camada de interface.} Implementa o fluxo da aplicação Streamlit, incluindo o carregamento de planilhas Excel com as características das fundações, a configuração dos parâmetros do otimizador, a execução do método e a visualização dos resultados, com exportação tanto em formato Excel quanto em formato DXF para uso direto em \textit{software} de CAD.
+\end{itemize}
+
+\subsection{Entradas e saídas}
+\label{sec:impl_io}
+
+A entrada principal da ferramenta é uma planilha contendo, para cada elemento de fundação, as dimensões do pilar ($a_p, b_p$), o índice $N_{\mathrm{spt}}$ e o tipo de solo, as coordenadas do centróide ($x_g, y_g$) e os esforços característicos ($F_z$, $M_x$, $M_y$) por combinação de carregamento. O usuário define ainda a resistência $f_{ck}$ do concreto, o cobrimento, os limites $h_{\min}$ e $h_{\max}$, o número de gerações do EGO e o tamanho da população inicial.
+
+A saída inclui (i) as dimensões retornadas pelo otimizador $(h_x, h_y, h_z)$ por sapata, (ii) o volume total $V$ resultante, (iii) uma planilha consolidada com as verificações detalhadas disponíveis na versão atual (razões solicitação/resistência por combinação) e (iv) o arranjo geométrico das sapatas em planta, exportável em formato DXF para integração com o fluxo tradicional de projeto.
+
+\subsection{Validações de fronteira da formulação}
+\label{sec:impl_validacoes}
+
+A camada de entrada valida as precondições matemáticas da formulação antes de qualquer otimização, convertendo regimes fisicamente sem sentido em erros explícitos em vez de resultados silenciosamente corrompidos: (i) a carga vertical característica deve ser estritamente positiva em toda combinação, pois cargas nulas ou de tração ficam fora do modelo atual de contato comprimido solo--sapata; (ii) a resistência $f_{ck}$ deve situar-se na faixa plausível de \SIrange{10000}{90000}{\kilo\pascal} (classes C10--C90), o que captura o erro de unidade de fornecer \si{\mega\pascal} onde se espera \si{\kilo\pascal}; e (iii) o limite inferior de $h_z$ deve exceder estritamente o cobrimento, garantindo altura útil positiva em todo o espaço de busca — sem essa guarda, um candidato com $d \le 0$ inverteria o sinal da tensão solicitante de punção e leria como viável uma sapata inexequível.
+
+\subsection{Reprodutibilidade e disponibilidade}
+\label{sec:impl_reprod}
+
+A ferramenta \fundaai{} é mantida sob versionamento, com uma suíte de testes de regressão que fixa o valor de referência da função pseudo-objetivo em precisão relativa de $10^{-12}$. Os experimentos da Seção~\ref{sec:resultados} são reprodutíveis por \textit{scripts} dedicados: o protocolo comparativo, o estudo de \textit{kernels}, a auditoria de decomposição e a geração de figuras e tabelas utilizam sementes registradas e persistem, por célula experimental, a configuração completa, o histórico por avaliação real, as estatísticas agregadas, os p-valores e os metadados de ambiente (versões de bibliotecas, plataforma e revisão do repositório). Essa organização separa o código da aplicação, os artefatos experimentais e a documentação técnica, facilitando auditoria e continuidade da pesquisa.

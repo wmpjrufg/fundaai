@@ -21,7 +21,7 @@ under ``experiments/protocolo_final/<case>/<scenario>/`` as:
     history.parquet   one row per real evaluation
     per_rep.csv       final outcome per (algorithm, repetition)
     summary.csv       aggregated statistics per algorithm
-    pvalues.csv       pairwise Mann-Whitney U (two-sided) on per-rep best
+    pvalues.csv       pairwise Wilcoxon-Holm p-values on paired per-rep best
     config.json       BenchmarkConfig round-trip
     meta.json         environment snapshot (git rev, versions, timing)
 

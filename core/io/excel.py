@@ -66,6 +66,11 @@ def read_projeto_from_excel(
     The integer ``n_comb`` is inferred from the highest combination
     index found in the columns, and every combination from ``c1`` up to
     ``cN`` must have all three fields (``Fz``, ``Mx``, ``My``) present.
+    The legacy ``Mx``/``My`` labels follow the FundaIA convention:
+    ``Mx`` is the moment component that produces eccentricity along X,
+    and ``My`` the component that produces eccentricity along Y. When
+    importing reactions from software that reports moments about the
+    global axes, convert them before filling the spreadsheet.
 
     :param path_or_buffer: Path to an .xlsx/.xls file or a file-like
                            object (e.g. a Streamlit ``UploadedFile``)

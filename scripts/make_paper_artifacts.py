@@ -20,7 +20,8 @@ CSV mirrors → ``assets/tables/protocolo_final/``
     tab_protocolo.tex        frozen protocol parameters
     tab_s1.tex               S1 statistics per case and algorithm
     tab_s2.tex               S2 statistics + EGO-150 reference
-    tab_pvalues_s1.tex       Mann-Whitney p-value matrices (S1)
+    tab_decomposicao.tex     decomposed DE structural audit
+    tab_pvalues_s1.tex       Wilcoxon-Holm p-value matrices (S1)
     tab_gpr_kernels.tex      GPR metrics per kernel and penalty (top + production)
 
 Visual identity: validated 5-slot categorical palette (see the dataviz
@@ -58,6 +59,7 @@ import pandas as pd  # noqa: E402
 # =============================================================================
 PROTO_DIR = REPO_ROOT / "experiments" / "protocolo_final"
 GPR_DIR = REPO_ROOT / "experiments" / "estudo_gpr"
+DECOMP_DIR = PROTO_DIR / "decomposicao_de"
 FIG_DIR = REPO_ROOT / "docs" / "artigo_ic_lucas" / "figuras"
 TAB_DIR = REPO_ROOT / "docs" / "artigo_ic_lucas" / "tabelas"
 CSV_DIR = REPO_ROOT / "assets" / "tables" / "protocolo_final"
@@ -83,6 +85,11 @@ ALG_ORDER = ["ego", "cbo", "ga", "pso", "gwo", "random"]
 ALG_LABEL = {
     "ego": "EGO+GPR", "cbo": "CBO (ECI)", "ga": "GA", "pso": "PSO",
     "gwo": "GWO", "random": "Aleatória",
+}
+SCEN_LABEL = {
+    "S1_orcamento_igual": "S1",
+    "S1_cbo": "S1-CBO",
+    "S2_orcamento_estendido": "S2",
 }
 PENALTY_COLOR = {10.0: "#2a78d6", 1e6: "#e34948"}   # blue vs red (slot 6)
 
@@ -152,6 +159,19 @@ def _fmt_pvalue(p: float) -> str:
     return rf"\textbf{{{txt}}}" if p < 0.05 else txt
 
 
+def _fmt_pct(x: float) -> str:
+    """Format a positive percentage with compact sub-centesimal display.
+
+    :param x: Percentage value
+    :return: LaTeX-formatted percentage without the percent sign
+    """
+    if x is None or (isinstance(x, float) and np.isnan(x)):
+        return "--"
+    if 0.0 < x < 0.01:
+        return r"$<$0,01"
+    return _fmt_br(float(x), 2)
+
+
 def _save(fig, name: str) -> None:
     """Persist a figure as PDF (vector, for LaTeX) and PNG (for review).
 
@@ -166,28 +186,58 @@ def _save(fig, name: str) -> None:
     print(f"  figura: {name}.pdf/.png")
 
 
+def _holm_adjust(p_values: list[float]) -> list[float]:
+    """Return Holm-adjusted p-values, preserving input order.
+
+    :param p_values: Raw p-values from a family of pairwise tests
+    :return: Holm step-down adjusted p-values
+    """
+    adjusted = [float("nan")] * len(p_values)
+    finite = [(idx, float(p)) for idx, p in enumerate(p_values) if np.isfinite(p)]
+    running = 0.0
+    for rank, (idx, p) in enumerate(sorted(finite, key=lambda item: item[1]), start=1):
+        running = max(running, (len(finite) - rank + 1) * p)
+        adjusted[idx] = min(1.0, running)
+    return adjusted
+
+
 def _recompute_pvalues(per_rep: pd.DataFrame, algs: list[str]) -> pd.DataFrame:
-    """Pairwise Mann-Whitney U (two-sided) on per-rep best, for merged data.
+    """Pairwise Wilcoxon-Holm p-values on per-rep best, for merged data.
 
     :param per_rep: Merged per-repetition table
     :param algs: Algorithms present, in display order
     :return: Square p-value matrix with NaN diagonal
     """
-    from scipy.stats import mannwhitneyu
+    from scipy.stats import wilcoxon
+
     out = pd.DataFrame(np.nan, index=algs, columns=algs, dtype=float)
-    for a in algs:
-        va = per_rep.loc[per_rep["algorithm"] == a, "best"].to_numpy()
-        for b in algs:
-            if a == b or va.size < 2:
+    pairs: list[tuple[str, str]] = []
+    raw_p: list[float] = []
+    for i, a in enumerate(algs[:-1]):
+        va = per_rep.loc[
+            per_rep["algorithm"] == a, ["rep", "best"]
+        ].rename(columns={"best": "best_a"})
+        for b in algs[i + 1:]:
+            vb = per_rep.loc[
+                per_rep["algorithm"] == b, ["rep", "best"]
+            ].rename(columns={"best": "best_b"})
+            paired = va.merge(vb, on="rep", how="inner").sort_values("rep")
+            pairs.append((a, b))
+            if paired.shape[0] < 2:
+                raw_p.append(float("nan"))
                 continue
-            vb = per_rep.loc[per_rep["algorithm"] == b, "best"].to_numpy()
-            if vb.size < 2:
+            a_best = paired["best_a"].to_numpy(dtype=float)
+            b_best = paired["best_b"].to_numpy(dtype=float)
+            if np.allclose(a_best, b_best, rtol=0.0, atol=1e-15):
+                raw_p.append(1.0)
                 continue
             try:
-                out.loc[a, b] = float(mannwhitneyu(va, vb,
-                                                   alternative="two-sided")[1])
+                raw_p.append(float(wilcoxon(a_best, b_best, alternative="two-sided").pvalue))
             except ValueError:
-                out.loc[a, b] = 1.0
+                raw_p.append(1.0)
+    for (a, b), p in zip(pairs, _holm_adjust(raw_p)):
+        out.loc[a, b] = p
+        out.loc[b, a] = p
     return out
 
 
@@ -739,8 +789,52 @@ def tab_resultados(data: dict) -> None:
 """)
 
 
+def tab_decomposicao() -> None:
+    """Structural audit table for the decomposed Differential Evolution run.
+
+    :return: None
+    """
+    path = DECOMP_DIR / "summary.csv"
+    if not path.exists():
+        print("  (baseline de decomposição ausente — tabela pulada)")
+        return
+    df = pd.read_csv(path)
+    rows = []
+    for _, r in df.iterrows():
+        ref_alg = ALG_LABEL.get(str(r["protocol_best_algorithm"]),
+                                str(r["protocol_best_algorithm"]))
+        ref_scen = SCEN_LABEL.get(str(r["protocol_best_scenario"]),
+                                  str(r["protocol_best_scenario"]))
+        rows.append(
+            f"{r['case_label']} & {int(r['dim'])} & "
+            f"{_fmt_br(r['volume_m3'], 3)} & "
+            f"{ref_alg} ({ref_scen}) & "
+            f"{_fmt_br(r['protocol_best_feasible_volume_m3'], 3)} & "
+            f"{_fmt_pct(r['protocol_gap_reduction_pct'])}\\% & "
+            f"\\num{{{float(r['max_violation']):.1e}}} & "
+            f"{int(r['total_nfev'])} \\\\"
+        )
+    body = "\n        ".join(rows)
+    _write_tex("tab_decomposicao.tex", rf"""% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
+\begin{{table*}}[!t]
+    \centering
+    \caption{{Diagnóstico de quase separabilidade: baseline de Differential Evolution aplicado separadamente a cada sapata, seguido de reavaliação global estrita pelo mesmo avaliador de $\Theta$. A redução é calculada contra o melhor volume estritamente factível já obtido no protocolo global (S1/S2); portanto, a tabela mede proximidade estrutural ao ótimo das instâncias simplificadas, não desempenho pareado sob orçamento igual.}}
+    \label{{tab:decomposicao}}
+    \small
+    \begin{{tabular}}{{lclccccc}}
+        \toprule
+        Caso & Dim. & $V_{{\mathrm{{dec}}}}$ & Melhor protocolo & $V_{{\mathrm{{prot}}}}$ & Redução & $\max g_k$ & Avaliações \\
+        \midrule
+        {body}
+        \bottomrule
+    \end{{tabular}}
+    \caption*{{\footnotesize Volumes em \si{{\meter\cubed}}. O baseline usa penalização de factibilidade apenas para guiar a busca local; os valores reportados são volumes reavaliados e factíveis com tolerância $g_k \le 10^{{-9}}$.}}
+\end{{table*}}
+""")
+
+
 def tab_pvalues(data: dict) -> None:
-    """Mann-Whitney p-value matrices for S1, one block per case.
+    """Wilcoxon-Holm p-value matrices for S1, one block per case.
 
     :param data: Loaded artefacts per case/scenario
     :return: None
@@ -769,7 +863,7 @@ def tab_pvalues(data: dict) -> None:
     _write_tex("tab_pvalues_s1.tex", rf"""% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
 \begin{{table*}}[!t]
     \centering
-    \caption{{Matriz triangular de p-valores (Mann--Whitney~$U$ bilateral) sobre o melhor $\Theta$ por repetição no cenário S1; valores em negrito indicam $p < 0{{,}}05$.}}
+    \caption{{Matriz triangular de p-valores ajustados por Holm a partir do teste pareado de Wilcoxon bilateral sobre o melhor $\Theta$ por repetição no cenário S1; valores em negrito indicam $p < 0{{,}}05$.}}
     \label{{tab:pvalues_s1}}
     \small
     \begin{{tabular}}{{{colspec}}}
@@ -885,6 +979,10 @@ def _csv_mirrors(data: dict, metrics: pd.DataFrame | None) -> None:
         CSV_DIR / "summary_all.csv", index=False)
     if metrics is not None:
         metrics.to_csv(CSV_DIR / "gpr_metrics.csv", index=False)
+    decomp = DECOMP_DIR / "summary.csv"
+    if decomp.exists():
+        pd.read_csv(decomp).to_csv(CSV_DIR / "decomposicao_de_summary.csv",
+                                   index=False)
     print(f"  csv: {CSV_DIR.relative_to(REPO_ROOT)}/")
 
 
@@ -915,6 +1013,7 @@ def main() -> None:
     tab_casos()
     tab_protocolo(data)
     tab_resultados(data)
+    tab_decomposicao()
     tab_pvalues(data)
     if metrics is not None:
         tab_gpr(metrics, preds)

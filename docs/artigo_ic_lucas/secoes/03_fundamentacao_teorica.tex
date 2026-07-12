@@ -1,0 +1,82 @@
+% =============================================================================
+% Seção 3 — Fundamentação teórica
+% =============================================================================
+\section{Fundamentação teórica}
+\label{sec:fundamentacao}
+
+Esta seção apresenta os fundamentos teóricos do método \textit{Efficient Global Optimization} (EGO), do modelo substituto baseado em Processos Gaussianos (GPR) e da função de aquisição \textit{Expected Improvement} (EI), que constituem os pilares da arquitetura adotada na Seção~\ref{sec:metodologia}. A apresentação privilegia os elementos relevantes ao problema de fundações tratado neste artigo; uma revisão mais abrangente é encontrada em \citeonline{jones1998efficient}, \citeonline{shahriari2016review} e \citeonline{schulz2018tutorial}.
+
+\subsection{Otimização global assistida por modelo substituto}
+\label{sec:fund_ego}
+
+Considere o problema de minimização
+\begin{equation}
+    \min_{\bm{x} \in \mathcal{X}} f(\bm{x}),
+    \label{eq:problema_geral}
+\end{equation}
+em que $\mathcal{X} \subset \mathbb{R}^d$ é o espaço de busca contínuo e $f: \mathcal{X} \to \mathbb{R}$ é uma função objetivo cuja avaliação é onerosa do ponto de vista computacional ou experimental. Em problemas de engenharia, o custo de uma avaliação pode advir de uma simulação numérica, de um conjunto de verificações normativas encadeadas ou da execução de um experimento físico. Métodos clássicos de otimização baseados em derivadas podem ser inviáveis nesse cenário, tanto por exigirem um número elevado de avaliações quanto por demandarem informação de gradiente em geral indisponível.
+
+A otimização global assistida por modelo substituto contorna essas dificuldades substituindo a função $f$, no maior número possível de avaliações, por um modelo aproximador $\hat{f}: \mathcal{X} \to \mathbb{R}$ de baixo custo computacional, treinado a partir de um conjunto de amostras de $f$ e refinado iterativamente \citepabnttwo{jones1998efficient}{shahriari2016review}. Em cada iteração, esse modelo substituto é utilizado para escolher de forma criteriosa o próximo ponto a ser avaliado pela função real, em geral por meio de uma função de aquisição $a: \mathcal{X} \to \mathbb{R}$ que combina previsão e incerteza. O algoritmo geral do EGO pode ser descrito em alto nível como segue.
+
+\begin{algorithm}[!t]
+\SetAlgoLined
+\caption{EGO: Otimização Global Assistida por Surrogate}
+\label{alg:ego}
+\KwIn{função objetivo cara $f$; espaço de busca $\mathcal{X}$; tamanho da amostra inicial $n_0$; número total de avaliações $N$.}
+\KwOut{melhor solução observada $\bm{x}^\star$.}
+Gerar amostra inicial $\{\bm{x}^{(1)}, \dots, \bm{x}^{(n_0)}\} \subset \mathcal{X}$ (ex.: \textit{Latin Hypercube})\;
+Avaliar $y^{(i)} = f(\bm{x}^{(i)})$ para $i = 1, \dots, n_0$\;
+\For{$n = n_0+1$ \KwTo $N$}{
+    Ajustar o modelo substituto $\hat{f}$ aos dados $\{(\bm{x}^{(i)}, y^{(i)})\}_{i=1}^{n-1}$\;
+    Calcular função de aquisição $a(\bm{x})$\;
+    Resolver $\bm{x}^{(n)} = \arg\max_{\bm{x} \in \mathcal{X}} a(\bm{x})$ por otimizador interno\;
+    Avaliar $y^{(n)} = f(\bm{x}^{(n)})$ e adicionar ao conjunto\;
+}
+\Return $\bm{x}^\star = \arg\min_i y^{(i)}$\;
+\end{algorithm}
+
+A escolha do modelo substituto condiciona o desempenho do método. No EGO clássico, adota-se um Processo Gaussiano \citepabnt{williams1995gaussian}, principalmente por dois motivos: (i) o GPR fornece, além de uma previsão pontual, uma estimativa explícita de incerteza; e (ii) a estrutura probabilística do GPR conduz à forma fechada clássica da função de aquisição EI \citepabnt{jones1998efficient}.
+
+\subsection{Regressão por Processos Gaussianos (GPR)}
+\label{sec:fund_gpr}
+
+Um \textit{Processo Gaussiano} é uma coleção de variáveis aleatórias tal que toda subcoleção finita possui distribuição conjuntamente normal \citepabnt{williams1995gaussian}. Em problemas de regressão, modela-se a função desconhecida $f$ como uma realização de um processo gaussiano caracterizado por uma função média $m(\bm{x})$ -- usualmente assumida nula após centralização dos dados -- e uma função de covariância (\textit{kernel}) $k(\bm{x}, \bm{x}')$, isto é,
+\begin{equation}
+    f(\bm{x}) \sim \mathcal{GP}\bigl(m(\bm{x}),\, k(\bm{x},\bm{x}')\bigr).
+    \label{eq:gp}
+\end{equation}
+
+Dadas observações $\bm{y} = [y^{(1)}, \dots, y^{(n)}]^\top$ nos pontos $X = [\bm{x}^{(1)}, \dots, \bm{x}^{(n)}]^\top$ e assumindo ruído gaussiano $\varepsilon \sim \mathcal{N}(0, \sigma_\varepsilon^2)$, a distribuição preditiva em um ponto $\bm{x}^\star$ é também gaussiana, com média e variância dadas por
+\begin{align}
+    \mu(\bm{x}^\star) &= \bm{k}_\star^\top \bigl(K + \sigma_\varepsilon^2 I\bigr)^{-1} \bm{y},
+    \label{eq:gpr_mean}\\
+    \sigma^2(\bm{x}^\star) &= k(\bm{x}^\star, \bm{x}^\star) - \bm{k}_\star^\top \bigl(K + \sigma_\varepsilon^2 I\bigr)^{-1} \bm{k}_\star,
+    \label{eq:gpr_var}
+\end{align}
+em que $K \in \mathbb{R}^{n \times n}$ é a matriz de Gram com entradas $K_{ij} = k(\bm{x}^{(i)}, \bm{x}^{(j)})$ e $\bm{k}_\star \in \mathbb{R}^{n}$ é o vetor com entradas $(\bm{k}_\star)_i = k(\bm{x}^\star, \bm{x}^{(i)})$ \citepabnttwo{williams1995gaussian}{schulz2018tutorial}.
+
+A escolha do \textit{kernel} é determinante. \textit{Kernels} suaves, como o \textit{Radial Basis Function} (RBF), pressupõem alta regularidade da função; \textit{kernels} da família Matérn permitem controlar o grau de suavidade por meio do parâmetro $\nu$, sendo adequados quando a função objetivo apresenta menor regularidade local. A inclusão de termos como \textit{DotProduct} ou \textit{WhiteKernel} permite codificar tendências lineares ou ruído residual, respectivamente \citepabnt{schulz2018tutorial}. Os hiperparâmetros do \textit{kernel} -- por exemplo, comprimentos característicos e variâncias -- são tipicamente ajustados pela maximização da verossimilhança marginal logarítmica, de modo a se adequar aos dados observados.
+
+\subsection{Função de aquisição: \textit{Expected Improvement} (EI)}
+\label{sec:fund_ei}
+
+Seja $f_{\min} = \min_{i \le n} y^{(i)}$ o melhor valor observado da função objetivo após $n$ avaliações. Dada a distribuição preditiva normal $Y(\bm{x}) \sim \mathcal{N}(\mu(\bm{x}), \sigma^2(\bm{x}))$, a melhoria sobre o melhor valor é a variável aleatória $I(\bm{x}) = \max\bigl(0,\, f_{\min} - Y(\bm{x})\bigr)$. A função de aquisição EI é o valor esperado dessa melhoria \citepabnttwo{jones1998efficient}{shahriari2016review}:
+\begin{equation}
+    \mathrm{EI}(\bm{x}) = \mathbb{E}\bigl[I(\bm{x})\bigr]
+    = \bigl(f_{\min} - \mu(\bm{x})\bigr) \Phi(z) + \sigma(\bm{x}) \phi(z),
+    \label{eq:ei}
+\end{equation}
+com $z = \bigl(f_{\min} - \mu(\bm{x})\bigr)/\sigma(\bm{x})$, em que $\Phi(\cdot)$ e $\phi(\cdot)$ representam, respectivamente, a função de distribuição acumulada e a função densidade de probabilidade da normal padrão. O primeiro termo da Equação~\eqref{eq:ei} favorece a \textit{intensificação} em regiões nas quais a média predita é menor que $f_{\min}$; o segundo termo favorece a \textit{exploração} em regiões nas quais a incerteza $\sigma(\bm{x})$ é elevada \citepabnt{shahriari2016review}. A próxima avaliação cara é então definida por
+\begin{equation}
+    \bm{x}^{(n+1)} = \arg\max_{\bm{x} \in \mathcal{X}} \mathrm{EI}(\bm{x}).
+    \label{eq:ego_step}
+\end{equation}
+
+A maximização de $\mathrm{EI}$ é, em geral, um problema multimodal e não convexo, mas de baixo custo computacional, pois envolve apenas avaliações do modelo substituto. Esse problema interno admite ser resolvido por algoritmos determinísticos locais (com múltiplos reinícios) ou por metaheurísticas globais. Neste trabalho, adota-se um Algoritmo Genético como otimizador interno (Seção~\ref{sec:metodologia}).
+
+\subsection{Algoritmos Genéticos como otimizadores internos}
+\label{sec:fund_ag}
+
+Algoritmos Genéticos (AG) são metaheurísticas evolutivas populacionais que partem de um conjunto de soluções candidatas e atualizam essa população por meio de operadores de \textit{seleção}, \textit{cruzamento} e \textit{mutação}. A seleção tende a favorecer indivíduos com melhor aptidão; o cruzamento combina variáveis de soluções candidatas para gerar descendentes; a mutação introduz variabilidade aleatória, reduzindo o risco de convergência prematura. A literatura recente sobre metaheurísticas destaca que o desempenho desses métodos depende fortemente do equilíbrio entre exploração e intensificação, da parametrização e do protocolo de comparação entre múltiplas execuções \citepabntthree{morales2020balance}{gomes2018probabilistic}{abualigah2021arithmetic}.
+
+No contexto deste artigo, o AG é utilizado em uma única função: maximizar a função de aquisição EI a cada iteração do EGO (Equação~\eqref{eq:ego_step}). Essa escolha decorre de duas observações: (i) a EI é multimodal e a robustez de uma busca populacional reduz o risco de aprisionamento em ótimos locais espúrios da própria EI; e (ii) o orçamento computacional desse problema interno é folgado, pois cada avaliação envolve apenas predições do modelo substituto, e não chamadas à função objetivo real.

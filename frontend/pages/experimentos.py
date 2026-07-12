@@ -14,7 +14,7 @@ Resumo em português:
     Página dedicada a comparativos científicos entre EGO e
     metaheurísticas puras. Roda :func:`core.api.run_benchmark`,
     gera a curva de convergência multi-algoritmo, a tabela-resumo
-    com média ± desvio e a matriz de p-valores de Mann–Whitney, e
+    com média ± desvio e a matriz de p-valores Wilcoxon-Holm, e
     oferece um bundle de download (histórico Parquet, sumário CSV,
     p-values CSV, HTML/PNG do gráfico).
 """
@@ -149,7 +149,7 @@ with cfg_c:
         help=(
             "Número de execuções independentes com seeds diferentes "
             "(``base_seed + rep``). Necessário para média ± desvio e "
-            "para o teste de Mann–Whitney."
+            "para o teste pareado de Wilcoxon com correção de Holm."
         ),
     )
     base_seed = st.number_input(
@@ -639,7 +639,7 @@ st.caption(
 
 
 # P-values matrix ----------------------------------------------------------
-st.markdown("### 🧮 Significância estatística (Mann–Whitney U, bilateral)")
+st.markdown("### 🧮 Significância estatística (Wilcoxon pareado + Holm)")
 display_pvalues = pvalues.copy()
 display_pvalues.index = [ALGORITHM_LABELS.get(a, a) for a in pvalues.index]
 display_pvalues.columns = [ALGORITHM_LABELS.get(a, a) for a in pvalues.columns]
@@ -654,8 +654,8 @@ styled = display_pvalues.style.format(
 st.dataframe(styled, use_container_width=True)
 st.caption(
     "Células em verde indicam diferença significativa entre os pares de "
-    "algoritmos ao nível α = 0,05 sobre os valores ``best`` por repetição. "
-    "Diagonal não definida (algoritmo não se compara a si mesmo)."
+    "algoritmos ao nível α = 0,05 sobre os valores ``best`` pareados por "
+    "repetição, após correção de Holm. Diagonal não definida."
 )
 
 
@@ -801,4 +801,3 @@ if result.best_sapatas is not None:
                 "yg (m)": f"{s.pilar.yg:.3f}",
             })
         st.dataframe(rows, use_container_width=True, hide_index=True)
-

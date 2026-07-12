@@ -1,0 +1,24 @@
+% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
+\begin{table*}[!t]
+    \centering
+    \caption{Protocolo experimental congelado: dois cenários de orçamento sob as mesmas $n_{\mathrm{rep}} = 30$ repetições semeadas (\textit{seeds} $42$ a $71$).}
+    \label{tab:protocolo}
+    \small
+    \begin{tabular}{p{0.42\textwidth}p{0.24\textwidth}p{0.24\textwidth}}
+        \toprule
+        Parâmetro & S1 (orçamento igual) & S2 (orçamento estendido) \\
+        \midrule
+        Algoritmos & EGO, CBO, GA, PSO, GWO, aleatória & GA, PSO, GWO, aleatória \\
+        Avaliações reais de $\Theta$ por repetição & 150 (todos) & 3000 \\
+        Amostra inicial do EGO (LHS) & $10d$ por caso & --- \\
+        População das metaheurísticas & 30 & 30 \\
+        AG interno da aquisição (\textit{pop\_size} $\times$ \textit{epoch}) & $50 \times 30$ & --- \\
+        GPs do CBO (reinícios: volume / restrições) & $5$ / $5$ & --- \\
+        \textit{Kernel} do GPR & Matérn $\nu{=}2{,}5$ (produção) & --- \\
+        Limites $h_x, h_y, h_z$ [m] & \multicolumn{2}{c}{$[0,60;\ 3,00]$} \\
+        Penalidade & \multicolumn{2}{c}{exterior linear, $\alpha = 10$, $p = 1$} \\
+        $f_{ck}$; cobrimento & \multicolumn{2}{c}{\SI{25}{\mega\pascal}; \SI{4}{\centi\meter}} \\
+        \bottomrule
+    \end{tabular}
+    \caption*{\footnotesize Fonte: \texttt{config.json} persistido por caso/cenário em \texttt{experiments/protocolo\_final/}.}
+\end{table*}

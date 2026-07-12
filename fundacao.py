@@ -204,7 +204,7 @@ def _avaliar_projeto(x, args, *, penalty=None):
             f'tensao min. (kPa) - {i}']] = df.apply(
             lambda row, k=i: calcular_sigma_max_min(
                 row[f'Fz-{k}'], row[f'Mx-{k}'], row[f'My-{k}'],
-                row['h_x (m)'], row['h_y (m)']
+                row['h_x (m)'], row['h_y (m)'], row['h_z (m)']
             ),
             axis=1, result_type='expand',
         )
@@ -466,4 +466,3 @@ def treino_teste_para_processo_paralelo(
                 "y_obse": y_teste,
                 "y_pred": y_pred_teste
             }
-

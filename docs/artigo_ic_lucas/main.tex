@@ -1,0 +1,133 @@
+% =============================================================================
+% Artigo da Iniciação Científica — Lucas Teixeira Correia
+% Plano de trabalho: Otimização do dimensionamento e posicionamento de fundações
+% superficiais de edifícios considerando conceitos de empacotamento e mecânica
+% das estruturas.
+% Orientadora: Profa. Maria José Pereira Dantas (PUC Goiás)
+%
+% Recorte do artigo:
+%   Surrogate-assisted optimization (EGO + GPR + AG) para o dimensionamento
+%   automatizado de sapatas isoladas, com abertura metodológica para a etapa
+%   subsequente de empacotamento (layout) das fundações.
+%
+% Status: versão experimental consolidada; limitações declaradas no texto.
+% Compilação: pdflatex main && bibtex main && pdflatex main && pdflatex main
+% =============================================================================
+\documentclass[10pt,a4paper,twocolumn]{article}
+
+% --- Codificação e idioma -----------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english,brazilian]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% --- Estrutura e formatação ---------------------------------------------------
+\usepackage[a4paper,margin=2.0cm,columnsep=0.8cm]{geometry}
+\usepackage{setspace}
+\singlespacing
+\usepackage{indentfirst}
+\usepackage{balance}   % equaliza as colunas da última página
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\itshape}{\thesubsubsection}{1em}{}
+
+% --- Matemática e ciência -----------------------------------------------------
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{mathtools}
+\usepackage{siunitx}
+\sisetup{output-decimal-marker={,},group-separator={\,},per-mode=symbol,
+         range-phrase={ a },range-units=single}
+
+% --- Figuras e tabelas --------------------------------------------------------
+\usepackage{graphicx}
+\graphicspath{{figuras/}}
+\usepackage{booktabs}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+\usepackage{subcaption}
+\usepackage{float}
+
+% --- Algoritmos e código ------------------------------------------------------
+\usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\small,frame=single,breaklines=true}
+
+% --- Referências cruzadas e citações -----------------------------------------
+\usepackage[hidelinks]{hyperref}
+\usepackage{cleveref}
+\usepackage{url}
+
+% --- Citações ABNT (autor-data) ----------------------------------------------
+\usepackage[alf,abnt-emphasize=bf,abnt-thesis-year=both,abnt-etal-list=0]{abntex2cite}
+
+% --- Macros do projeto --------------------------------------------------------
+\usepackage{xspace}
+\newcommand{\fundaai}{\textsc{FundaAI}\xspace}
+\newcommand{\citepabnt}[1]{(\citeauthoronline{#1}, \citeyear{#1})}
+\newcommand{\citepabnttwo}[2]{(\citeauthoronline{#1}, \citeyear{#1}; \citeauthoronline{#2}, \citeyear{#2})}
+\newcommand{\citepabntthree}[3]{(\citeauthoronline{#1}, \citeyear{#1}; \citeauthoronline{#2}, \citeyear{#2}; \citeauthoronline{#3}, \citeyear{#3})}
+\newcommand{\citepabntfour}[4]{(\citeauthoronline{#1}, \citeyear{#1}; \citeauthoronline{#2}, \citeyear{#2}; \citeauthoronline{#3}, \citeyear{#3}; \citeauthoronline{#4}, \citeyear{#4})}
+
+% =============================================================================
+\begin{document}
+
+% --- Cabeçalho e resumos em largura total (duas colunas começam depois) -------
+% O grupo {...} protege os colchetes internos (ex.: \item[]) do argumento
+% opcional de \twocolumn.
+\twocolumn[{
+\begin{@twocolumnfalse}
+\begin{center}
+    {\LARGE \bfseries Otimização computacional do pré-dimensionamento geométrico de sapatas isoladas: uma abordagem com modelo substituto e metaheurística \par}
+
+    \vspace{0.4cm}
+    {\large \textit{Computational design optimization of isolated shallow foundations using surrogate modelling and metaheuristics}\par}
+
+    \vspace{0.5cm}
+    {\normalsize Lucas Teixeira Correia\textsuperscript{1}\par}
+    {\small \textsuperscript{1}Pontifícia Universidade Católica de Goiás, Escola de Engenharia, Goiânia, GO, Brasil\par}
+    {\small Grupo de Pesquisa: \textit{Identification, Modeling and Artificial Intelligence for Systems Optimization}\par}
+\end{center}
+
+\vspace{0.3cm}
+
+% --- Resumo ------------------------------------------------------------------
+\begin{list}{}{\setlength{\leftmargin}{1.2em}\setlength{\rightmargin}{1.2em}}
+\item[]\small
+\noindent \textbf{Resumo.}
+Este artigo apresenta uma abordagem computacional para o pré-dimensionamento geométrico de sapatas isoladas, formulada como minimização do volume de concreto com restrições de tensão admissível do solo, geometria mínima, punção e não sobreposição. A solução combina \textit{Efficient Global Optimization} (EGO), Regressão por Processos Gaussianos (GPR) e Algoritmo Genético (AG) para orientar avaliações sequenciais da função pseudo-objetivo, além de uma variante de otimização bayesiana com restrições que modela volume e viabilidade separadamente. O protocolo experimental considera três casos de estudo, 30 repetições pareadas, orçamento de 150 avaliações reais e comparação com AG, PSO, GWO e busca aleatória, incluindo um cenário de orçamento estendido para as buscas diretas. Com 150 avaliações, a variante com restrições explícitas apresentou as menores médias de $\Theta$ nos três casos e reduziu a mediana em até $71{,}4\,\%$ frente à busca aleatória, mas com menor factibilidade estrita nos dois casos menores. Com $3\,000$ avaliações, as buscas diretas superaram as referências assistidas por modelo substituto em menor tempo, pois a avaliação atual tem baixo custo computacional. Uma auditoria por decomposição mostrou ganhos de apenas $<0{,}01\,\%$, $0{,}77\,\%$ e $2{,}08\,\%$ sobre o melhor volume factível global, confirmando que os casos são quase separáveis. O estudo de penalidade indicou que fatores elevados preservam o $R^2$ global, mas degradam o erro na região factível; a escolha do \textit{kernel} foi secundária. Os resultados delimitam a abordagem como pré-dimensionamento experimental e motivam a etapa futura de posicionamento com restrições de empacotamento.
+
+\noindent \textbf{Palavras-chave:} Otimização global. Fundações superficiais. Modelo substituto. Processos gaussianos. Algoritmo genético. Empacotamento.
+
+\vspace{0.3cm}
+
+\begin{otherlanguage}{english}
+\noindent \textbf{Abstract.}
+This paper presents a computational approach for the geometric pre-design of isolated footings, formulated as concrete-volume minimisation with constraints on allowable soil pressure, minimum geometry, punching shear and overlap. The solution combines \textit{Efficient Global Optimization} (EGO), Gaussian Process Regression (GPR) and a Genetic Algorithm (GA) to guide sequential evaluations of the pseudo-objective function, and also evaluates a constrained Bayesian optimisation variant that models volume and feasibility separately. The experimental protocol includes three case studies, 30 paired repetitions, a budget of 150 real evaluations and comparisons with GA, PSO, GWO and random search, plus an extended-budget scenario for direct searches. With 150 evaluations, the constraint-aware variant achieved the lowest mean $\Theta$ in all three cases and reduced the median by up to 71.4\% relative to random search, but with lower strict feasibility in the two smaller cases. With 3,000 evaluations, direct searches outperformed the surrogate-assisted references in less wall-clock time because the current objective evaluation is inexpensive. A decomposition audit found gains of only $<0.01\%$, $0.77\%$ and $2.08\%$ over the best global feasible volume, confirming that the current cases are nearly separable. The penalty study showed that large penalty factors preserve global $R^2$ while degrading feasible-region error; kernel choice was secondary. The results position the approach as an experimental pre-design method and motivate the next stage on foundation positioning with packing constraints.
+
+\noindent \textbf{Keywords:} Global optimisation. Shallow foundations. Surrogate model. Gaussian processes. Genetic algorithm. Packing.
+\end{otherlanguage}
+\end{list}
+
+\vspace{0.5cm}
+\end{@twocolumnfalse}
+}]
+
+% --- Seções (modulares) ------------------------------------------------------
+\input{secoes/01_introducao}
+\input{secoes/02_estado_da_arte}
+\input{secoes/03_fundamentacao_teorica}
+\input{secoes/04_metodologia}
+\input{secoes/05_implementacao_software}
+\input{secoes/06_resultados_parciais}
+\input{secoes/07_discussao}
+\input{secoes/08_conclusoes_parciais}
+\input{secoes/09_agradecimentos}
+
+% --- Referências -------------------------------------------------------------
+\balance
+\bibliographystyle{abntex2-alf}
+\bibliography{referencias}
+
+\end{document}

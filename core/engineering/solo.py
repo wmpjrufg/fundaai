@@ -1,9 +1,10 @@
 """Soil bearing capacity helpers (geotechnical layer).
 
 Resumo em português:
-    Tensão admissível do solo a partir do índice SPT (NBR 6122) e do
-    tipo de solo. Mantém a correlação empírica clássica do método dos
-    práticos.
+    Tensão admissível preliminar do solo a partir do índice SPT e do
+    tipo de solo. Mantém a correlação empírica legada do projeto como
+    hipótese de pré-dimensionamento; ela não deve ser apresentada como
+    prescrição direta da NBR 6122 sem fonte técnica complementar.
 """
 
 from __future__ import annotations

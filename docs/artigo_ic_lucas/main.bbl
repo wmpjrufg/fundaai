@@ -1,0 +1,193 @@
+\providecommand{\abntreprintinfo}[1]{%
+ \citeonline{#1}}
+\setlength{\labelsep}{0pt}\begin{thebibliography}{}
+\providecommand{\abntrefinfo}[3]{}
+\providecommand{\abntbstabout}[1]{}
+\abntbstabout{v-1.9.7 }
+
+\bibitem[Abualigah et al. 2021]{abualigah2021arithmetic}
+\abntrefinfo{Abualigah et al.}{ABUALIGAH et al.}{2021}
+{ABUALIGAH, L.; DIABAT, A.; MIRJALILI, S.; ELAZIZ, M. A.; GANDOMI, A.~H. The
+  arithmetic optimization algorithm.
+\textbf{Computer Methods in Applied Mechanics and Engineering}, v.~376, p.
+  113609, 2021.}
+
+\bibitem[Ahmad et al. 2021]{ahmad2021gpr}
+\abntrefinfo{Ahmad et al.}{AHMAD et al.}{2021}
+{AHMAD, M.; AHMAD, F.; WR{\'{O}}BLEWSKI, P.; AL-MANSOB, R.~A.; OLCZAK, P.;
+  KAMI{\'{N}}SKI, P.; SAFDAR, M.; RAI, P. Prediction of ultimate bearing
+  capacity of shallow foundations on cohesionless soils: A {G}aussian process
+  regression approach.
+\textbf{Applied Sciences}, v.~11, n.~21, p. 10317, 2021.}
+
+\bibitem[Associa{\c{c}}{\~{a}}o Brasileira de Normas T{\'{e}}cnicas
+  2022]{abnt6122}
+\abntrefinfo{Associa{\c{c}}{\~{a}}o Brasileira de Normas
+  T{\'{e}}cnicas}{ASSOCIA{\c{C}}{\~{A}}O BRASILEIRA DE NORMAS
+  T{\'{E}}CNICAS}{2022}
+{ASSOCIA{\c{C}}{\~{A}}O BRASILEIRA DE NORMAS T{\'{E}}CNICAS. \textbf{{ABNT NBR
+  6122}: Projeto e Execu{\c{c}}{\~{a}}o de Funda{\c{c}}{\~{o}}es -- Emenda 1}.
+Rio de Janeiro, 2022.}
+
+\bibitem[Associa{\c{c}}{\~{a}}o Brasileira de Normas T{\'{e}}cnicas
+  2026]{abnt6118}
+\abntrefinfo{Associa{\c{c}}{\~{a}}o Brasileira de Normas
+  T{\'{e}}cnicas}{ASSOCIA{\c{C}}{\~{A}}O BRASILEIRA DE NORMAS
+  T{\'{E}}CNICAS}{2026}
+{ASSOCIA{\c{C}}{\~{A}}O BRASILEIRA DE NORMAS T{\'{E}}CNICAS. \textbf{{ABNT NBR
+  6118}: Projeto de Estruturas de Concreto -- Procedimento}.
+Rio de Janeiro, 2026.}
+
+\bibitem[Deng, Paulson e Messner 2026]{deng2026metamaterial}
+\abntrefinfo{Deng, Paulson e Messner}{DENG; PAULSON; MESSNER}{2026}
+{DENG, H.; PAULSON, N.; MESSNER, M.~C. Metamaterial design based on autoencoder
+  representation using an active learning method.
+\textbf{Structural and Multidisciplinary Optimization}, v.~69, p.~21, 2026.}
+
+\bibitem[Eriksson e Poloczek 2021]{eriksson2021scbo}
+\abntrefinfo{Eriksson e Poloczek}{ERIKSSON; POLOCZEK}{2021}
+{ERIKSSON, D.; POLOCZEK, M. Scalable constrained {B}ayesian optimization. In:
+  \textbf{Proceedings of the 24th International Conference on Artificial
+  Intelligence and Statistics}. [S.l.]: PMLR, 2021.  (Proceedings of Machine
+  Learning Research, v.~130), p. 730--738.}
+
+\bibitem[Fattahi, Ghaedi e Armaghani 2025]{fattahi2025settlement}
+\abntrefinfo{Fattahi, Ghaedi e Armaghani}{FATTAHI; GHAEDI; ARMAGHANI}{2025}
+{FATTAHI, H.; GHAEDI, H.; ARMAGHANI, D.~J. Improving shallow foundation
+  settlement prediction through intelligent optimization techniques.
+\textbf{Computer Modeling in Engineering \& Sciences}, v.~143, n.~1, p.
+  747--766, 2025.}
+
+\bibitem[Gandomi e Kashani 2018]{gandomi2018construction}
+\abntrefinfo{Gandomi e Kashani}{GANDOMI; KASHANI}{2018}
+{GANDOMI, A.~H.; KASHANI, A.~R. Construction cost minimization of shallow
+  foundation using recent swarm intelligence techniques.
+\textbf{IEEE Transactions on Industrial Informatics}, v.~14, n.~3, p.
+  1099--1106, 2018.}
+
+\bibitem[Gardner et al. 2014]{gardner2014bayesian}
+\abntrefinfo{Gardner et al.}{GARDNER et al.}{2014}
+{GARDNER, J.~R.; KUSNER, M.~J.; XU, Z.; WEINBERGER, K.~Q.; CUNNINGHAM, J.~P.
+  Bayesian optimization with inequality constraints. In:  \textbf{Proceedings
+  of the 31st International Conference on Machine Learning}. Bejing, China:
+  PMLR, 2014.  (Proceedings of Machine Learning Research, 2), p. 937--945.}
+
+\bibitem[Gomes et al. 2018]{gomes2018probabilistic}
+\abntrefinfo{Gomes et al.}{GOMES et al.}{2018}
+{GOMES, W. J.~S.; BECK, A.~T.; LOPEZ, R.~H.; MIGUEL, L. F.~F. A probabilistic
+  metric for comparing metaheuristic optimization algorithms.
+\textbf{Structural Safety}, v.~70, p. 59--70, 2018.}
+
+\bibitem[Jones, Schonlau e Welch 1998]{jones1998efficient}
+\abntrefinfo{Jones, Schonlau e Welch}{JONES; SCHONLAU; WELCH}{1998}
+{JONES, D.~R.; SCHONLAU, M.; WELCH, W.~J. Efficient global optimization of
+  expensive black-box functions.
+\textbf{Journal of Global Optimization}, v.~13, n.~4, p. 455--492, 1998.}
+
+\bibitem[Juang e Wang 2013]{juang2013reliability}
+\abntrefinfo{Juang e Wang}{JUANG; WANG}{2013}
+{JUANG, C.~H.; WANG, L. Reliability-based robust geotechnical design of spread
+  foundations using multi-objective genetic algorithm.
+\textbf{Computers and Geotechnics}, v.~48, p. 96--106, 2013.}
+
+\bibitem[Kashani et al. 2020]{kashani2020optimum}
+\abntrefinfo{Kashani et al.}{KASHANI et al.}{2020}
+{KASHANI, A.~R.; GANDOMI, M.; CAMP, C.~V.; GANDOMI, A.~H. Optimum design of
+  shallow foundation using evolutionary algorithms.
+\textbf{Soft Computing}, v.~24, p. 6809--6833, 2020.}
+
+\bibitem[Khajehzadeh, Keawsawasvong e Nehdi 2022]{khajehzadeh2022effective}
+\abntrefinfo{Khajehzadeh, Keawsawasvong e Nehdi}{KHAJEHZADEH; KEAWSAWASVONG;
+  NEHDI}{2022}
+{KHAJEHZADEH, M.; KEAWSAWASVONG, S.; NEHDI, M.~L. Effective hybrid soft
+  computing approach for optimum design of shallow foundations.
+\textbf{Sustainability}, v.~14, n.~3, p.~1847, 2022.}
+
+\bibitem[Khajehzadeh et al. 2012]{khajehzadeh2012gsa}
+\abntrefinfo{Khajehzadeh et al.}{KHAJEHZADEH et al.}{2012}
+{KHAJEHZADEH, M.; TAHA, M.~R.; EL-SHAFIE, A.; ESLAMI, M. Optimization of
+  shallow foundation using gravitational search algorithm.
+\textbf{Research Journal of Applied Sciences, Engineering and Technology},
+  v.~4, n.~9, p. 1124--1130, 2012.}
+
+\bibitem[Mathern et al. 2021]{mathern2021multiobjective}
+\abntrefinfo{Mathern et al.}{MATHERN et al.}{2021}
+{MATHERN, A.; STEINHOLTZ, O.~S.; SJ{\"{O}}BERG, A.; {\"{O}}NNHEIM, M.; EK, K.;
+  REMPLING, R.; GUSTAVSSON, E.; JIRSTRAND, M. Multi-objective constrained
+  {B}ayesian optimization for structural design.
+\textbf{Structural and Multidisciplinary Optimization}, v.~63, n.~2, p.
+  689--701, 2021.}
+
+\bibitem[Morales-Casta{\~{n}}eda et al. 2020]{morales2020balance}
+\abntrefinfo{Morales-Casta{\~{n}}eda et al.}{MORALES-CASTA{\~{N}}EDA et
+  al.}{2020}
+{MORALES-CASTA{\~{N}}EDA, B.; ZALDIVAR, D.; CUEVAS, E.; FAUSTO, F.;
+  RODR{\'{I}}GUEZ, A. A better balance in metaheuristic algorithms: Does it
+  exist?
+\textbf{Swarm and Evolutionary Computation}, v.~54, p. 100671, 2020.}
+
+\bibitem[Nigdeli, Bekda{\c{s}} e Yang 2018]{nigdeli2018metaheuristic}
+\abntrefinfo{Nigdeli, Bekda{\c{s}} e Yang}{NIGDELI; BEKDA{\c{S}}; YANG}{2018}
+{NIGDELI, S.~M.; BEKDA{\c{S}}, G.; YANG, X.-S. Metaheuristic optimization of
+  reinforced concrete footings.
+\textbf{KSCE Journal of Civil Engineering}, v.~22, n.~11, p. 4555--4563, 2018.}
+
+\bibitem[Santos, {Lima Neto} e Ferreira 2018]{santos2018punching}
+\abntrefinfo{Santos, {Lima Neto} e Ferreira}{SANTOS; {Lima Neto};
+  FERREIRA}{2018}
+{SANTOS, D. F.~A.; {Lima Neto}, A.~F.; FERREIRA, M.~P. Punching shear
+  resistance of reinforced concrete footings: evaluation of design codes.
+\textbf{Revista IBRACON de Estruturas e Materiais}, v.~11, n.~2, p. 432--454,
+  2018.}
+
+\bibitem[Schulz, Speekenbrink e Krause 2018]{schulz2018tutorial}
+\abntrefinfo{Schulz, Speekenbrink e Krause}{SCHULZ; SPEEKENBRINK; KRAUSE}{2018}
+{SCHULZ, E.; SPEEKENBRINK, M.; KRAUSE, A. A tutorial on {G}aussian process
+  regression: Modelling, exploring, and exploiting functions.
+\textbf{Journal of Mathematical Psychology}, v.~85, p. 1--16, 2018.}
+
+\bibitem[Shahriari et al. 2016]{shahriari2016review}
+\abntrefinfo{Shahriari et al.}{SHAHRIARI et al.}{2016}
+{SHAHRIARI, B.; SWERSKY, K.; WANG, Z.; ADAMS, R.~P.; FREITAS, N. de. Taking the
+  human out of the loop: A review of {B}ayesian optimization.
+\textbf{Proceedings of the IEEE}, v.~104, n.~1, p. 148--175, 2016.}
+
+\bibitem[Snoek, Larochelle e Adams 2012]{snoek2012practical}
+\abntrefinfo{Snoek, Larochelle e Adams}{SNOEK; LAROCHELLE; ADAMS}{2012}
+{SNOEK, J.; LAROCHELLE, H.; ADAMS, R.~P. Practical {B}ayesian optimization of
+  machine learning algorithms. In:  \textbf{Advances in Neural Information
+  Processing Systems}. [S.l.: s.n.], 2012. v.~25.}
+
+\bibitem[Waheed et al. 2022]{waheed2022practical}
+\abntrefinfo{Waheed et al.}{WAHEED et al.}{2022}
+{WAHEED, J.; AZAM, R.; RIAZ, M.~R.; SHAKEEL, M.; MOHAMED, A.; ALI, E.
+  Metaheuristic-based practical tool for optimal design of reinforced concrete
+  isolated footings: Development and application for parametric investigation.
+\textbf{Buildings}, v.~12, n.~4, p.~471, 2022.}
+
+\bibitem[Waheed et al. 2025]{waheed2025optimization}
+\abntrefinfo{Waheed et al.}{WAHEED et al.}{2025}
+{WAHEED, J.; AZAM, R.; RIAZ, M.~R.; SHAKEEL, M. Optimization-based innovative
+  approach for economical design of reinforced concrete isolated footing.
+\textbf{Innovative Infrastructure Solutions}, v.~10, p.~56, 2025.}
+
+\bibitem[Wang e Kulhawy 2008]{wang2008economic}
+\abntrefinfo{Wang e Kulhawy}{WANG; KULHAWY}{2008}
+{WANG, Y.; KULHAWY, F.~H. Economic design optimization of foundations.
+\textbf{Journal of Geotechnical and Geoenvironmental Engineering}, v.~134,
+  n.~8, p. 1097--1105, 2008.}
+
+\bibitem[Williams e Rasmussen 1995]{williams1995gaussian}
+\abntrefinfo{Williams e Rasmussen}{WILLIAMS; RASMUSSEN}{1995}
+{WILLIAMS, C. K.~I.; RASMUSSEN, C.~E. {G}aussian processes for regression. In:
+  \textbf{Advances in Neural Information Processing Systems}. [S.l.]: MIT
+  Press, 1995. v.~8, p. 514--520.}
+
+\bibitem[Yu, Picard e Ahmed 2025]{yu2025fast}
+\abntrefinfo{Yu, Picard e Ahmed}{YU; PICARD; AHMED}{2025}
+{YU, R. T.-Y.; PICARD, C.; AHMED, F. Fast and accurate {B}ayesian optimization
+  with pre-trained transformers for constrained engineering problems.
+\textbf{Structural and Multidisciplinary Optimization}, v.~68, n.~3, p.~66,
+  2025.}
+
+\end{thebibliography}

@@ -22,9 +22,9 @@ st.selectbox(
 # 3. Conteúdo em blocos únicos de Markdown
 conteudo = {
                 "pt": {
-                        "titulo": "🏗️ FundaIA - Dimensionamento de Sapatas",
+                        "titulo": "🏗️ FundaIA - Pré-dimensionamento de Sapatas",
                         "texto_completo": """
-                                                Este aplicativo tem como objetivo auxiliar no dimensionamento de sapatas isoladas, considerando a resistência do solo e as cargas aplicadas pelos pilares. Para isso, é necessário que o usuário forneça um arquivo Excel com os dados de entrada, conforme o exemplo disponível para download. A aplicação analisa: **tensão no solo**, **punção**, **geometria mínima** e **interação entre elas (intersecção)**.
+                                                Este aplicativo tem como objetivo auxiliar no pré-dimensionamento de sapatas isoladas, considerando a resistência do solo e as cargas aplicadas pelos pilares. Para isso, é necessário que o usuário forneça um arquivo Excel com os dados de entrada, conforme o exemplo disponível para download. A aplicação analisa: **tensão no solo**, **punção**, **geometria mínima** e **interação entre elas (intersecção)**.
 
                                                 ### Observações:
                                                 * O arquivo de entrada deve conter as seguintes colunas:
@@ -33,7 +33,7 @@ conteudo = {
                                                     * **spt:** Índice de resistência do solo
                                                     * **solo:** Tipo de solo
                                                     * **xg (m) / yg (m):** Coordenadas do pilar
-                                                    * **Fz-ci / Mx-ci / My-ci:** Cargas e momentos da combinação 'i'
+                                                    * **Fz-ci / Mx-ci / My-ci:** Cargas e momentos da combinação 'i'. No padrão da planilha, Mx e My são componentes associadas às excentricidades nas direções x e y, não necessariamente os momentos em torno dos eixos globais.
                                                 * Não modifique o cabeçalho da planilha modelo. Se for necessário adicionar/retirar combinações faça mantendo o padrão
                                                 * A planilha padrão tem 3 combinações
 
@@ -42,9 +42,9 @@ conteudo = {
                         "btn": "📥 Baixar planilha modelo (Excel)"
                 },
                 "en": {
-                        "titulo": "🏗️ FundaIA - Footing Design",
+                        "titulo": "🏗️ FundaIA - Footing Pre-design",
                         "texto_completo": """
-                                                This application aims to assist in the design of isolated footings, considering soil resistance and the loads applied by columns. To do this, the user must provide an Excel file with input data, as per the example available for download. The application analyzes: **soil stress**, **punching shear**, **minimum geometry** and **interaction between them (intersection)**.
+                                                This application aims to assist in the pre-design of isolated footings, considering soil resistance and the loads applied by columns. To do this, the user must provide an Excel file with input data, as per the example available for download. The application analyzes: **soil stress**, **punching shear**, **minimum geometry** and **interaction between them (intersection)**.
 
                                                 ### Notes:
                                                 * The input file must contain the following columns:
@@ -53,7 +53,7 @@ conteudo = {
                                                     * **spt:** Soil resistance index
                                                     * **soil:** Soil type
                                                     * **xg (m) / yg (m):** Column coordinates
-                                                    * **Fz-ci / Mx-ci / My-ci:** Loads and moments for combination 'i'
+                                                    * **Fz-ci / Mx-ci / My-ci:** Loads and moments for combination 'i'. In the spreadsheet convention, Mx and My are components associated with eccentricities along x and y, not necessarily moments about the global axes.
                                                 * Do not modify the template spreadsheet header. If you need to add/remove combinations, do so while maintaining the pattern
                                                 * The standard spreadsheet has 3 combinations
 

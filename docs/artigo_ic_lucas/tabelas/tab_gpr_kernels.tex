@@ -1,0 +1,25 @@
+% Gerada por scripts/make_paper_artifacts.py — nao editar manualmente.
+\begin{table*}[!t]
+    \centering
+    \caption{Qualidade preditiva do GPR por \textit{kernel} (média em 3 réplicas independentes de amostragem/partição; caso de 3 sapatas; 900 amostras LHS; partição 70/30): as oito melhores configurações sob $\alpha = 10^{1}$ e o \textit{kernel} de produção. RMSE$_{\mathrm{feas}}$ é o erro restrito aos pontos de teste factíveis — a região onde a função de aquisição decide.}
+    \label{tab:gpr_kernels}
+    \small
+    \begin{tabular}{llccccc}
+        \toprule
+        & & \multicolumn{3}{c}{$\alpha = 10^{1}$} & \multicolumn{2}{c}{$\alpha = 10^{6}$} \\
+        \cmidrule(lr){3-5} \cmidrule(lr){6-7}
+        Id & \textit{Kernel} & $R^2$ & RMSE & RMSE$_{\mathrm{feas}}$ & $R^2$ & RMSE$_{\mathrm{feas}}$ \\
+        \midrule
+        k12 & DP$_{0{,}1}$+RBF & 0,934 $\pm$ 0,010 & 1,89 & 1,26 & 0,925 & \num{1.18e+05} \\
+        k10 & DP+RBF & 0,934 $\pm$ 0,010 & 1,89 & 1,26 & 0,925 & \num{1.18e+05} \\
+        k07 & RQ $\alpha{=}1$ & 0,933 $\pm$ 0,011 & 1,90 & 1,25 & 0,924 & \num{1.16e+05} \\
+        k09 & RQ $\alpha{=}10$ & 0,933 $\pm$ 0,011 & 1,90 & 1,25 & 0,924 & \num{1.16e+05} \\
+        k08 & RQ $\alpha{=}0{,}1$ & 0,933 $\pm$ 0,011 & 1,90 & 1,25 & 0,924 & \num{1.16e+05} \\
+        k19 & RQ+White & 0,933 $\pm$ 0,011 & 1,90 & 1,25 & 0,924 & \num{1.16e+05} \\
+        k01 & RBF+RBF & 0,931 $\pm$ 0,012 & 1,93 & 1,24 & 0,923 & \num{1.15e+05} \\
+        k06 & Matérn $1{,}5{+}2{,}5$ & 0,931 $\pm$ 0,011 & 1,94 & 1,28 & 0,921 & \num{1.2e+05} \\
+        k20$^\dagger$ & Matérn $\nu{=}2{,}5$ (produção) & 0,931 $\pm$ 0,011 & 1,94 & 1,28 & 0,921 & \num{1.2e+05} \\
+        \bottomrule
+    \end{tabular}
+    \caption*{\footnotesize $^\dagger$\,\textit{kernel} adotado em produção no \fundaai{} (\texttt{constroi\_kernel()[-1]}). RMSE em \si{\meter\cubed}.}
+\end{table*}
