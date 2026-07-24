@@ -1,144 +1,152 @@
-# Relatório para orientação - alterações após a vetorização da função de sobreposição
+# Relatório de evolução do FundaIA após a vetorização da sobreposição
 
-**Projeto:** FundaIA - Otimização do pré-dimensionamento e posicionamento de fundações superficiais  
-**Autor:** Lucas Teixeira Correia  
-**Orientação:** Profa. Dra. Maria José Pereira Dantas  
-**Data deste relatório:** 12/07/2026  
-**Ponto de corte:** última versão vista pela orientação: vetorização da verificação de sobreposição entre sapatas, Sprint 3.8.
-
----
-
-## 1. Resumo executivo
-
-Desde a última versão apresentada à orientação, o projeto deixou de ser apenas uma ferramenta com uma função objetivo mais rápida e passou a ter uma base experimental e acadêmica bem mais completa.
-
-As principais mudanças foram:
-
-1. **Arquitetura e rastreabilidade:** o código foi reorganizado em camadas (`core/domain`, `core/engineering`, `core/api`, `core/optimization`, `core/io` e `frontend`), com persistência de experimentos, logs estruturados, cache do modelo substituto e testes automatizados.
-2. **Interface:** a aplicação ganhou visualização 2D/3D das sapatas, histórico de convergência do EGO, progresso ao vivo, cancelamento de execução, exportação de artefatos e uma página de experimentos comparando algoritmos.
-3. **Engenharia:** foram adicionadas validações de fronteira, corrigida a formulação de tensão no solo, documentada a convenção dos momentos e implementada a verificação de punção também no contorno **C'**, a `2d` da face do pilar.
-4. **Metodologia experimental:** foi criado um protocolo com 30 repetições, seeds pareadas, orçamento controlado, comparação com GA, PSO, GWO e busca aleatória, teste pareado de Wilcoxon com correção de Holm, métricas de factibilidade e estudo de penalidade/kernel do GPR.
-5. **Otimização com restrições:** foi implementada uma variante de **Constrained Bayesian Optimization (CBO)**, na qual o volume e cada grupo de restrição são modelados separadamente por processos gaussianos.
-6. **Artigo:** o manuscrito em `docs/artigo_ic_lucas` foi reposicionado como artigo de **pré-dimensionamento geométrico experimental**, com resultados regeneráveis, referências revisadas, limitações declaradas e texto polido para uma futura submissão.
-7. **Fase B:** foi iniciado um piloto de posicionamento/packing, ainda fora do artigo 1, mostrando que quando as sapatas podem se deslocar em planta o problema deixa de ser quase separável.
-
-O ponto mais importante para comunicar é: **o artigo 1 ficou mais honesto e metodologicamente forte, mas o escopo continua sendo pré-dimensionamento geométrico, não projeto executivo completo de fundações.**
+- **Projeto:** FundaIA
+- **Autor:** Lucas Teixeira Correia
+- **Data:** 12/07/2026
+- **Ponto de partida:** versão em que a principal mudança era a vetorização da verificação de sobreposição entre sapatas.
 
 ---
 
-## 2. Linha do tempo resumida das mudanças
+## 1. Visão geral
 
-| Etapa | O que mudou | Por que importa |
-| --- | --- | --- |
-| Sprint 3.8 | Vetorização da sobreposição entre sapatas com matriz `N x N` em NumPy | Reduziu muito o tempo da função objetivo sem alterar o resultado numérico. |
-| Sprint 4.1 | Cache do GPR | Evita treinar o mesmo modelo substituto repetidas vezes quando os dados são idênticos. |
-| Sprint 4.2 | Persistência de experimentos | Cada otimização pode salvar configuração, histórico, ambiente, métricas e artefatos. |
-| Sprint 4.3 | Reorganização do repositório | Separou código de domínio, engenharia, otimização, IO, API e frontend. |
-| Sprint 4.4 | Logs estruturados | Permite auditar execuções por eventos, como `ego.iter`, `cache.hit` e `optimize.end`. |
-| Sprints 4.5-4.11 | Interface 3D, tema visual, gráfico de convergência, progresso e cancelamento | Transformou a aplicação em ferramenta mais apresentável e mais fácil de depurar. |
-| Sprint 4.12 | Bancada de experimentos | Criou comparação controlada entre EGO, GA, PSO, GWO e depois busca aleatória/CBO. |
-| Sprint 5.1 | Protocolo experimental final e guardrails | Fechou casos, seeds, orçamento, métricas de factibilidade e estudo GPR. |
-| Sprint 5.2 | Punção no contorno C' e artigo em duas colunas | Corrigiu uma lacuna de verificação estrutural importante para sapatas. |
-| Sprint 5.3 | CBO | Separou volume e restrições em modelos substitutos independentes. |
-| Sprint 5.4 | Correção da tensão no solo | Removeu coeficientes legados, incluiu peso próprio real e documentou convenção de momentos. |
-| Sprint 5.5 | Novos artigos e decomposição por sapata | Fortaleceu as referências e mostrou que os casos atuais são quase separáveis. |
-| Sprint 5.6 | Piloto de packing/layout | Iniciou a fase de posicionamento conjunto, ainda como piloto. |
-| Sprint 5.7 | Submission polish | Poliu o artigo, removeu placeholders e deixou o manuscrito-base mais maduro. |
+Depois da última versão apresentada, o projeto mudou bastante. A vetorização da sobreposição continuou sendo importante, porque deixou a função objetivo muito mais rápida, mas ela acabou virando só uma parte de uma reorganização maior.
+
+O trabalho mais recente consolidou três coisas:
+
+1. uma base de código mais organizada e testável;
+2. uma formulação de engenharia mais clara para tensão no solo e punção;
+3. um protocolo experimental mais honesto para o artigo.
+
+O ponto principal é que o artigo atual não está mais tentando parecer um projeto executivo completo de fundações. Ele foi reposicionado como um estudo de pré-dimensionamento geométrico otimizado de sapatas isoladas, com hipóteses declaradas, resultados regeneráveis e limitações explícitas. Isso deixa o trabalho mais forte, porque separa o que já está implementado do que ainda precisa entrar em uma etapa posterior.
 
 ---
 
-## 3. Explicação didática da função objetivo
+## 2. O que mudou no código
 
-O otimizador precisa de uma função que diga se uma solução é boa ou ruim. No FundaIA, uma solução é um vetor com as dimensões de cada sapata:
+### 2.1. Organização do projeto
+
+O código foi reorganizado em camadas. A lógica de engenharia, otimização, entrada e saída, API e interface deixou de ficar misturada em poucos arquivos grandes.
+
+Hoje a estrutura principal está assim:
+
+- `core/domain`: entidades e validações de domínio;
+- `core/engineering`: fórmulas de engenharia, como tensão, punção, solo e sobreposição;
+- `core/api`: funções de avaliação e otimização usadas pela interface e pelos scripts;
+- `core/optimization`: EGO, GPR, CBO, GA e rotinas de otimização;
+- `core/io`: leitura de planilhas, exportações e persistência de experimentos;
+- `frontend`: interface Streamlit;
+- `scripts`: execução dos experimentos e geração dos artefatos do artigo.
+
+Essa mudança não altera a ideia do método, mas deixa o projeto mais fácil de auditar. Também facilita separar o artigo atual da próxima etapa, que envolve posicionamento conjunto das sapatas.
+
+### 2.2. Vetorização da sobreposição
+
+A verificação de sobreposição entre sapatas, que antes era feita por laços par a par, foi reescrita usando uma matriz `N x N` em NumPy.
+
+Cada célula da matriz representa a área de interseção entre duas sapatas em planta. A diagonal é zerada, porque uma sapata não deve ser comparada com ela mesma.
+
+Na prática, o cálculo passou a ser:
 
 ```text
-[h_x, h_y, h_z] para cada sapata
+interseção em x * interseção em y = área de sobreposição
 ```
 
-onde:
-
-- `h_x`: largura/comprimento da sapata na direção x;
-- `h_y`: largura/comprimento da sapata na direção y;
-- `h_z`: altura da sapata.
-
-O objetivo principal é reduzir o volume de concreto:
+Um exemplo simples ajuda. Imagine três sapatas retangulares vistas em planta:
 
 ```text
-Volume = h_x * h_y * h_z
+S1: x = [0,0 ; 2,0]   y = [0,0 ; 2,0]
+S2: x = [1,5 ; 3,5]   y = [0,5 ; 2,5]
+S3: x = [4,0 ; 5,0]   y = [0,0 ; 1,0]
 ```
 
-Mas não basta minimizar volume, porque uma sapata muito pequena pode violar critérios de projeto. Por isso usamos uma **função pseudo-objetivo penalizada**:
+Para comparar `S1` com `S2`, o código calcula primeiro quanto elas se cruzam em cada direção:
 
 ```text
-Theta = Volume + penalidades
+interseção em x = min(2,0, 3,5) - max(0,0, 1,5) = 2,0 - 1,5 = 0,5 m
+interseção em y = min(2,0, 2,5) - max(0,0, 0,5) = 2,0 - 0,5 = 1,5 m
+
+área sobreposta = 0,5 * 1,5 = 0,75 m2
 ```
 
-As penalidades entram quando alguma restrição é violada. A convenção usada no código é:
+Já `S1` com `S3` não se cruza em `x`, porque `S1` termina em `x = 2,0` e `S3` só começa em `x = 4,0`. Então a interseção em `x` vira zero e a área sobreposta também é zero.
+
+Com três sapatas, a matriz `N x N` fica assim:
+
+```text
+           S1     S2     S3
+S1       0,00   0,75   0,00
+S2       0,75   0,00   0,00
+S3       0,00   0,00   0,00
+```
+
+A diagonal é zero porque `S1` contra `S1`, `S2` contra `S2` e `S3` contra `S3` não interessam. A matriz é simétrica porque a área de sobreposição de `S1` com `S2` é a mesma de `S2` com `S1`.
+
+Essa simetria explica a pendência da dupla contagem: se a penalidade global simplesmente somar todas as células da matriz, o par `S1`-`S2` aparece duas vezes. Para uma leitura global da sobreposição, seria preciso somar só metade da matriz, por exemplo apenas os pares acima da diagonal, ou dividir a soma por dois. No código atual, a matriz é usada para montar uma restrição por sapata; por isso a decisão precisa ser fechada com cuidado antes da Frente 2, em que a sobreposição vai ficar ativa.
+
+O resultado numérico foi preservado em relação à versão escalar, mas o tempo caiu muito nos casos com mais sapatas. Essa parte está em `core/engineering/packing.py`.
+
+Ainda existe uma decisão pendente: como a matriz é simétrica, a penalidade global de sobreposição pode estar contando o mesmo par duas vezes. Nos casos do artigo isso não altera os resultados, porque a sobreposição fica inativa por construção. Mas para a Frente 2, em que o packing passa a ser ativo, essa decisão precisa ser fechada.
+
+### 2.3. Função objetivo consolidada
+
+A função objetivo atual trabalha com as dimensões de cada sapata:
+
+```text
+[h_x, h_y, h_z]
+```
+
+O objetivo principal é minimizar o volume de concreto:
+
+```text
+V = h_x * h_y * h_z
+```
+
+Como uma solução de volume mínimo pode violar critérios de projeto, o valor otimizado é uma pseudo-função objetivo penalizada:
+
+```text
+Theta = volume + penalidades
+```
+
+As restrições seguem a convenção:
 
 ```text
 g <= 0  -> restrição atendida
 g > 0   -> restrição violada
 ```
 
-Atualmente os principais grupos de restrições são:
+Os grupos atuais são:
 
-1. **Sobreposição (`g_sob`)** - sapatas não podem ocupar a mesma área em planta.
-2. **Punção (`g_pun`)** - o pilar não pode "furar" a sapata por cisalhamento/punção.
-3. **Tensão no solo (`g_ten`)** - a tensão transmitida ao solo não pode superar a tensão admissível, e a interface solo-sapata não deve ficar tracionada.
-4. **Geometria (`g_geo`)** - a sapata precisa ter balanço mínimo ao redor do pilar.
+- sobreposição em planta;
+- punção;
+- tensão no solo;
+- geometria mínima em torno do pilar.
 
-Arquivos principais:
-
-- `core/api/objective.py`
-- `core/engineering/tensao.py`
-- `core/engineering/puncao.py`
-- `core/engineering/packing.py`
+A função principal está em `core/api/objective.py`. Também foi criada uma versão por componentes, usada pelo CBO, que separa volume e restrições.
 
 ---
 
-## 4. Vetorização da sobreposição - o que a orientação já tinha visto
+## 3. Ajustes de engenharia
 
-Antes, a verificação de sobreposição fazia comparações par a par usando laços Python e `df.iterrows()`. Isso funcionava, mas era lento quando havia muitas sapatas.
+### 3.1. Tensão no solo
 
-Depois da Sprint 3.8, a sobreposição passou a ser calculada por uma matriz `N x N`. Cada célula da matriz representa a área de interseção entre duas sapatas.
+A formulação da tensão no solo foi corrigida para ficar mais coerente fisicamente.
 
-Em termos simples:
-
-1. cada sapata é tratada como um retângulo em planta;
-2. o código calcula quanto os retângulos se sobrepõem no eixo x;
-3. calcula quanto se sobrepõem no eixo y;
-4. multiplica os dois valores para obter área de sobreposição;
-5. zera a diagonal da matriz, porque uma sapata não deve ser comparada com ela mesma.
-
-O resultado é o mesmo da versão antiga, mas muito mais rápido. A validação da Sprint 3.8 registrou igualdade bit a bit contra a versão escalar e speedup de aproximadamente `100x` a `160x` em casos maiores.
-
-Arquivo principal:
-
-- `core/engineering/packing.py::sobreposicao_matrix`
-
----
-
-## 5. Correção da tensão no solo
-
-### 5.1. Qual era o problema
-
-Na formulação anterior havia coeficientes legados (`1,05` e `1,30`) e o peso próprio da sapata não aparecia claramente como função do volume. Isso era fraco do ponto de vista físico e difícil de defender no artigo.
-
-Também havia risco de confusão na convenção dos momentos `Mx` e `My`.
-
-### 5.2. Como ficou agora
-
-A tensão na base da sapata é calculada como flexão composta:
+Antes havia coeficientes legados, como `1,05` e `1,30`, e o peso próprio da sapata não aparecia de forma limpa. Agora o peso próprio é calculado diretamente a partir do volume:
 
 ```text
-sigma = carga vertical / area  +/-  termos de momento
+peso_proprio = gamma_c * h_x * h_y * h_z
 ```
 
-No código atual:
+com:
+
+```text
+gamma_c = 25 kN/m3
+```
+
+A tensão máxima e mínima na base usam flexão composta:
 
 ```text
 area = h_x * h_y
-peso_proprio = gamma_c * h_x * h_y * h_z
 sigma_axial = (F_z + peso_proprio) / area
 sigma_mx = 6 * |M_x| / (area * h_x)
 sigma_my = 6 * |M_y| / (area * h_y)
@@ -147,619 +155,285 @@ sigma_max = sigma_axial + sigma_mx + sigma_my
 sigma_min = sigma_axial - sigma_mx - sigma_my
 ```
 
-Foi adotado:
-
-```text
-gamma_c = 25 kN/m3
-```
-
-Ou seja, se a sapata fica maior ou mais alta, o peso próprio aumenta automaticamente. Isso é coerente com a física, porque uma sapata maior pesa mais e transmite mais carga ao solo.
-
-### 5.3. Convenção de momentos
-
-No FundaIA ficou documentado que:
+Com isso, uma sapata maior ou mais alta passa a transmitir mais peso ao solo, como deveria acontecer. Também foi documentada a convenção interna dos momentos:
 
 ```text
 Mx = Fz * ex
 My = Fz * ey
 ```
 
-Isso quer dizer:
+Essa observação é importante porque alguns softwares estruturais podem fornecer momentos em torno dos eixos globais, e nesses casos pode ser necessário converter a convenção antes de importar os dados.
 
-- `Mx` é o momento associado à excentricidade na direção x;
-- `My` é o momento associado à excentricidade na direção y.
+### 3.2. Tensão admissível por SPT
 
-Importante: se uma planilha externa vier de um software estrutural que usa "momento em torno do eixo X" e "momento em torno do eixo Y", pode ser necessário converter os eixos antes de importar. Essa observação foi colocada no código e no artigo.
-
-Arquivo principal:
-
-- `core/engineering/tensao.py`
-
----
-
-## 6. Implementação da punção no contorno C'
-
-### 6.1. O que é punção, em linguagem simples
-
-Punção é uma forma de ruptura em que o pilar tende a "perfurar" a sapata, como se empurrasse um bloco de concreto para baixo. Em sapatas e lajes, a NBR 6118 trata a punção por contornos críticos ao redor do pilar.
-
-Antes o projeto verificava apenas o contorno **C**, na face do pilar. Esse contorno está ligado ao esmagamento da biela comprimida.
-
-Foi implementado também o contorno **C'**, localizado a `2d` da face do pilar, onde:
+O código ainda usa uma correlação simples para estimar a tensão admissível:
 
 ```text
-d = h_z - cobrimento
+pedregulho: Nspt / 30 * 1000
+areia:      Nspt / 40 * 1000
+silte/argila: Nspt / 50 * 1000
 ```
 
-Em palavras simples, `d` é a altura útil da sapata: altura total menos cobrimento.
+Essa correlação ficou tratada como hipótese preliminar de pré-dimensionamento, não como prescrição direta da NBR 6122. Essa distinção foi colocada no código e no artigo.
 
-### 6.2. O que foi implementado
+Esse é um dos principais pontos a melhorar antes de uma submissão mais forte: ou a correlação precisa ser melhor justificada por bibliografia geotécnica, ou deve ser substituída por um modelo mais bem calibrado.
 
-Agora o grupo de punção considera o pior resultado entre:
+### 3.3. Punção nos contornos C e C'
+
+Antes a verificação de punção considerava apenas o contorno `C`, na face do pilar. A versão atual também verifica o contorno `C'`, a `2d` da face do pilar, seguindo a leitura da NBR 6118 para punção.
+
+O avaliador considera o pior caso:
 
 ```text
 g_puncao = max(g_C, g_C')
 ```
 
-Se qualquer um dos dois contornos violar, a sapata é tratada como violada.
+No contorno `C'`, foram adotadas duas hipóteses conservadoras:
 
-No contorno C':
+- como o projeto ainda não dimensiona armadura de flexão, usa-se taxa mínima de armadura;
+- a reação do solo dentro do perímetro crítico não é abatida da solicitação.
 
-- o perímetro fica a `2d` da face do pilar;
-- os momentos entram em módulo, para não reduzir artificialmente a solicitação;
-- usa-se coeficiente `K` da Tabela 19.2 da NBR 6118;
-- usa-se taxa mínima de armadura `rho_min` da Tabela 17.3 da NBR 6118;
-- a reação do solo dentro do perímetro não é abatida, decisão conservadora e coerente com a leitura adotada para a NBR.
+Nos três casos do artigo, a punção ficou folgada. Ou seja, a verificação ficou mais completa, mas não governou os resultados obtidos.
 
-### 6.3. Resultado prático nos casos estudados
+### 3.4. Validações de fronteira
 
-A implementação foi testada e, nos três casos congelados do artigo, o contorno C' ficou folgado. Portanto:
+Também foram adicionadas proteções para evitar entradas fisicamente inválidas:
 
-- a verificação ficou mais completa;
-- mas ela não mudou os melhores resultados numéricos do protocolo nesses casos;
-- a conclusão do artigo passou a ser: punção C e C' foram verificadas, mas não governaram os casos estudados.
+- `Fz` precisa ser positivo, porque o modelo atual considera contato comprimido solo-sapata;
+- `h_z` precisa ser maior que o cobrimento, para garantir altura útil positiva;
+- `f_ck` é esperado em kPa, por exemplo `25 MPa = 25000 kPa`;
+- dimensões e parâmetros básicos são checados antes da otimização.
 
-Fontes principais:
-
-- ABNT NBR 6118, item 19.5, tabelas 17.3 e 19.2;
-- Santos, Lima Neto e Ferreira (2018), artigo sobre resistência a punção em sapatas de concreto armado.
-
-Arquivos principais:
-
-- `core/engineering/puncao.py`
-- `core/api/objective.py`
-- `tests/test_engenharia.py`
+Essas validações ajudam a evitar soluções aparentemente boas, mas geradas por erro de unidade ou entrada fora do domínio do modelo.
 
 ---
 
-## 7. Validacoes de fronteira adicionadas
+## 4. Interface e rastreabilidade
 
-Foram adicionadas protecoes para impedir que o código aceite situações fisicamente sem sentido.
+A interface Streamlit foi ampliada. Ela agora permite acompanhar melhor uma execução e entender visualmente o resultado.
 
-### 7.1. `Fz > 0`
+Foram adicionados:
 
-A carga vertical deve ser positiva. Carga nula ou tração/uplift não está dentro do modelo atual de contato solo-sapata comprimido.
+- visualização 2D/3D das sapatas;
+- gráfico de convergência do EGO;
+- progresso ao vivo;
+- cancelamento cooperativo;
+- exportação de artefatos;
+- página de experimentos para comparação entre algoritmos.
 
-### 7.2. `h_z > cobrimento`
-
-A altura útil é:
-
-```text
-d = h_z - cobrimento
-```
-
-Se `h_z <= cobrimento`, então `d <= 0`, o que faria fórmulas de punção ficarem erradas e poderia até fazer uma sapata impossível parecer viável.
-
-### 7.3. `f_ck` em kPa
-
-O projeto espera `f_ck` em kPa, por exemplo:
-
-```text
-25 MPa = 25.000 kPa
-```
-
-Foi adicionada validação para evitar que alguém informe `25` pensando em MPa. Isso geraria resistência de concreto muito errada.
-
-Arquivos principais:
-
-- `core/domain/combinacao.py`
-- `core/domain/projeto.py`
-- `core/api/objective.py`
-- `core/engineering/puncao.py`
+Também foram adicionados logs estruturados e persistência de experimentos. Cada rodada pode salvar configurações, histórico, métricas, ambiente e artefatos. Isso é importante porque os números do artigo não ficam soltos: eles podem ser regenerados a partir de scripts e arquivos persistidos.
 
 ---
 
-## 8. Cache do GPR, persistência e logs
+## 5. Protocolo experimental
 
-### 8.1. Cache do GPR
+O protocolo do artigo foi fechado para evitar comparações frágeis.
 
-O EGO usa um modelo substituto chamado GPR. Esse modelo precisa ser treinado várias vezes. Se os mesmos dados e a mesma configuração aparecem de novo, o cache reaproveita o modelo treinado em vez de recalcular.
+Foram usados três casos:
 
-Isso não muda o resultado matemático. O cache só entra quando a "impressão digital" dos dados e da configuração é exatamente a mesma.
+- Caso 1: uma sapata, 3 variáveis;
+- Caso 2: duas sapatas, 6 variáveis;
+- Caso 3: três sapatas, 9 variáveis.
 
-Arquivo principal:
-
-- `core/optimization/cache.py`
-
-### 8.2. Persistência de experimentos
-
-Agora cada execução pode salvar uma pasta com:
-
-- configuração usada;
-- versões de bibliotecas;
-- entrada do projeto;
-- histórico por repetição;
-- resumo em CSV;
-- métricas agregadas;
-- artefatos como figuras e tabelas.
-
-Isso é importante porque o artigo não depende mais de números copiados manualmente. As tabelas e figuras podem ser regeneradas a partir dos artefatos.
-
-Arquivo principal:
-
-- `core/io/experiments.py`
-
-### 8.3. Logs estruturados
-
-Os logs agora podem sair como linhas JSON, com eventos nomeados. Isso ajuda a entender o que aconteceu durante uma execução longa.
-
-Exemplos de eventos:
-
-- `optimize.start`
-- `lhs.done`
-- `ego.iter`
-- `cbo.iter`
-- `experiment.end`
-
-Arquivo principal:
-
-- `core/observability/logging.py`
-
----
-
-## 9. Interface e ferramentas visuais
-
-A interface Streamlit foi bastante ampliada.
-
-### 9.1. Visualizacao 3D
-
-Agora é possível ver as sapatas como blocos 3D:
-
-- sapata enterrada;
-- pilar acima;
-- plano do solo;
-- tooltip com dimensões e volume;
-- rotação e zoom interativos.
-
-Isso ajuda a explicar visualmente o resultado ao orientador e a verificar se alguma solução parece estranha.
-
-Arquivo principal:
-
-- `frontend/components/footings_3d.py`
-
-### 9.2. Histórico do EGO
-
-A interface mostra a curva de convergência: como o melhor valor de `Theta` vai melhorando ao longo das iterações.
-
-Arquivo principal:
-
-- `frontend/components/ego_chart.py`
-
-### 9.3. Progresso ao vivo e cancelamento
-
-Durante a otimização, a UI mostra:
-
-- repetição atual;
-- iteração atual;
-- melhor valor encontrado;
-- fase atual: LHS, EGO, gravacao etc.
-
-Também foi adicionado cancelamento cooperativo.
-
-Arquivos principais:
-
-- `core/api/optimize.py`
-- `core/optimization/ego.py`
-- `frontend/pages/sapatas.py`
-
-### 9.4. Página de experimentos
-
-Foi criada uma página própria para comparação científica de algoritmos. Ela roda EGO, CBO, GA, PSO, GWO e busca aleatória com orçamento controlado e gera:
-
-- curva de convergência;
-- tabela resumo;
-- matriz de p-valores Wilcoxon-Holm;
-- bundle de resultados.
-
-Arquivos principais:
-
-- `core/api/benchmark.py`
-- `frontend/pages/experimentos.py`
-- `frontend/components/convergence_chart.py`
-
----
-
-## 10. Protocolo experimental do artigo
-
-O protocolo do artigo foi fechado para evitar comparações injustas.
-
-### 10.1. Casos de estudo
-
-Foram usados três casos congelados:
-
-- Caso 1: uma sapata, dimensão de busca 3;
-- Caso 2: duas sapatas, dimensão de busca 6;
-- Caso 3: três sapatas, dimensão de busca 9.
-
-Os limites adotados no artigo foram:
+Parâmetros comuns:
 
 ```text
 h_min = 0,60 m
 h_max = 3,00 m
 f_ck = 25 MPa
 cobrimento = 0,04 m
+30 repetições por célula experimental
+sementes pareadas entre algoritmos
 ```
 
-### 10.2. Cenário S1 - orçamento igual
+Foram definidos dois cenários:
 
-Todos os algoritmos usam 150 avaliações reais por repetição, com 30 repetições pareadas.
+- **S1:** todos os algoritmos com 150 avaliações reais;
+- **S2:** buscas diretas com 3000 avaliações, para testar o que acontece quando a função objetivo é barata.
 
-Esse cenário responde:
+A comparação estatística usa teste pareado de Wilcoxon com correção de Holm. Isso é mais adequado do que tratar as repetições como independentes, porque as sementes foram pareadas.
 
-```text
-qual algoritmo consegue bons resultados com poucas avaliações reais?
-```
-
-### 10.3. Cenário S2 - orçamento estendido
-
-As buscas diretas recebem 3.000 avaliações.
-
-Esse cenário responde:
-
-```text
-se a função objetivo for barata, o que acontece quando damos muito orçamento aos algoritmos diretos?
-```
-
-### 10.4. Estatística
-
-As repetições usam seeds pareadas. Por isso a comparação estatística passou a usar:
-
-```text
-teste pareado de Wilcoxon + correção de Holm
-```
-
-Isso é mais correto que comparar amostras como se fossem independentes.
+O resultado principal é equilibrado: sob orçamento igual de avaliações, os métodos assistidos por modelo substituto ficam competitivos. Mas, quando a função objetivo é muito barata e as buscas diretas recebem orçamento maior, PSO/GWO conseguem soluções melhores em menos tempo de parede. Essa conclusão é importante, porque evita uma justificativa exagerada do EGO no problema atual.
 
 ---
 
-## 11. Penalidade, GPR e kernels
+## 6. CBO e tratamento explícito de restrições
 
-### 11.1. O que foi testado
+Além do EGO penalizado, foi implementada uma versão de otimização bayesiana com restrições, baseada em Gardner et al. (2014).
 
-O estudo de penalidade avaliou como o fator de penalidade afeta o GPR.
-
-Foram comparados, por exemplo:
+A diferença é esta:
 
 ```text
-alpha = 10
-alpha = 10^6
+EGO penalizado:
+1 GP aprende volume + penalidades
+
+CBO:
+1 GP aprende o volume
+1 GP aprende cada grupo de restrição
 ```
 
-### 11.2. Resultado importante
+A aquisição usada segue a ideia:
 
-Um resultado forte foi:
+```text
+ECI(x) = EI(volume) * P(g_1 <= 0) * ... * P(g_k <= 0)
+```
 
-- penalidade muito alta não necessariamente derruba o `R2` global;
-- mas aumenta enormemente o erro na região factível.
+Se ainda não há ponto factível, o método prioriza encontrar a região factível.
 
-Em termos simples: o modelo pode parecer bom olhando a metrica global, mas ficar ruim justamente perto das soluções que interessam para o projeto.
-
-Isso justificou manter penalidade moderada e também motivou o CBO.
-
-### 11.3. Kernels
-
-Foram testadas 21 configurações de kernel do GPR. O resultado foi que a escolha fina do kernel pareceu menos importante que a escala da penalidade para esta formulação.
+Nos resultados do artigo, o CBO melhorou a média de `Theta` em relação ao EGO e encontrou bons volumes factíveis, mas ainda perdeu factibilidade estrita em alguns casos. A leitura correta é que o CBO é promissor, principalmente para a próxima fase com restrições ativas de posicionamento, mas ainda precisa de regra final de seleção factível.
 
 ---
 
-## 12. CBO - otimização bayesiana com restrições
+## 7. Auditoria por decomposição
 
-### 12.1. Por que implementar CBO
+Uma crítica importante era que os casos do artigo talvez fossem quase separáveis. Em outras palavras: otimizar cada sapata isoladamente e juntar os resultados poderia dar quase o mesmo resultado que otimizar tudo junto.
 
-No EGO penalizado, o GPR aprende uma função que mistura:
+Essa hipótese foi testada com um baseline de Differential Evolution por sapata:
 
-```text
-volume + penalidades
-```
-
-Isso pode ser ruim porque a penalidade cria uma descontinuidade ou variação artificial muito forte. O modelo substituto passa a gastar capacidade aprendendo essa penalidade, em vez de aprender apenas o comportamento físico do volume.
-
-No CBO, a ideia é separar:
-
-```text
-1 GP para o volume
-1 GP para cada grupo de restrição
-```
-
-Depois, a função de aquisição escolhe pontos que prometem melhorar o volume e, ao mesmo tempo, tem alta probabilidade de serem factíveis.
-
-### 12.2. Formula conceitual
-
-A aquisição usada segue a ideia de Gardner et al. (2014):
-
-```text
-ECI(x) = EI(volume) * P(restrição 1 viável) * ... * P(restrição k viável)
-```
-
-Se nenhum ponto factível ainda foi encontrado, o método tenta primeiro maximizar a probabilidade de factibilidade.
-
-### 12.3. Resultado do artigo
-
-Depois da correção da tensão e da regeneração dos resultados:
-
-- CBO melhorou a media de `Theta` em relação ao EGO nos três casos;
-- também melhorou o melhor volume estritamente factível;
-- mas perdeu factibilidade estrita nos dois casos menores.
-
-Por isso a leitura correta não é "CBO é sempre melhor". A leitura correta é:
-
-```text
-CBO é uma alternativa metodologicamente promissora para tratar restrições,
-mas precisa de regras finais de seleção factível e deve ser validado em
-problemas realmente acoplados.
-```
-
-Fontes principais:
-
-- Gardner et al. (2014), Bayesian Optimization with Inequality Constraints;
-- Eriksson e Poloczek (2021), Scalable Constrained Bayesian Optimization;
-- Mathern et al. (2021), CBO em projeto estrutural.
-
-Arquivos principais:
-
-- `core/optimization/cbo.py`
-- `core/api/objective.py::avaliar_projeto_componentes`
-- `core/api/benchmark.py`
-- `tests/test_cbo.py`
-
----
-
-## 13. Auditoria de decomposição por sapata
-
-Uma crítica importante ao artigo era que os casos atuais poderiam ser quase separáveis.
-
-Quase separável significa:
-
-```text
-otimizar cada sapata isoladamente e juntar os resultados
-da quase o mesmo que otimizar tudo junto.
-```
-
-Isso acontece porque, nos três casos congelados, a restrição de sobreposição fica inativa por construcao. As sapatas estao longe o suficiente para não "brigar" por espaco.
-
-Para medir isso, foi implementado um baseline de Differential Evolution por sapata:
-
-1. otimiza uma sapata por vez;
-2. junta os resultados;
-3. reavalia tudo no avaliador global.
+1. otimiza-se cada sapata separadamente;
+2. junta-se a solução;
+3. reavalia-se tudo no avaliador global.
 
 Resultado:
 
-| Caso | Volume decomposto | Melhor protocolo global | Ganho da decomposição |
+| Caso | Volume decomposto | Melhor protocolo global | Diferença |
 | --- | ---: | ---: | ---: |
-| Caso 1 | 3,108824 m3 | 3,108826 m3 | <0,01% |
+| Caso 1 | 3,108824 m3 | 3,108826 m3 | menor que 0,01% |
 | Caso 2 | 4,750747 m3 | 4,787486 m3 | 0,77% |
 | Caso 3 | 2,122252 m3 | 2,167259 m3 | 2,08% |
 
-Conclusão: os casos atuais são bons para testar metodologia, penalidade, CBO e protocolo, mas ainda não demonstram plenamente o ganho em problemas acoplados de posicionamento.
+Isso mostra que os casos atuais são bons para testar a formulação, a penalidade, o GPR, o CBO e o protocolo. Mas eles ainda não demonstram plenamente o ganho do posicionamento conjunto, porque a sobreposição está inativa.
 
-Arquivo principal:
-
-- `scripts/run_decomposition_baseline.py`
+Essa auditoria foi incorporada ao artigo para deixar a limitação clara.
 
 ---
 
-## 14. Fase B - piloto de posicionamento e packing
+## 8. Fase B: posicionamento e packing
 
-### 14.1. Por que iniciar a Fase B
+Depois da auditoria de decomposição, foi iniciado um piloto de posicionamento conjunto.
 
-Depois da auditoria de decomposição, ficou claro que o artigo 1 ainda não testa fortemente o acoplamento entre sapatas. O acoplamento aparece quando as posições também viram variáveis de projeto e as sapatas podem se aproximar, encostar em limites do lote ou se sobrepor.
-
-### 14.2. O que foi testado no piloto
-
-Foi criado um caso sintético com duas sapatas próximas, derivado da planilha `problema_fund_dois.xlsx`.
-
-No piloto, cada sapata pode ter:
+Nessa nova formulação, cada sapata pode ter:
 
 ```text
 h_x, h_y, h_z, dx, dy
 ```
 
-onde:
+Os deslocamentos `dx` e `dy` representam o deslocamento do centro da sapata em relação ao pilar. Com isso, as sapatas podem se mover em planta, desde que:
 
-- `dx`: deslocamento do centro da sapata em relação ao pilar no eixo x;
-- `dy`: deslocamento no eixo y.
+- o pilar continue dentro da sapata;
+- a sapata continue dentro dos limites do lote;
+- não haja sobreposição;
+- tensão, punção e geometria continuem atendidas.
 
-Quando a sapata é deslocada, os momentos efetivos são ajustados:
+No piloto, os momentos efetivos foram ajustados assim:
 
 ```text
 Mx_eff = Mx_input - Fz * dx
 My_eff = My_input - Fz * dy
 ```
 
-O piloto também adiciona restrições:
+Resultado do caso mínimo:
 
-- o pilar precisa continuar dentro da sapata;
-- a sapata precisa ficar dentro dos limites do lote;
-- as sapatas não podem se sobrepor.
+- Com os ótimos individuais centralizados, o volume ficou em `4,750747 m3`, mas a solução não foi factível, porque as sapatas se sobrepõem (`g_sob = 0,2307`).
+- Mantendo centros fixos e redimensionando as sapatas, a solução ficou factível, sem sobreposição, mas o volume subiu para `4,929703 m3`.
+- Permitindo deslocamentos `dx, dy`, a solução também ficou factível, sem sobreposição, e o volume caiu para `4,525122 m3`.
 
-### 14.3. Resultado do piloto
-
-| Modo | Volume | Sobreposição | Factivel? | Interpretação |
-| --- | ---: | ---: | --- | --- |
-| Otimos individuais centralizados | 4,750747 m3 | `g_sob = 0,2307` | Não | Cada sapata fica boa isoladamente, mas juntas se sobrepõem. |
-| Centros fixos, redimensionando | 4,929703 m3 | `g_sob = 0` | Sim | Fica factível, mas precisa de mais volume. |
-| Com deslocamentos `dx, dy` | 4,525122 m3 | `g_sob = 0` | Sim | Permitir posicionamento reduziu o volume factível. |
-
-Esse resultado ainda não é evidência estatística para artigo. Ele serve como prova de conceito de que a Fase B é relevante.
-
-Arquivo principal:
-
-- `scripts/run_packing_phase_b_pilot.py`
+Esse resultado ainda é piloto. Ele não deve entrar como resultado principal do artigo atual. O papel dele é mostrar que a próxima fase é relevante e que, quando o posicionamento entra no problema, a decomposição por sapata deixa de ser suficiente.
 
 ---
 
-## 15. Artigo em `docs/artigo_ic_lucas`
+## 9. Situação do artigo
 
-O artigo foi bastante revisado.
+O artigo em `docs/artigo_ic_lucas` foi bastante revisado.
 
-Mudancas principais:
+As principais mudanças foram:
 
-- passou para formato de duas colunas;
-- incluiu figura dos arranjos em planta;
-- incluiu punção C e C';
-- incluiu CBO;
-- incluiu estudo de penalidade e kernels;
-- incluiu protocolo S1/S2;
-- incluiu Wilcoxon pareado com Holm;
-- incluiu auditoria de decomposição;
-- removeu notas internas;
-- deixou claro que o escopo é pré-dimensionamento geométrico, não projeto executivo;
-- fechou agradecimentos, conflitos de interesse e disponibilidade de dados/código de forma genérica;
-- foi polido para reduzir termos hermeticos.
+- mudança para formato de duas colunas;
+- reposicionamento como pré-dimensionamento geométrico experimental;
+- inclusão da punção nos contornos `C` e `C'`;
+- correção da tensão no solo;
+- inclusão do CBO;
+- protocolo S1/S2;
+- estudo de penalidade e kernels;
+- auditoria por decomposição;
+- discussão mais clara das limitações;
+- dados, figuras e tabelas regeneráveis por scripts.
 
-O PDF final compilado tem 22 páginas:
+O PDF atual compila com 22 páginas. Na última verificação, não havia citações indefinidas nem erro de compilação.
 
-- arquivo: `docs/artigo_ic_lucas/main.pdf`;
-- sem erro de compilacao;
-- sem referências/citacoes indefinidas;
-- sem avisos críticos de `Overfull` após a rodada de polish.
+O texto está coerente com o código. O principal cuidado é manter o escopo bem delimitado: ainda não há dimensionamento de armadura, flexão, cisalhamento unidirecional, ancoragem, custo total, recalque ou modelo geotécnico calibrado.
 
 ---
 
-## 16. O que ainda não está resolvido
+## 10. Pendências reais
 
-Esses pontos devem ser apresentados como pendencias honestas, não como falhas escondidas.
+Esses pontos ainda precisam ser tratados com cuidado:
 
-### 16.1. Correlacao `N_spt` - tensão admissível
+1. **Correlação `Nspt`-tensão admissível:** continua sendo a hipótese geotécnica mais fraca. Precisa ser validada, substituída ou muito bem declarada como aproximação preliminar.
+2. **Combinações de ações:** ainda falta separar formalmente verificações de serviço e estado limite último.
+3. **Projeto estrutural completo:** o artigo não dimensiona armadura nem faz verificação completa de flexão, cisalhamento unidirecional, ancoragem e custo.
+4. **Sobreposição contada duas vezes:** não afeta os casos atuais, mas precisa ser resolvida antes da Frente 2.
+5. **Frente B ainda é piloto:** precisa virar protocolo experimental com casos acoplados congelados, seeds pareadas e estatística.
+6. **Normas:** é necessário conferir a forma bibliográfica final da NBR 6118 e da NBR 6122 antes da submissão.
+7. **Nome do software:** o repositório usa majoritariamente FundaIA, enquanto o artigo aparece como FundaAI. É melhor padronizar antes de enviar.
 
-O código ainda usa uma correlação empírica simples:
+---
+
+## 11. Validações feitas
+
+Foram conferidos:
+
+- implementação da função objetivo contra `core/api/objective.py`;
+- tensão no solo contra `core/engineering/tensao.py`;
+- punção contra `core/engineering/puncao.py`;
+- CBO contra `core/optimization/cbo.py`;
+- piloto de packing contra `scripts/run_packing_phase_b_pilot.py`;
+- resultados do artigo contra os artefatos e notas de auditoria.
+
+Também foi executada a suíte de testes:
 
 ```text
-pedregulho: N_spt / 30
-areia:      N_spt / 40
-outros:     N_spt / 50
+264 testes passaram
 ```
 
-Ela está tratada como hipótese preliminar de pré-dimensionamento. Antes de submissão forte, o ideal é validar ou substituir por uma referência geotécnica mais robusta.
+E o artigo compilou em LaTeX:
 
-### 16.2. Combinacoes de ações
-
-A separação formal entre combinações de serviço e estado limite último ainda precisa ser amadurecida.
-
-### 16.3. Flexão, cisalhamento unidirecional e armadura
-
-O artigo atual não dimensiona armadura, não verifica flexão/cisalhamento unidirecional, não trata ancoragem/detalhamento e não calcula custo total. Isso foi deixado como trabalho futuro porque incluir tudo agora mudaria o escopo para projeto executivo completo.
-
-### 16.4. Fase B ainda é piloto
-
-O packing/layout já foi iniciado, mas ainda precisa virar protocolo experimental pareado, com vários casos acoplados congelados e comparação estatística.
-
-### 16.5. Forma exata da referência da NBR 6118
-
-O catálogo ABNT indica a existencia da ABNT NBR 6118:2026. Mesmo assim, antes de submissão formal, recomenda-se conferir no acesso institucional/ABNT Colecao se a forma bibliográfica correta deve ser citada como norma 2026, como NBR 6118:2023 com Emenda 1:2026, ou como versão corrigida/emendada.
+```text
+PDF com 22 páginas, sem erro de compilação
+```
 
 ---
 
-## 17. Como eu explicaria para a orientadora em 2 minutos
+## 12. Referências principais que sustentam as mudanças
 
-Uma forma curta de apresentar:
+**Engenharia e fundações**
 
-> Depois da vetorização da sobreposição, reorganizamos o projeto para ficar mais reprodutível e defensável cientificamente. A função objetivo foi consolidada em uma versão vetorizada, com testes de regressão, e acrescentamos validações para impedir entradas fisicamente inválidas. Na parte de engenharia, corrigimos a tensão no solo para usar peso próprio real da sapata e documentamos a convenção dos momentos. Também completamos a verificação de punção com o contorno C' a 2d, baseado na NBR 6118 e em Santos et al. (2018).
->
-> Na parte metodológica, criamos um protocolo experimental com 30 repetições pareadas, orçamento controlado, comparação com GA, PSO, GWO, busca aleatória e CBO, usando Wilcoxon pareado com correção de Holm. O CBO foi implementado para modelar volume e restrições separadamente, porque a penalização pode deformar o modelo substituto. Também fizemos uma auditoria por decomposição que mostrou que os casos atuais são quase separáveis, então reposicionamos o artigo como pré-dimensionamento geométrico experimental, com a Fase B de packing como próximo passo.
->
-> O artigo foi polido, compila e já tem as limitações explicitadas. O que falta antes de uma submissão mais forte é validar melhor a correlação `N_spt`-tensão admissível, escolher o template do evento/revista e, se desejarmos outro artigo ou uma seção futura, transformar o piloto de packing em protocolo completo.
-
----
-
-## 18. Arquivos principais para revisão
-
-### Código de engenharia
-
-- `core/engineering/tensao.py`
-- `core/engineering/puncao.py`
-- `core/engineering/packing.py`
-- `core/api/objective.py`
-
-### Otimização e experimentos
-
-- `core/optimization/ego.py`
-- `core/optimization/cbo.py`
-- `core/api/benchmark.py`
-- `core/io/experiments.py`
-- `scripts/run_final_benchmark.py`
-- `scripts/run_cbo_benchmark.py`
-- `scripts/run_decomposition_baseline.py`
-- `scripts/run_packing_phase_b_pilot.py`
-- `scripts/make_paper_artifacts.py`
-
-### Interface
-
-- `frontend/pages/sapatas.py`
-- `frontend/pages/experimentos.py`
-- `frontend/components/footings_3d.py`
-- `frontend/components/ego_chart.py`
-- `frontend/components/convergence_chart.py`
-
-### Artigo e documentação
-
-- `docs/artigo_ic_lucas/main.tex`
-- `docs/artigo_ic_lucas/secoes/04_metodologia.tex`
-- `docs/artigo_ic_lucas/secoes/06_resultados_parciais.tex`
-- `docs/artigo_ic_lucas/secoes/07_discussao.tex`
-- `docs/artigo_ic_lucas/secoes/08_conclusoes_parciais.tex`
-- `docs/artigo_ic_lucas/main.pdf`
-- `obsidian_vault/12_Auditoria/`
-
----
-
-## 19. Fontes usadas como base técnica
-
-### Normas e referências de engenharia
-
-- ABNT NBR 6118 - Projeto de estruturas de concreto - Procedimento. Usada para a verificação de punção nos contornos C e C', incluindo Tabelas 17.3 e 19.2. Observação: conferir forma bibliográfica exata antes de submissão.
-- ABNT NBR 6122 - Projeto e execução de fundações. Usada como referência geral de fundações superficiais.
+- ABNT NBR 6118: usada para as verificações de punção nos contornos `C` e `C'`. A forma bibliográfica final deve ser conferida antes da submissão, porque há edição 2023, versão corrigida e emenda de 2026. Consulta pública: Catálogo ABNT e DIN Media.
+- ABNT NBR 6122: referência geral para projeto e execução de fundações. A versão atual precisa ser conferida no Catálogo/ABNT Coleção antes da submissão.
 - Santos, D. F. A.; Lima Neto, A. F.; Ferreira, M. P. (2018). *Punching shear resistance of reinforced concrete footings: evaluation of design codes*. Revista IBRACON de Estruturas e Materiais. DOI: `10.1590/S1983-41952018000200011`.
 - Wang, Y.; Kulhawy, F. H. (2008). *Economic Design Optimization of Foundations*. DOI: `10.1061/(ASCE)1090-0241(2008)134:8(1097)`.
 - Nigdeli, S. M.; Bekdas, G.; Yang, X.-S. (2018). *Metaheuristic Optimization of Reinforced Concrete Footings*. DOI: `10.1007/s12205-018-2010-6`.
-- Waheed et al. (2022, 2025). Trabalhos sobre ferramentas e otimização econômica de sapatas isoladas de concreto armado.
+- Waheed et al. (2022, 2025), sobre ferramentas e otimização econômica de sapatas de concreto armado.
 
-### Otimização, GPR e CBO
+**Otimização e modelos substitutos**
 
-- Jones, Schonlau e Welch (1998). *Efficient Global Optimization of Expensive Black-Box Functions*. DOI: `10.1023/A:1008306431147`.
-- Williams e Rasmussen (1995). *Gaussian Processes for Regression*.
-- Shahriari et al. (2016). *Taking the Human Out of the Loop: A Review of Bayesian Optimization*. DOI: `10.1109/JPROC.2015.2494218`.
-- Schulz, Speekenbrink e Krause (2018). *A Tutorial on Gaussian Process Regression*. DOI: `10.1016/j.jmp.2018.03.001`.
-- Gardner et al. (2014). *Bayesian Optimization with Inequality Constraints*.
-- Eriksson e Poloczek (2021). *Scalable Constrained Bayesian Optimization*.
-- Mathern et al. (2021). *Multi-objective Constrained Bayesian Optimization for Structural Design*. DOI: `10.1007/s00158-020-02720-2`.
+- Jones, Schonlau e Welch (1998), base do EGO. DOI: `10.1023/A:1008306431147`.
+- Williams e Rasmussen (1995), base de processos gaussianos para regressão.
+- Shahriari et al. (2016) e Schulz et al. (2018), revisão/tutorial de Bayesian Optimization e GPR.
+- Gardner et al. (2014), base do CBO com restrições de desigualdade. Fonte: PMLR.
+- Eriksson e Poloczek (2021), SCBO como caminho escalável futuro.
+- Mathern et al. (2021), uso de CBO em projeto estrutural. DOI: `10.1007/s00158-020-02720-2`.
 
-### Geotecnia baseada em dados e trabalhos futuros
+**Geotecnia baseada em dados**
 
-- Ahmad et al. (2021). GPR para capacidade de carga de fundações superficiais. DOI: `10.3390/app112110317`.
-- Khajehzadeh, Keawsawasvong e Nehdi (2022). Otimização de fundações superficiais com soft computing. DOI: `10.3390/su14031847`.
-- Fattahi, Ghaedi e Armaghani (2025). Predição de recalques com técnicas inteligentes. DOI: `10.32604/cmes.2025.062390`.
-- Yu, Picard e Ahmed (2025). Modelos pré-treinados para BO com restrições em problemas de engenharia. DOI: `10.1007/s00158-025-03987-z`.
+- Ahmad et al. (2021), GPR para capacidade de carga de fundações superficiais. DOI: `10.3390/app112110317`.
+- Khajehzadeh, Keawsawasvong e Nehdi (2022), soft computing em capacidade de carga e otimização de fundações. DOI: `10.3390/su14031847`.
+- Fattahi, Ghaedi e Armaghani (2025), previsão de recalques com técnicas inteligentes. DOI: `10.32604/cmes.2025.062390`.
 
 ---
 
-## 20. Revisão de coerencia do relatório
+## 13. Resumo curto
 
-Conferências feitas ao preparar este documento:
+Desde a vetorização da sobreposição, o FundaIA deixou de ser apenas uma implementação rápida da função objetivo e passou a ter uma base experimental mais completa. A engenharia foi corrigida em pontos importantes, principalmente tensão no solo e punção `C'`. O protocolo experimental foi fechado com seeds, orçamento, estatística e artefatos regeneráveis. O artigo ficou mais honesto ao assumir o escopo de pré-dimensionamento geométrico e ao mostrar que os casos atuais são quase separáveis.
 
-- O ponto de corte foi confirmado no histórico: Sprint 3.8, commit `fa95cc195`, vetorização da sobreposição.
-- As mudanças posteriores foram reconstruídas a partir de commits, notas do vault, README, artigo e código atual.
-- As explicações de tensão, punção C/C', CBO, decomposição e packing foram conferidas contra os arquivos de implementação.
-- Os resultados numéricos citados foram retirados das notas de auditoria das Sprints 5.4, 5.5 e 5.6, que documentam reruns e artefatos.
-- O relatório distingue implementação consolidada, evidência experimental do artigo e piloto futuro, para não misturar escopos.
+O projeto está em bom estado para apresentação e discussão. O que ainda precisa de atenção antes de uma submissão mais forte é a parte geotécnica da tensão admissível por SPT, a separação formal das combinações de ações, a padronização normativa e a transformação da Fase B de packing em experimento completo.

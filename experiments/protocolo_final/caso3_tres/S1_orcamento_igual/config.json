@@ -1,0 +1,23 @@
+{
+  "algorithms": [
+    "ego",
+    "ga",
+    "pso",
+    "gwo",
+    "random"
+  ],
+  "budget_evals": 150,
+  "ego_budget_evals": 150,
+  "n_rep": 30,
+  "base_seed": 42,
+  "h_min_m": 0.6,
+  "h_max_m": 3.0,
+  "lhs_n_pop": 90,
+  "meta_pop_size": 30,
+  "kernel_index": -1,
+  "ga_pop_size": 50,
+  "ga_epoch": 30,
+  "penalty": null,
+  "cbo_constraint_restarts": 5,
+  "fo_variant": "fast"
+}

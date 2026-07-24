@@ -1,0 +1,35 @@
+{
+  "python": "3.12.12 (main, Oct  9 2025, 11:07:00) [Clang 17.0.0 (clang-1700.6.3.2)]",
+  "platform": "macOS-26.5-arm64-arm-64bit",
+  "libs": {
+    "numpy": "1.26.0",
+    "pandas": "2.3.3",
+    "scipy": "1.16.3",
+    "scikit-learn": "1.7.2"
+  },
+  "git_rev": "daad1c136397b38abf49076ecbb1155e7a02bca0",
+  "git_branch": "refactor/core-architecture",
+  "timestamp_utc": "2026-07-12T12:06:29.853199+00:00",
+  "params": {
+    "case": "problema_fund_três.xlsx",
+    "n_samples": 900,
+    "test_fraction": 0.3,
+    "split_seeds": [
+      101,
+      102,
+      103
+    ],
+    "penalties": [
+      10.0,
+      1000000.0
+    ],
+    "gpr_alpha": 0.1,
+    "gpr_n_restarts": 5,
+    "gpr_random_state": 42,
+    "bounds_m": [
+      0.6,
+      3.0
+    ]
+  },
+  "wall_time_total_s": 191.43550658400636
+}

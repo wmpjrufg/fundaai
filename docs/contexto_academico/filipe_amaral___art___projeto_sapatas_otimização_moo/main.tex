@@ -1,0 +1,168 @@
+\documentclass[preprint,11pt]{elsarticle}
+
+\usepackage{graphicx}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    citecolor=blue,
+    linkcolor=black,
+    urlcolor=blue,
+    pdfborder={0 0 0}
+}
+\usepackage{tabularx}
+\usepackage{pdflscape}   % Para modo paisagem
+\usepackage{booktabs}    % Para \toprule, \midrule, \bottomrule
+% \usepackage{geometry}    % Para ajustar margens
+\usepackage{array}       % Para controle de colunas
+\usepackage{adjustbox}
+\usepackage{verbatim}
+\usepackage{amssymb}
+\usepackage{lineno}
+\usepackage{amsthm}
+\usepackage{graphicx}
+% \usepackage{caption}
+\usepackage{subcaption}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{dsfont}
+\usepackage{mathtools}
+\usepackage{url}
+\usepackage{float}
+\usepackage{multirow}
+\usepackage{natbib}
+\usepackage{color}
+\biboptions{sort&compress}
+\restylefloat{table}
+\usepackage{upgreek}
+\usepackage{nicefrac}
+\usepackage{xargs}                      
+\usepackage[pdftex,dvipsnames]{xcolor} 
+\usepackage[colorinlistoftodos,prependcaption,textsize=tiny]{todonotes}
+%\usepackage{algorithmic}
+\usepackage{xcolor}
+\usepackage{multicol}
+% \usepackage{algorithm}
+%\usepackage[noend]{algpseudocode}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[theorem]
+\newtheorem{lemma}[theorem]{Lemma}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\makeatletter
+%\def\BState{\State\hskip-\ALG@thistlm}
+\usepackage{lipsum}
+\makeatother
+\usepackage{nomencl}
+\makenomenclature
+\renewcommand{\vec}[1]{\mathbf{#1}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argminB}{arg\,min}
+
+\theoremstyle{plain}
+\newtheorem{thm}{Theorem}[section]
+\newtheorem{lem}[thm]{Lemma}
+\newtheorem{prop}[thm]{Proposition}
+\newtheorem*{cor}{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{defn}{Definition}[section]
+\newtheorem{conj}{Conjecture}[section]
+\newtheorem{exmp}{Example}[section]
+
+\theoremstyle{remark}
+\newtheorem*{rem}{Remark}
+\newtheorem*{note}{Note}
+
+
+\newcommandx{\unsure}[2][1=]{\todo[linecolor=red,backgroundcolor=red!25,bordercolor=red,#1]{#2}}
+\newcommandx{\change}[2][1=]{\todo[linecolor=red,backgroundcolor=red!25,bordercolor=red,#1]{#2}}
+\newcommandx{\info}[2][1=]{\todo[linecolor=OliveGreen,backgroundcolor=OliveGreen!25,bordercolor=OliveGreen,#1]{#2}}
+\newcommandx{\improvement}[2][1=]{\todo[linecolor=Plum,backgroundcolor=Plum!25,bordercolor=Plum,#1]{#2}}
+\newcommandx{\thiswillnotshow}[2][1=]{\todo[disable,#1]{#2}}
+
+\usepackage{lineno}
+
+\journal{Life Cycle Reliability and Safety Engineering}
+
+\usepackage{tikz} %Para desenhar imagem
+\usetikzlibrary{arrows.meta}
+
+
+\usepackage{titlesec}
+
+\titleclass{\subsubsubsection}{straight}[\subsubsection]
+\newcounter{subsubsubsection}[subsubsection]
+
+\renewcommand\thesubsubsubsection{\thesubsubsection.\arabic{subsubsubsection}.}
+
+\titleformat{\subsubsubsection}
+  {\normalfont\normalsize\itshape} % mesma fonte do texto + itálico
+  {\thesubsubsubsection}
+  {1em}
+  {}
+
+\titlespacing*{\subsubsubsection}
+  {0pt}
+  {3ex plus 1ex minus .2ex}
+  {0.5ex plus .1ex}
+
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{4}
+\usepackage{indentfirst}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{Modelagem paramétrica para projeto inteligente e automatizado de fundações superficiais do tipo sapata: Pré dimensionamento, projeto automatizado e confiabilidade}
+
+\author[label1]{Filipe Amaral Pereira}
+\author[label1]{Wanderlei M. Pereira Junior}
+\author[label2]{  }
+\author[label3]{  }
+\author[label4]{Lucas Teixeira Correia}
+
+\address[label1]{Federal University of Catalão, Engineering College, Av. Dr. Lamartine Pinto de Avelar, 1120, Catalão, 75704-020, Brazil}
+\address[label2]{University of São Paulo – School of Engineering of São Carlos, Av. Trabalhador São Carlense, 400 – Parque Arnold Schimidt, São Carlos – SP, 13566-590, Brazil}
+\address[label3]{Federal University of Goiás – School of Civil and Environmental Engineering, Avenida Universitária, Quadra 86, Lote Área 1488 – Setor Leste Universitário, Goiânia – GO, 74605-220, Brazil}
+\address[label4]{Pontifical Catholic University of Goiás – School of Engineering, Avenida Universitária, 1440 – Setor Universitário, Goiânia – GO, 74605-010, Brazil}
+
+
+\begin{abstract}
+O dimensionamento de fundações superficiais do tipo sapata isolada é predominantemente realizado por procedimentos iterativos baseados na experiência do projetista, resultando frequentemente em soluções conservadoras e, consequentemente, em elevado consumo de materiais. Este artigo apresenta uma metodologia computacional que integra critérios estruturais, geotécnicos e geométricos em um único ambiente de projeto para o dimensionamento automatizado e otimizado de sapatas isoladas. A formulação adota, como função objetivo, a minimização do volume de concreto, sujeita a restrições baseadas nas normas brasileiras NBR 6118 e NBR 6122, que abrangem tensões no solo, punção, compatibilidade geométrica entre o pilar e a sapata, e sobreposição entre elementos de fundação. O problema de otimização mono-objetivo é resolvido por meio do método Efficient Global Optimization (EGO), que combina um modelo substituto baseado em regressão por processos gaussianos (\textit{Kriging}) com uma função de aquisição (\textit{Expected Improvement}) para equilibrar exploração e intensificação da busca. Um algoritmo genético (AG) é empregado como otimizador interno para maximizar a função de aquisição. A metodologia foi implementada em uma plataforma \textit{web} (\textsc{FundaAI}) e aplicada a diferentes exemplos de projetos com um, dois e três elementos de fundação. Os resultados do trabalho demonstraram que o EGO é capaz de convergir para soluções viáveis, mesmo com o aumento da dimensionalidade do problema. A ferramenta proposta alcançou reduções médias de 40,79\% no volume de concreto em comparação com simulações de Monte Carlo, que foram aplicadas para representar práticas tradicionais de tentativa e erro de escritórios, atingindo até 85,87\% em casos específicos. Através da análise das razões solicitação/resistência, foi possível identificar as restrições governantes em cada configuração, evidenciando que a otimização global pode levar a soluções nas quais nem todos os elementos atingem seus limites individuais. Em situações com alto grau de proximidade entre sapatas, a verificação de sobreposição mostrou-se eficiente na identificação, embora a metodologia atual seja mais adequada a arranjos sem interferências severas. Conclui-se que a ferramenta desenvolvida tem potencial para se tornar uma alternativa eficaz para o projeto racional de fundações, contribuindo para a redução do consumo de materiais, a diminuição dos impactos ambientais associados, a padronização e a redução do esforço do processo de dimensionamento.
+
+
+% Greenhouse gases, especially CO$_2$ emissions, drive the greenhouse effect, impacting the planet's temperature and relative humidity. Changes in CO$_2$ concentration, temperature, and relative humidity alter the internal moisture content, \textcolor{red}{which significantly influences the progression of carbonation} in existing concrete structures. Therefore, studying the safety of concrete structures in the context of their degradation over time is of great importance in structural engineering. This paper presents an approach for evaluating the time-dependent reliability index of reinforced concrete sections subjected to climatic conditions that promote carbonation-induced corrosion. The proposed method combines a mathematical model that predicts the advance of the carbonation front based on exposure time with a mechanical model that determines the resistant moment of corroded reinforced concrete cross-sections. Various loading conditions and longitudinal reinforcement ratios were simulated to investigate the impact of carbonation-induced corrosion. The reliability index was calculated using the Monte Carlo method, incorporating nine random variables. \textcolor{red}{Additionally, the effects of longitudinal reinforcement ratio and concrete cover depth were analyzed}. For concrete cover depths recommended by Model Code 2010, reinforcement depassivation due to carbonation was found to occur after 39 years on average, with a standard deviation of 18 years. The longitudinal reinforcement ratio influenced the time required to reach the target reliability index for the Ultimate Limit State, which ranged between 30 and 60 years. \textcolor{red}{A 12\% variation in the target reliability index after 50 years was observed when the concrete cover varied between 2~cm and 3~cm}. \textcolor{red}{The proposed approach proved effective in assessing the time-dependent reliability index at the Ultimate Limit State}. It serves as a valuable tool for evaluating structural maintenance and supports decision-making regarding the timing and necessity of interventions to restore the reliability levels recommended by design guidelines.
+\end{abstract}
+
+\begin{keyword}
+
+Otimização de sapatas \sep Efficient Global Optimization (EGO) \sep Algoritmo genético (AG) \sep Aprendizado de máquina \sep Sustentabilidade.
+
+% Carbonation \sep Corrosion \sep Time-dependent Reliability \sep Reinforced Concrete \sep Residual Strength \sep word
+
+\end{keyword}
+
+\end{frontmatter}
+
+\linenumbers
+
+\section{Introdução}
+\label{sec:intro}
+\input{section1_intro}
+
+\section{Projeto de sapatas}\label{sec:sapata}\input{section2_theory}
+\section{Otimização baseada em aprendizado de máquina}\label{sec:ego}\input{section3_ego}
+\section{Metodologia}\label{sec:method}\input{section4_method}
+\section{Resultados}\label{sec:results}\input{section5_application}
+\section{Conclusão}\input{section6_conclusao}
+
+\section*{Declarações}
+\input{section7_declarations}
+
+\section*{Apêndice A. Problema de brinquedo}\label{apendix}\input{section8}
+
+\bibliographystyle{model1-num-names}
+\bibliography{mybibfile.bib}
+
+\end{document}

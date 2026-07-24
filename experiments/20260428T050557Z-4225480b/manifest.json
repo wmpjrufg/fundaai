@@ -1,0 +1,130 @@
+{
+  "completed_at": null,
+  "config": {
+    "base_seed": 42,
+    "ga_epoch": 50,
+    "ga_pop_size": 150,
+    "h_max_m": 1.5,
+    "h_min_m": 0.6,
+    "kernel_index": -1,
+    "n_gen": 2,
+    "n_pop": 250,
+    "n_rep": 5,
+    "penalty": null
+  },
+  "created_at": "2026-04-28T05:05:57.491307+00:00",
+  "env": {
+    "captured_at": "2026-04-28T05:05:57.568353+00:00",
+    "git": {
+      "branch": "refactor/core-architecture",
+      "dirty": true,
+      "rev": "a6c5940a3dc9d3d0c9c54f75a583e25cdecdc4b8"
+    },
+    "implementation": "CPython",
+    "machine": "arm64",
+    "packages": {
+      "ezdxf": "1.4.3",
+      "joblib": "1.5.3",
+      "mealpy": "3.0.3",
+      "numpy": "1.26.0",
+      "pandas": "2.3.3",
+      "pyarrow": "23.0.0",
+      "pydantic": "2.13.3",
+      "scikit-learn": null,
+      "scipy": "1.16.3"
+    },
+    "platform": "macOS-26.0.1-arm64-arm-64bit",
+    "python": "3.12.12"
+  },
+  "error": null,
+  "metrics": null,
+  "project": {
+    "cobrimento_m": 0.04,
+    "f_ck_kpa": 25000.0,
+    "hash": "b36f28f9adff580fa9541892bc119940f4daecd400dc550bda2292702175bc15",
+    "n_comb": 3,
+    "n_fund": 3,
+    "pilar_labels": [
+      "P04",
+      "P05",
+      "P16"
+    ]
+  },
+  "run_id": "20260428T050557Z-4225480b",
+  "schema_version": "1.0",
+  "status": "running",
+  "summary": [
+    {
+      "auc_best_so_far": 0.12100070923029908,
+      "best_iter": 2,
+      "convergence_iter": 2,
+      "convergence_ratio": 1.0,
+      "improvement_abs": 4.0056573964813005,
+      "improvement_rel": 0.4601215261772,
+      "mean_t_per_iter_s": 0.008310750010423362,
+      "n_evals_total": 252,
+      "n_gen": 2,
+      "n_unique_x": 252,
+      "of_best": 4.699993542654852,
+      "of_initial": 8.705650939136152,
+      "rep_id": 0,
+      "seed": 42,
+      "t_total_s": 1.973148843011586,
+      "wall_time_s": 11.03978870800347
+    },
+    {
+      "auc_best_so_far": 0.0,
+      "best_iter": 1,
+      "convergence_iter": 1,
+      "convergence_ratio": 0.5,
+      "improvement_abs": 3.8814782146117315,
+      "improvement_rel": 0.4156157595451083,
+      "mean_t_per_iter_s": 0.007601333505590446,
+      "n_evals_total": 252,
+      "n_gen": 2,
+      "n_unique_x": 252,
+      "of_best": 5.457624371055403,
+      "of_initial": 9.339102585667135,
+      "rep_id": 1,
+      "seed": 43,
+      "t_total_s": 1.9585156165703665,
+      "wall_time_s": 10.89964429201791
+    },
+    {
+      "auc_best_so_far": 0.0,
+      "best_iter": 1,
+      "convergence_iter": 1,
+      "convergence_ratio": 0.5,
+      "improvement_abs": 3.4360084845167655,
+      "improvement_rel": 0.35585913553017534,
+      "mean_t_per_iter_s": 0.008082604501396418,
+      "n_evals_total": 252,
+      "n_gen": 2,
+      "n_unique_x": 252,
+      "of_best": 6.219521306499114,
+      "of_initial": 9.65552979101588,
+      "rep_id": 2,
+      "seed": 44,
+      "t_total_s": 1.9685811299132183,
+      "wall_time_s": 10.901966666977387
+    },
+    {
+      "auc_best_so_far": 0.13508646893428497,
+      "best_iter": 2,
+      "convergence_iter": 2,
+      "convergence_ratio": 1.0,
+      "improvement_abs": 5.231933106857886,
+      "improvement_rel": 0.5109522863478212,
+      "mean_t_per_iter_s": 0.008552790997782722,
+      "n_evals_total": 252,
+      "n_gen": 2,
+      "n_unique_x": 252,
+      "of_best": 5.0076396412251825,
+      "of_initial": 10.239572748083068,
+      "rep_id": 3,
+      "seed": 45,
+      "t_total_s": 2.0095193248125724,
+      "wall_time_s": 11.514752999995835
+    }
+  ]
+}

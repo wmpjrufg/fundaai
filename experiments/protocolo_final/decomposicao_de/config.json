@@ -1,0 +1,40 @@
+{
+  "case_paths": {
+    "caso1_um": {
+      "label": "Caso 1",
+      "path": "assets/data/problema_fund_um.xlsx"
+    },
+    "caso2_dois": {
+      "label": "Caso 2",
+      "path": "assets/data/problema_fund_dois.xlsx"
+    },
+    "caso3_tres": {
+      "label": "Caso 3",
+      "path": "assets/data/problema_fund_três.xlsx"
+    }
+  },
+  "f_ck_kpa": 25000.0,
+  "cobrimento_m": 0.04,
+  "h_min_m": 0.6,
+  "h_max_m": 3.0,
+  "penalty_theta": 10.0,
+  "feas_tol": 1e-09,
+  "feas_penalty_linear": 1000000.0,
+  "feas_penalty_quad": 100000000.0,
+  "de_maxiter": 220,
+  "de_popsize": 20,
+  "de_tol": 1e-09,
+  "de_atol": 0.0,
+  "de_seed_base": 2042,
+  "env": {
+    "python": "3.12.12 (main, Oct  9 2025, 11:07:00) [Clang 17.0.0 (clang-1700.6.3.2)]",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "libs": {
+      "numpy": "1.26.0",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3"
+    },
+    "timestamp_utc": "2026-07-12T16:51:11.864007+00:00"
+  }
+}

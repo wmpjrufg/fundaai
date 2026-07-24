@@ -1,0 +1,68 @@
+=== CASE: n_fund=25 n_comb=3 dim=75 ===
+max-box feasible=True g=[ 0.     -0.8089 -0.5307 -4.6795]
+
+[S1] equal budget=250, n_rep=3
+       ego rep 1 best=82.168 t=160.4s
+       ego rep 2 best=89.437 t=160.2s
+       ego rep 3 best=82.324 t=159.0s
+       cbo rep 1 best=115.373 t=164.7s
+       cbo rep 2 best=128.857 t=148.9s
+       cbo rep 3 best=144.905 t=153.8s
+        ga rep 1 best=111.436 t=0.0s
+        ga rep 2 best=101.982 t=0.0s
+        ga rep 3 best=109.386 t=0.0s
+       pso rep 1 best=124.633 t=0.0s
+       pso rep 2 best=129.617 t=0.0s
+       pso rep 3 best=125.753 t=0.0s
+       gwo rep 1 best=115.999 t=0.0s
+       gwo rep 2 best=111.249 t=0.0s
+       gwo rep 3 best=111.735 t=0.0s
+    random rep 1 best=147.827 t=0.0s
+    random rep 2 best=139.799 t=0.0s
+    random rep 3 best=137.309 t=0.0s
+[S1] done in 15.8 min
+          label       best       mean     median  feasibility_rate  best_feasible_volume_m3  wall_time_mean_s
+      EGO + GPR  82.167908  84.643077  82.323850          0.000000                      NaN        159.861539
+      CBO (ECI) 115.373180 129.711639 128.856615          0.333333                115.37318        155.801681
+        GA puro 101.981842 107.601312 109.386244          0.000000                      NaN          0.043907
+       PSO puro 124.633120 126.667759 125.752839          0.000000                      NaN          0.040478
+       GWO puro 111.249025 112.994428 111.735283          0.000000                      NaN          0.041351
+Busca aleatória 137.309005 141.645115 139.798964          0.000000                      NaN          0.035400
+
+[S2] extended budget=5000, n_rep=3
+        ga rep 1 best=48.159 t=0.9s
+        ga rep 2 best=44.007 t=0.9s
+        ga rep 3 best=49.072 t=0.9s
+       pso rep 1 best=81.054 t=0.8s
+       pso rep 2 best=81.220 t=0.8s
+       pso rep 3 best=69.474 t=0.8s
+       gwo rep 1 best=40.305 t=0.8s
+       gwo rep 2 best=40.730 t=0.8s
+       gwo rep 3 best=39.638 t=0.8s
+    random rep 1 best=132.603 t=0.7s
+    random rep 2 best=126.299 t=0.7s
+    random rep 3 best=121.642 t=0.7s
+[S2] done in 0.2 min
+          label       best       mean     median  feasibility_rate  best_feasible_volume_m3  wall_time_mean_s
+        GA puro  44.006852  47.079359  48.158896               0.0                      NaN          0.885869
+       PSO puro  69.474331  77.249271  81.053587               0.0                      NaN          0.794067
+       GWO puro  39.637879  40.224150  40.304563               0.0                      NaN          0.819043
+Busca aleatória 121.641518 126.847729 126.298905               0.0                      NaN          0.710369
+
+[DECOMP] per-footing DE reference ...
+[DECOMP] vol=33.245 feasible=True max_g=0.00e+00 wall=36.6s
+
+===== SUMMARY (best feasible volume, m3) =====
+decomp (per-footing DE)    33.245  feasible=True
+EGO + GPR [S1]             nan  feas_rate=0.00  wall=159.9s
+CBO (ECI) [S1]             115.373  feas_rate=0.33  wall=155.8s
+GA puro [S1]               nan  feas_rate=0.00  wall=0.0s
+PSO puro [S1]              nan  feas_rate=0.00  wall=0.0s
+GWO puro [S1]              nan  feas_rate=0.00  wall=0.0s
+Busca aleatória [S1]       nan  feas_rate=0.00  wall=0.0s
+GA puro [S2]               nan  feas_rate=0.00  wall=0.9s
+PSO puro [S2]              nan  feas_rate=0.00  wall=0.8s
+GWO puro [S2]              nan  feas_rate=0.00  wall=0.8s
+Busca aleatória [S2]       nan  feas_rate=0.00  wall=0.7s
+
+DONE

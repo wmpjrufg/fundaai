@@ -1,0 +1,14 @@
+{
+  "best_of": 4.699993542654852,
+  "best_rep_id": 0,
+  "mean_auc_best_so_far": 0.057677995541837,
+  "mean_convergence_iter": 1.6,
+  "mean_improvement_rel": 0.45143812810100964,
+  "mean_of": 5.312055730129659,
+  "mean_t_total_s": 2.064771793206455,
+  "median_of": 5.175499789213745,
+  "n_rep": 5,
+  "std_of": 0.5158722328321792,
+  "wall_time_total_s": 55.15836366798612,
+  "worst_of": 6.219521306499114
+}

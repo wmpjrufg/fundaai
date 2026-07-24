@@ -1,0 +1,56 @@
+{
+  "source_case": "assets/data/problema_fund_dois.xlsx",
+  "f_ck_kpa": 25000.0,
+  "cobrimento_m": 0.04,
+  "h_min_m": 0.6,
+  "h_max_m": 3.0,
+  "shift_max_m": 1.2,
+  "balanco_min_m": 0.1,
+  "pillar_x_m": [
+    0.0,
+    2.0
+  ],
+  "pillar_y_m": [
+    0.0,
+    0.0
+  ],
+  "lot_x_m": [
+    -2.5,
+    5.0
+  ],
+  "lot_y_m": [
+    -2.5,
+    2.5
+  ],
+  "penalty_theta": 10.0,
+  "feas_tol": 1e-09,
+  "de_seed": 7311,
+  "de_maxiter_fixed": 180,
+  "de_maxiter_packing": 260,
+  "de_popsize": 15,
+  "de_tol": 1e-08,
+  "de_atol": 0.0,
+  "packing_x0": [
+    2.6,
+    2.99,
+    1.0,
+    -0.6,
+    0.0,
+    2.75,
+    2.2,
+    0.61,
+    0.0,
+    0.0
+  ],
+  "env": {
+    "python": "3.12.12 (main, Oct  9 2025, 11:07:00) [Clang 17.0.0 (clang-1700.6.3.2)]",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "machine": "arm64",
+    "libs": {
+      "numpy": "1.26.0",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3"
+    },
+    "timestamp_utc": "2026-07-12T17:50:40.795291+00:00"
+  }
+}

@@ -10,13 +10,14 @@ myenv/
 .vscode/
 .idea/
 .DS_Store
+# Estado local do Obsidian aberto na raiz e backups locais de fonte.
+.obsidian/
+*.bak
 
-# --- Material pessoal de trabalho (nao versionado) ---------------------------
-# `docs/` contem artigos baixados, plano de IC, relatorio parcial, TCC do
-# grupo em construcao e o artigo da IC em LaTeX. `obsidian_vault/` contem o
-# vault Obsidian com mapa de orientacao
-/docs/
-/obsidian_vault/
+# --- Entrega para o orientador (2026-07-24) ----------------------------------
+# `docs/` (artigos, plano de IC, relatorios, artigo LaTeX), `obsidian_vault/`
+# (vault Obsidian) e `experiments/` (runs persistidos) passam a ser versionados
+# a pedido, para revisao completa pelo orientador. `exports/` permanece local.
 /exports/
 
 
@@ -30,11 +31,9 @@ myenv/
 /models/
 *.pkl
 
-# --- Experimentos persistidos (nao versionado) -------------------------------
-# Pastas geradas pelo ExperimentRecorder (Sprint 4.2): manifest.json,
-# config.json, env.json, project.json, history/*.parquet, summary.csv,
-# metrics.json, artifacts/. Cada run e identificada por timestamp + uuid.
-/experiments/
+# --- Experimentos persistidos: versionados para a entrega ao orientador ------
+# Pastas geradas pelo ExperimentRecorder (Sprint 4.2) + o teste de 25 sapatas.
+# Antes ignoradas (/experiments/); agora incluidas a pedido para revisao.
 
 # --- Notebooks scratch (nao versionado) --------------------------------------
 # Subpasta livre para esboços e exploração rápida; conteúdo "abençoado"

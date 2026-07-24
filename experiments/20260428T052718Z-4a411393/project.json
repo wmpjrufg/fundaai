@@ -1,0 +1,12 @@
+{
+  "cobrimento_m": 0.04,
+  "f_ck_kpa": 25000.0,
+  "hash": "b36f28f9adff580fa9541892bc119940f4daecd400dc550bda2292702175bc15",
+  "n_comb": 3,
+  "n_fund": 3,
+  "pilar_labels": [
+    "P04",
+    "P05",
+    "P16"
+  ]
+}

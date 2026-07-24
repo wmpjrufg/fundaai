@@ -1,0 +1,18 @@
+{
+  "python": "3.12.12 (main, Oct  9 2025, 11:07:00) [Clang 17.0.0 (clang-1700.6.3.2)]",
+  "platform": "macOS-26.5-arm64-arm-64bit",
+  "machine": "arm64",
+  "libs": {
+    "numpy": "1.26.0",
+    "pandas": "2.3.3",
+    "scipy": "1.16.3",
+    "scikit-learn": "1.7.2",
+    "mealpy": "3.0.3",
+    "pydantic": "2.13.4"
+  },
+  "git_rev": "daad1c136397b38abf49076ecbb1155e7a02bca0",
+  "git_branch": "refactor/core-architecture",
+  "git_dirty": true,
+  "timestamp_utc": "2026-07-12T04:22:41.446566+00:00",
+  "wall_time_total_s": 48.11179575001006
+}

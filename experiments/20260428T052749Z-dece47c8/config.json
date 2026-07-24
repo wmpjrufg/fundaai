@@ -1,0 +1,12 @@
+{
+  "base_seed": 42,
+  "ga_epoch": 50,
+  "ga_pop_size": 150,
+  "h_max_m": 1.5,
+  "h_min_m": 0.6,
+  "kernel_index": -1,
+  "n_gen": 2,
+  "n_pop": 100,
+  "n_rep": 5,
+  "penalty": null
+}

@@ -1,0 +1,152 @@
+O dimensionamento otimizado de sapatas é formulado como um problema de 
+otimização com restrições, cujo objetivo é determinar as dimensões 
+geométricas que atendam simultaneamente aos requisitos normativos e de 
+viabilidade construtiva, minimizando o volume total de concreto.
+
+As restrições são expressas como \( g_j(\mathbf{X}) \le 0 \), em que 
+valores positivos de \( g_j \) representam violações. Para incorporá-las 
+a um esquema de otimização irrestrita, adota-se uma função de penalização 
+quadrática, definida por:
+
+\begin{equation}
+P(\mathbf{X}) = \alpha \sum_{j=1}^{N} \max\bigl(0, g_j(\mathbf{X})\bigr)^2,
+\label{eq:penalizacao}
+\end{equation}
+
+onde \( N \) é o número de restrições e \( \alpha \) é um coeficiente de 
+penalidade, garantindo que soluções inviáveis sejam 
+severamente desfavorecidas.
+
+A função objetivo final \( \Theta(\mathbf{X}) \) é então composta pelo 
+somatório dos volumes das sapatas, acrescido do termo de penalização:
+
+\begin{equation}
+\Theta(\mathbf{X}) = V_{\text{total}}(\mathbf{X}) + P(\mathbf{X}).
+\label{eq:funcao_pseudo_objetivo}
+\end{equation}
+
+Dessa forma, o problema original com restrições é transformado em um 
+problema irrestrito de minimização de uma \textit{função pseudo-objetivo} 
+\( \Theta(\mathbf{X}) \), onde soluções factíveis (\( P = 0 \)) correspondem 
+estritamente à minimização do volume estrutural.
+
+\subsection{Restrições de tensões no solo}
+
+
+As restrições associadas as tensões de contato entre a sapata e o solo são formuladas de modo a garantir que as tensões solicitantes máximas e mínimas permaneçam dentro dos limites admissíveis do solo e assim, assegurem que não ocorram tensões maiores que a capacidade do solo, nem tensões de tração no contato entre o solo e a sapata.
+
+A restrição associada à tensão máxima é expressa pela Equação\eqref{eq:restricao_tensão_máx}:
+
+\begin{equation}
+g_{tensao}^{max} = \frac{\sigma_{sd}}{\sigma_{adm}} - 1.
+    \label{eq:restricao_tensão_máx}
+\end{equation}
+
+Da mesma forma, a restrição associada à tensão mínima é dada pela Equação \eqref{eq:restricao_tensão_min}. Salienta-se aqui que essa restrição é dada neste formato visto que não será admitida tração neste trabalho.
+
+\begin{equation}
+g_{tensao}^{min} = \frac{-\sigma_{sd}}{\sigma_{adm}}.
+    \label{eq:restricao_tensão_min}
+\end{equation}
+
+\subsection{Restrição geometria pilar-sapata}
+
+A compatibilidade geométrica em planta é garantida assegurando que as dimensões da sapata excedam as dimensões do pilar somadas à uma folga $\delta$ de cada lado do pilar. As Equações \eqref{eq:checagem_geometria_x} e \eqref{eq:checagem_geometria_y} estabelecem essas restrições para as direções $x$ e $y$, respectivamente.
+
+\begin{equation}
+g_{geometria,x} = 1 + \frac{2 \cdot \delta }{a_p} -  \frac{h_x}{a_p},
+    \label{eq:checagem_geometria_x}
+\end{equation}
+
+\begin{equation}
+g_{geometria,y} = 1 + \frac{2 \cdot \delta }{b_p} -  \frac{h_y}{b_p},
+    \label{eq:checagem_geometria_y}
+\end{equation}
+
+
+em que $a_p$ e $b_b$ representam as dimensões do pilar, $h_x$ e $h_y$ representam as dimensões da sapata, enquanto o valor de $\delta$ indica a folga mínima entre o pilar e a lateral do elemento de fundação.
+
+\subsection{Restrição de sobreposição}
+
+A restrição de sobreposição tem como objetivo impedir que duas ou mais sapatas ocupem, simultaneamente, a mesma posição em planta, condição que inviabilizaria a execução da fundação.
+
+Cada sapata é modelada geometricamente como um retângulo no plano, definido a partir das coordenadas de seus vértices, conforme descrito na Seção \ref{subsec:projeto_sobreposicao}. A partir da interseção geométrica entre dois retângulos, é possível definir a área de sobreposição ($A_{overlap}$) da sapata em análise. Esse valor é então aplicado na restrição definida pela Equação~\eqref{eq:restricao_sobreposicao}, na qual se obtém a razão entre a área de sobreposição da sapata analisada e sua área total em planta.
+
+\begin{equation}
+g_{sobreposicao} = \frac{A_{overlap}}{h_x \cdot h_y}.
+    \label{eq:restricao_sobreposicao}
+\end{equation}
+
+\subsection{Restrição de punção}
+
+A restrição associada à verificação da punção é formulada a partir da razão entre as tensão solicitante e a tensão admissível de cálculo correspondente, resultando em um valor adimensional ideal para o processo de otimização.
+
+Para a seção crítica junto ao pilar (Seção $C$), define-se a Equação \eqref{eq:restricao_tensao_c}:
+\begin{equation}
+grd2 = \frac{\tau_{sd2}}{\tau_{rd2}}-1.
+    \label{eq:restricao_tensao_c}
+\end{equation}
+
+\subsection{Configurações do algoritmo e métricas de acurácia}\label{sec:config_metricas}
+
+A implementação do EGO desenvolvida nesta pesquisa permite flexibilidade na parametrização do processo Gaussiano e na escolha do otimizador interno. Enquanto os hiperparâmetros do Kriging foram calibrados conforme os resultados apresentados na Seção~\ref{sec:results}, o otimizador interno foi configurado com base em testes preliminares, os valores adotados constam na Tabela~\ref{tab:param_ag}.
+
+\begin{table}[htpb!]
+\centering
+\caption{Parâmetros do Algoritmo Genético utilizado como otimizador interno.}
+\begin{tabular}{@{}lc@{}}
+\toprule
+\textbf{Parâmetro} & \textbf{Valor} \\ 
+\midrule
+Tamanho da população ($pop\_size$) & 150 \\
+Número de gerações ($epoch$) & 50 \\
+Probabilidade de cruzamento ($pc$) & 0,95 \\
+Probabilidade de mutação ($pm$) & 0,025 \\
+\bottomrule
+\end{tabular}
+\label{tab:param_ag}
+\end{table}
+
+Embora a arquitetura desenvolvida admita a utilização de qualquer otimizador da biblioteca \textsc{SciPy} \cite{virtanen2020scipy} e \textsc{MEAPLY} \cite{van2023mealpy}, os resultados reportados neste trabalho restringem‑se ao AG, cujo desempenho foi validado preliminarmente. As demais possibilidades de otimizadores não foram exploradas sistematicamente e, portanto, não serão discutidas.
+
+\subsubsection{Métricas de avaliação do modelo substituto}
+
+Para quantificar a acurácia do modelo substituto (Kriging) em aproximar a função objetivo real, empregou‑se o coeficiente de determinação $R^2$, definido por:
+
+\begin{equation}
+R^2 = 1 - \frac{\displaystyle\sum_{i=1}^{n} \bigl( y_i - \hat{y}_i \bigr)^2}
+                {\displaystyle\sum_{i=1}^{n} \bigl( y_i - \bar{y} \bigr)^2},
+\label{eq:r2}
+\end{equation}
+
+onde $y_i$ é o valor real da função objetivo no ponto $i$, $\hat{y}_i$ é o valor predito pelo modelo, $\bar{y}$ é a média dos valores reais e $n$ é o número de pontos avaliados. Um valor de $R^2$ próximo a 1 indica que o modelo explica a maior parte da variabilidade dos dados.
+
+% Para a seção crítica afastada do pilar (Seção $C'$) , tem-se a Equação \eqref{eq:grd1}:
+% \begin{equation}
+% g_{rd1} = \frac{\tau_{sd1}}{\tau_{rd1}} - 1
+%     \label{eq:grd1}
+% \end{equation}
+
+
+% \subsection{balanço}
+% O método exposto pelo CEB-70, indica um intervalo de balanço definido pela equação \eqref{eq:CEB-70 para direção x} e \eqref{eq:CEB-70 para direção y}.
+% Modificando tais equações para adequá-lo ao formato de restrição utilizado o código tem-se as inequações \eqref{eq:restricao_balan_max_x} e \eqref{eq:restricao_balan_max_y} que indicam o limite máximo em $x$ e $y$, e as equações \eqref{eq:restricao_balan_min_x} e \eqref{eq:restricao_balan_min_y} que indicam o limite mínimo em $x$ e $y$, respectivamente. 
+% \begin{equation}
+% g_{0,balanço} = \frac{C_x}{2 \cdot h_z} - 1
+%     \label{eq:restricao_balan_max_x}
+% \end{equation}
+
+% \begin{equation}
+% g_{1,balanço} = \frac{C_y }{2 \cdot h_z} - 1
+%     \label{eq:restricao_balan_max_y}
+% \end{equation}
+
+% \begin{equation}
+% g_{2,balanço} = \frac{\frac{h_z }{2} }{C_x} - 1
+%     \label{eq:restricao_balan_min_x}
+% \end{equation}
+
+% \begin{equation}
+% g_{2,balanço} = \frac{\frac{h_z }{2} }{C_y} - 1
+%     \label{eq:restricao_balan_min_y}
+% \end{equation}
