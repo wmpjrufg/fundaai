@@ -14,7 +14,59 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.gaussian_process.kernels import RBF, Matern, RationalQuadratic, DotProduct, ExpSineSquared, ConstantKernel as C, WhiteKernel
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from typing import Any
+from numpy.typing import NDArray
 
+
+def sobreposicao_matrix(
+                            xmin: NDArray,
+                            xmax: NDArray,
+                            ymin: NDArray,
+                            ymax: NDArray,
+                        ) -> NDArray:
+    """This function returns the N×N matrix of pairwise AABB overlap areas.
+
+    The four input arrays describe the axis-aligned bounding box of
+    each rectangle (one entry per rectangle). For every ordered pair
+    (i, j) the overlap on each axis is taken as
+    `max(0, min(max_i, max_j) - max(min_i, min_j))` and the matrix
+    cell is the product of the two per-axis overlaps. The diagonal is
+    forced to zero so that summing rows skips the self-pair, matching
+    the historical `j != i` guard of the loop-based implementation.
+
+    Resumo em português:
+        Versão vetorizada de :func:sobreposicao_sapatas. Recebe os
+        bounds AABB já reduzidos (xmin, xmax, ymin, ymax) — um valor
+        por sapata — e devolve a matriz N×N das áreas de sobreposição
+        entre cada par de retângulos. Substitui o laço duplo
+        `df.iterrows()` em `fundacao._avaliar_projeto`.
+
+    :param xmin: Lower x bound of each rectangle, shape (N,) [m]
+    :param xmax: Upper x bound of each rectangle, shape (N,) [m]
+    :param ymin: Lower y bound of each rectangle, shape (N,) [m]
+    :param ymax: Upper y bound of each rectangle, shape (N,) [m]
+
+    :return: Matrix of pairwise overlap areas, shape (N, N), with
+             zeroed diagonal [m^2]
+    """
+    xmin = np.asarray(xmin, dtype=np.float64)
+    xmax = np.asarray(xmax, dtype=np.float64)
+    ymin = np.asarray(ymin, dtype=np.float64)
+    ymax = np.asarray(ymax, dtype=np.float64)
+
+    overlap_x = np.maximum(
+                                0.0,
+                                np.minimum(xmax[:, None], xmax[None, :])
+                                - np.maximum(xmin[:, None], xmin[None, :]),
+                            )
+    overlap_y = np.maximum(
+                                0.0,
+                                np.minimum(ymax[:, None], ymax[None, :])
+                                - np.maximum(ymin[:, None], ymin[None, :]),
+                            )
+    overlap = overlap_x * overlap_y
+    np.fill_diagonal(overlap, 0.0)
+    
+    return overlap
 
 def download_template(path: str | Path, label: str, filename: str):
     """Disponibiliza um arquivo para download no Streamlit.
@@ -236,6 +288,7 @@ def validador_tensao(sigma_limite_min: float, sigma_limite_max: float, sigma_adm
     """
     return max(sigma_limite_min, min(sigma_adm, sigma_limite_max))
 
+
 def obj_felipe_lucas(x, args):
 
     # Argumentos
@@ -280,25 +333,36 @@ def obj_felipe_lucas(x, args):
     df['g geometria3x'] = df.apply(lambda row: checagem_maior_dimensao(row['maior dimensão'], row['menor dimensão']), axis=1)
 
     # Restrição de sobreposição
-    if n_fun == 1:
-        df['g sobreposicao'] = 0.0
+    if n_fun== 1:
+        df['g sobreposicao']= 0.0
     else:
-        # Deteriminar sobreposição
-        for idx, row in df.iterrows():
-            aux = 0
-            x1_i, y1_i = row['x1'], row['y1']
-            x2_i, y2_i = row['x2'], row['y2']
-            x3_i, y3_i = row['x3'], row['y3']
-            x4_i, y4_i = row['x4'], row['y4']
-            for jdx, row_j in df.iterrows():
-                if jdx != idx:
-                    x1_j, y1_j = row_j['x1'], row_j['y1']
-                    x2_j, y2_j = row_j['x2'], row_j['y2']
-                    x3_j, y3_j = row_j['x3'], row_j['y3']
-                    x4_j, y4_j = row_j['x4'], row_j['y4']
-                    area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
-                    aux += area_overlap
-            df.loc[idx, 'g sobreposicao'] = aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
+        xmin    = df['x1'].to_numpy(dtype=np.float64)
+        xmax    = df['x2'].to_numpy(dtype=np.float64)
+        ymin    = df['y1'].to_numpy(dtype=np.float64)
+        ymax    = df['y3'].to_numpy(dtype=np.float64)
+        overlap = sobreposicao_matrix(xmin, xmax, ymin, ymax)
+        h_x_arr = df['h_x (m)'].to_numpy(dtype=np.float64)
+        h_y_arr = df['h_y (m)'].to_numpy(dtype=np.float64)
+        df['g sobreposicao']= overlap.sum(axis=1) / (h_x_arr * h_y_arr)
+    # if n_fun == 1:
+    #     df['g sobreposicao'] = 0.0
+    # else:
+    #     # Deteriminar sobreposição
+    #     for idx, row in df.iterrows():
+    #         aux = 0
+    #         x1_i, y1_i = row['x1'], row['y1']
+    #         x2_i, y2_i = row['x2'], row['y2']
+    #         x3_i, y3_i = row['x3'], row['y3']
+    #         x4_i, y4_i = row['x4'], row['y4']
+    #         for jdx, row_j in df.iterrows():
+    #             if jdx != idx:
+    #                 x1_j, y1_j = row_j['x1'], row_j['y1']
+    #                 x2_j, y2_j = row_j['x2'], row_j['y2']
+    #                 x3_j, y3_j = row_j['x3'], row_j['y3']
+    #                 x4_j, y4_j = row_j['x4'], row_j['y4']
+    #                 area_overlap = sobreposicao_sapatas(x1_i, y1_i, x2_i, y2_i, x3_i, y3_i, x4_i, y4_i, x1_j, y1_j, x2_j, y2_j, x3_j, y3_j, x4_j, y4_j)
+    #                 aux += area_overlap
+    #         df.loc[idx, 'g sobreposicao'] = aux / (df.loc[idx, 'h_x (m)'] * df.loc[idx, 'h_y (m)'])
 
     # Tensão admissível do solo
     df['tensao adm. (kPa)'] = df.apply(lambda row: tensao_adm_solo(row['solo'], row['spt']), axis=1)
