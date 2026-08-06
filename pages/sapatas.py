@@ -4,6 +4,119 @@ import numpy as np
 from io import BytesIO
 from pathlib import Path
 
+# Extra imports for plotting/export
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import ezdxf
+import tempfile
+from typing import Dict, Any
+
+# --- 0. UTILITÁRIOS DE PLOT/EXPORT ---
+
+def plot_data(data: Dict[str, Any]):
+    """Plota o arranjo das sapatas (retângulos) e os pilares (marcador '+').
+
+    :param data: Dicionário com as chaves: 'label', 'x', 'y', 'L x', 'L y'.
+                 - label: lista de rótulos (ex.: ['S1', 'S2', ...])
+                 - x, y: listas com coordenadas dos centroides (m)
+                 - L x, L y: listas com dimensões (m)
+    :return: Figura do Matplotlib pronta para `st.pyplot(fig)`.
+    """
+    labels = data["label"]
+    x = data["x"]
+    y = data["y"]
+    L_x = data["L x"]
+    L_y = data["L y"]
+
+    if not (len(labels) == len(x) == len(y) == len(L_x) == len(L_y)):
+        raise ValueError("Listas em `data` possuem tamanhos diferentes (label/x/y/Lx/Ly).")
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    for i in range(len(x)):
+        square = patches.Rectangle(
+            (x[i] - L_x[i] / 2, y[i] - L_y[i] / 2),
+            L_x[i],
+            L_y[i],
+            linewidth=1,
+            edgecolor="blue",
+            facecolor="none",
+        )
+        ax.add_patch(square)
+
+        ax.scatter(x[i], y[i], color="red", marker="+", s=100)
+        ax.annotate(labels[i], (x[i], y[i]), textcoords="offset points", xytext=(0, 10), ha="center")
+
+    ax.set_xlabel("X (m)")
+    ax.set_ylabel("Y (m)")
+    ax.set_title("Posicionamento das sapatas")
+    ax.grid(True)
+    ax.set_aspect("equal", adjustable="box")
+
+    return fig
+
+
+def save_dxf(data: Dict[str, Any]) -> bytes:
+    """Gera um DXF (AutoCAD) com o arranjo das sapatas.
+
+    :param data: Dicionário com as chaves: 'label', 'x', 'y', 'L x', 'L y'.
+    :return: Conteúdo binário do arquivo DXF (pronto para `st.download_button`).
+    """
+    labels = data["label"]
+    x = data["x"]
+    y = data["y"]
+    L_x = data["L x"]
+    L_y = data["L y"]
+
+    doc = ezdxf.new(dxfversion="R2010")
+    msp = doc.modelspace()
+
+    for i in range(len(x)):
+        p1 = (x[i] - L_x[i] / 2, y[i] - L_y[i] / 2)
+        p2 = (x[i] + L_x[i] / 2, y[i] - L_y[i] / 2)
+        p3 = (x[i] + L_x[i] / 2, y[i] + L_y[i] / 2)
+        p4 = (x[i] - L_x[i] / 2, y[i] + L_y[i] / 2)
+
+        msp.add_line(p1, p2)
+        msp.add_line(p2, p3)
+        msp.add_line(p3, p4)
+        msp.add_line(p4, p1)
+
+        msp.add_point((x[i], y[i]))
+        msp.add_text(str(labels[i]), dxfattribs={"height": 0.2}).set_dxf_attrib("insert", (x[i], y[i]))
+
+    temp_file_path = tempfile.NamedTemporaryFile(delete=False, suffix=".dxf").name
+    doc.saveas(temp_file_path)
+
+    with open(temp_file_path, "rb") as file:
+        return file.read()
+
+
+def build_plot_payload(df_input: pd.DataFrame, dados_final: pd.DataFrame) -> Dict[str, Any]:
+    """Monta o payload de plot/export a partir do DF de entrada e do DF final da otimização.
+
+    :param df_input: DataFrame lido do Excel (precisa conter 'xg (m)' e 'yg (m)').
+    :param dados_final: DataFrame com dimensões finais (precisa conter 'h_x (m)' e 'h_y (m)').
+    :return: Dicionário no formato esperado por `plot_data` e `save_dxf`.
+    """
+    if "xg (m)" not in df_input.columns or "yg (m)" not in df_input.columns:
+        raise KeyError("Colunas 'xg (m)' e/ou 'yg (m)' não encontradas na planilha de entrada.")
+
+    if "h_x (m)" not in dados_final.columns or "h_y (m)" not in dados_final.columns:
+        raise KeyError("Colunas 'h_x (m)' e/ou 'h_y (m)' não encontradas no resultado final.")
+
+    n = min(len(df_input), len(dados_final))
+
+    labels = [f"S{i+1}" for i in range(n)]
+
+    return {
+        "label": labels,
+        "x": df_input.loc[: n - 1, "xg (m)"].astype(float).tolist(),
+        "y": df_input.loc[: n - 1, "yg (m)"].astype(float).tolist(),
+        "L x": dados_final.loc[: n - 1, "h_x (m)"].astype(float).tolist(),
+        "L y": dados_final.loc[: n - 1, "h_y (m)"].astype(float).tolist(),
+    }
+
 # --- 1. FUNÇÃO DE TRADUÇÃO ---
 def obter_textos():
     return {
@@ -201,3 +314,23 @@ if st.session_state.get('calculo_realizado'):
             file_name="otimizacao_fundacao.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+        st.divider()
+        st.subheader("🗺️ Arranjo das Sapatas")
+
+        try:
+            payload = build_plot_payload(df, st.session_state["dados_final_df"])
+            fig = plot_data(payload)
+            st.pyplot(fig, use_container_width=True)
+
+            dxf_bytes = save_dxf(payload)
+            st.download_button(
+                label="📥 Baixar Arranjo (DXF)",
+                data=dxf_bytes,
+                file_name="arranjo_sapatas.dxf",
+                mime="application/dxf",
+            )
+
+        except Exception as e:
+            st.warning("Não foi possível gerar a plotagem/arquivo DXF com os dados atuais.")
+            st.exception(e)
